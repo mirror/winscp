@@ -87,6 +87,7 @@ void __fastcall TPreferencesDialog::LoadConfiguration()
   BOOLPROP(ConfirmOverwriting);
   BOOLPROP(ConfirmDeleting);
   BOOLPROP(ConfirmClosingSession);
+  BOOLPROP(UseLocationProfiles);
   #undef BOOLPROP
 
   if (WinConfiguration->DDTemporaryDirectory.IsEmpty())
@@ -136,7 +137,7 @@ void __fastcall TPreferencesDialog::LoadConfiguration()
   ExplorerSheet->TabVisible = WinConfiguration->ExpertMode;
   CommanderSheet->TabVisible = WinConfiguration->ExpertMode;
   GeneralSheet->TabVisible = (PreferencesMode != pmLogin);
-  EditorSheet->TabVisible = WinConfiguration->ExpertMode;
+  EditorSheet->TabVisible = WinConfiguration->ExpertMode && !WinConfiguration->DisableOpenEdit;
 
   StorageGroup->Visible = WinConfiguration->ExpertMode;
   RandomSeedFileLabel->Visible = WinConfiguration->ExpertMode;
@@ -168,6 +169,7 @@ void __fastcall TPreferencesDialog::SaveConfiguration()
     BOOLPROP(ConfirmOverwriting);
     BOOLPROP(ConfirmDeleting);
     BOOLPROP(ConfirmClosingSession);
+    BOOLPROP(UseLocationProfiles);
     #undef BOOLPROP
 
     if (DDSystemTemporaryDirectoryButton->Checked)

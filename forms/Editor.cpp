@@ -2,8 +2,6 @@
 #include <vcl.h>        
 #pragma hdrstop
 
-#include <assert.h>
-
 #include "Editor.h"
 #include "WinInterface.h"
 #include "TextsWin.h"
@@ -243,19 +241,17 @@ void __fastcall TEditorForm::UpdateControls()
       ((int)FCaretPos.y+1, Count));
     StatusBar->Panels->Items[1]->Text = FMTLOAD(EDITOR_COLUMN_STATUS,
       ((int)FCaretPos.x+1));
+    AnsiString Character;
     if (FCaretPos.y >= 0 && FCaretPos.y < EditorMemo->Lines->Count)
     {
       AnsiString Line = EditorMemo->Lines->Strings[FCaretPos.y];
       if (FCaretPos.x+1 <= Line.Length())
       {
-        StatusBar->Panels->Items[2]->Text = FMTLOAD(EDITOR_CHARACTER_STATUS,
+        Character = FMTLOAD(EDITOR_CHARACTER_STATUS,
           ((int)Line[FCaretPos.x+1], (int)Line[FCaretPos.x+1]));
       }
-      else
-      {
-        StatusBar->Panels->Items[2]->Text = "";
-      }
     }
+    StatusBar->Panels->Items[2]->Text = Character;
   }
   StatusBar->Panels->Items[3]->Text =
     (EditorMemo->Modified ? LoadStr(EDITOR_MODIFIED) : AnsiString(""));

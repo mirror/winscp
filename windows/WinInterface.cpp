@@ -13,6 +13,7 @@
 
 #include "WinInterface.h"
 #include "WinConfiguration.h"
+#include "TerminalManager.h"
 
 #define mrResume (mrYesToAll    + 1)
 #define mrCustom (mrResume  + 1)
@@ -48,7 +49,11 @@ void __fastcall ShowExtendedException(Exception * E, TObject * Sender)
         {
           if (FatalExceptionMessageDialog(E, Type) == qaRetry)
           {
-            ReconnectTerminal();
+            TTerminalManager::Instance()->ReconnectActiveTerminal();
+          }
+          else
+          {
+            TTerminalManager::Instance()->FreeActiveTerminal();
           }
         }
         else
@@ -68,15 +73,15 @@ void __fastcall ShowExtendedException(Exception * E, TObject * Sender)
 //---------------------------------------------------------------------------
 void __fastcall HandleExtendedException(Exception * E, TObject* /*Sender*/)
 {
-  if (CurrentSSH)
+  if (TTerminalManager::Instance()->ActiveTerminal)
   {
-    CurrentSSH->Log->AddException(E);
+    TTerminalManager::Instance()->ActiveTerminal->Log->AddException(E);
   }
 
-  if (E->InheritsFrom(__classid(EFatal)))
+  /*if (E->InheritsFrom(__classid(EFatal)))
   {
     Application->Terminate();
-  }
+  }*/
 }
 //---------------------------------------------------------------------------
 TForm * CreateMessageDialogEx(const AnsiString Msg, TQueryType Type,
@@ -221,22 +226,6 @@ int ExecuteMessageDialog(TForm * Dialog, int Answers, int Params)
         Answer = qaIgnore;
       }
       break;
-
-    /*case mrHelp:
-      if (Answers & qaResume)
-      {
-        Answer = qaResult;
-      }
-      else if (Answers & qaCustom)
-      {
-        Answer = qaCustom;
-      }
-      else
-      {
-        assert(false);
-        Answer = qaCustom;
-      }
-      break;*/
   }
 
   if (Params & mpNeverAskAgainCheck)
@@ -432,7 +421,38 @@ int __fastcall FatalExceptionMessageDialog(Exception * E,
   return Result;
 }
 //---------------------------------------------------------------------------
-int GetSessionPassword(AnsiString Prompt, AnsiString & Password)
+int __fastcall GetSessionPassword(AnsiString Prompt, AnsiString & Password)
 {
   return DoPasswordDialog(Prompt, Password);
 }
+//---------------------------------------------------------------------------
+void __fastcall Busy(bool Start)
+{
+  static int Busy = 0;
+  static TCursor PrevCursor;
+  if (Start)
+  {
+    if (!Busy)
+    {
+      PrevCursor = Screen->Cursor;
+      Screen->Cursor = crHourGlass;
+    }
+    Busy++;
+    assert(Busy < 10);
+  }
+  else
+  {
+    assert(Busy > 0);
+    Busy--;
+    if (!Busy)
+    {
+      Screen->Cursor = PrevCursor;
+    }
+  }
+}
+//---------------------------------------------------------------------------
+AnsiString __fastcall SshVersionString()
+{
+  return FORMAT("WinSCP-release-%s", (Configuration->Version));
+}
+

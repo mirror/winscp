@@ -6,8 +6,6 @@
 #include "FileBuffer.h"
 #include "HierarchicalStorage.h"
 //---------------------------------------------------------------------------
-enum TOperationSide { osLocal, osRemote, osCurrent };
-//---------------------------------------------------------------------------
 #define SET_CONFIG_PROPERTY(PROPERTY) \
   if (PROPERTY != value) { F ## PROPERTY = value; Changed(); }
 //---------------------------------------------------------------------------
@@ -34,6 +32,7 @@ private:
   TVSFixedFileInfo *__fastcall GetFixedApplicationInfo();
   void * __fastcall GetApplicationInfo();
   virtual AnsiString __fastcall GetVersionStr();
+  virtual AnsiString __fastcall GetVersion();
   AnsiString __fastcall GetStoredSessionsSubKey();
   AnsiString __fastcall GetPuttySessionsKey();
   AnsiString __fastcall GetPuttyRegistryStorageKey();
@@ -71,12 +70,14 @@ protected:
   virtual void __fastcall SaveSpecial(THierarchicalStorage * Storage);
   virtual void __fastcall LoadSpecial(THierarchicalStorage * Storage);
   virtual AnsiString __fastcall GetDefaultKeyFile();
+  virtual void __fastcall ModifyAll();
+
 public:
   __fastcall TConfiguration();
   __fastcall ~TConfiguration();
   virtual void __fastcall Default();
-  void __fastcall Load();
-  void __fastcall Save();
+  virtual void __fastcall Load();
+  virtual void __fastcall Save();
   void __fastcall CleanupConfiguration();
   void __fastcall CleanupIniFile();
   void __fastcall CleanupHostKeys();
@@ -100,6 +101,7 @@ public:
   __property bool RandomSeedSave  = { read=FRandomSeedSave, write=FRandomSeedSave };
   __property TEOLType LocalEOLType = { read = GetLocalEOLType };
   __property AnsiString VersionStr  = { read=GetVersionStr };
+  __property AnsiString Version  = { read=GetVersion };
   __property bool Logging  = { read=FLogging, write=SetLogging };
   __property AnsiString LogFileName  = { read=FLogFileName, write=SetLogFileName };
   __property bool LogToFile  = { read=GetLogToFile, write=SetLogToFile };

@@ -23,6 +23,7 @@ TCustomScpExplorerForm * __fastcall CreateScpExplorer()
     Application->CreateForm(__classid(TScpExplorerForm), &ScpExplorer);
   else
     Application->CreateForm(__classid(TScpCommanderForm), &ScpExplorer);
+  ScpExplorer->Icon->Assign(Application->Icon);
   return ScpExplorer;
 }
 //---------------------------------------------------------------------------

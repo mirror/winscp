@@ -1,6 +1,6 @@
-object SaveSessionDialog: TSaveSessionDialog
-  Left = 342
-  Top = 232
+object ComboInputDialog: TComboInputDialog
+  Left = 403
+  Top = 281
   BorderStyle = bsDialog
   Caption = 'Save session as'
   ClientHeight = 86
@@ -9,19 +9,18 @@ object SaveSessionDialog: TSaveSessionDialog
   ParentFont = True
   OldCreateOrder = True
   Position = poOwnerFormCenter
-  OnCloseQuery = FormCloseQuery
   DesignSize = (
     269
     86)
   PixelsPerInch = 96
   TextHeight = 13
-  object Label1: TLabel
+  object InputLabel: TLabel
     Left = 8
     Top = 8
     Width = 80
     Height = 13
     Caption = '&Save session as:'
-    FocusControl = SessionNameBox
+    FocusControl = InputCombo
   end
   object OKButton: TButton
     Left = 100
@@ -45,7 +44,7 @@ object SaveSessionDialog: TSaveSessionDialog
     ModalResult = 2
     TabOrder = 2
   end
-  object SessionNameBox: TComboBox
+  object InputCombo: TComboBox
     Left = 8
     Top = 24
     Width = 255
@@ -54,6 +53,6 @@ object SaveSessionDialog: TSaveSessionDialog
     ItemHeight = 13
     MaxLength = 255
     TabOrder = 0
-    OnChange = SessionNameBoxChange
+    OnChange = InputComboChange
   end
 end

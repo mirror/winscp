@@ -66,6 +66,9 @@ struct TEditorConfiguration {
 };
 #undef C
 //---------------------------------------------------------------------------
+class TBookmarks;
+class TBookmarkList;
+//---------------------------------------------------------------------------
 class TWinConfiguration : public TGUIConfiguration
 {
 private:
@@ -89,17 +92,19 @@ private:
   bool FShowInaccesibleDirectories;
   bool FShowAdvancedLoginOptions;
   bool FConfirmDeleting;
+  bool FUseLocationProfiles;
   AnsiString FDDTemporaryDirectory;
   bool FDDWarnLackOfTempSpace;
   bool FConfirmClosingSession;
   double FDDWarnLackOfTempSpaceRatio;
   AnsiString FTemporarySessionFile;
   AnsiString FTemporaryKeyFile;
-  TStrings * FBookmarks[2];
+  TBookmarks * FBookmarks;
   TStrings * FCommandsHistory;
   TEditorConfiguration FEditor;
   bool FEmbeddedSessions;
   bool FExpertMode;
+  bool FDisableOpenEdit;
 
   void __fastcall SetCopyOnDoubleClick(bool value);
   void __fastcall SetCopyOnDoubleClickConfirmation(bool value);
@@ -119,12 +124,13 @@ private:
   void __fastcall SetShowInaccesibleDirectories(bool value);
   void __fastcall SetShowAdvancedLoginOptions(bool value);
   void __fastcall SetConfirmDeleting(bool value);
+  void __fastcall SetUseLocationProfiles(bool value);
   void __fastcall SetDDTemporaryDirectory(AnsiString value);
   void __fastcall SetDDWarnLackOfTempSpace(bool value);
   void __fastcall SetConfirmClosingSession(bool value);
   void __fastcall SetDDWarnLackOfTempSpaceRatio(double value);
-  void __fastcall SetBookmarks(TOperationSide Side, AnsiString Key, TStrings * value);
-  TStrings * __fastcall GetBookmarks(TOperationSide Side, AnsiString Key);
+  void __fastcall SetBookmarks(AnsiString Key, TBookmarkList * value);
+  TBookmarkList * __fastcall GetBookmarks(AnsiString Key);
   void __fastcall SetAutoStartSession(AnsiString value);
   void __fastcall SetCommandsHistory(TStrings * value);
   void __fastcall SetExpertMode(bool value);
@@ -132,17 +138,18 @@ private:
 
 protected:
   virtual TStorage __fastcall GetStorage();
-  void __fastcall FreeBookmarks();
   bool __fastcall DumpResourceToFile(
     const AnsiString ResName, const AnsiString FileName);
   virtual void __fastcall SaveSpecial(THierarchicalStorage * Storage);
   virtual void __fastcall LoadSpecial(THierarchicalStorage * Storage);
   virtual AnsiString __fastcall GetDefaultKeyFile();
+  virtual void __fastcall ModifyAll();
 
 public:
   __fastcall TWinConfiguration();
   __fastcall ~TWinConfiguration();
   virtual void __fastcall Default();
+  virtual void __fastcall Load();
   void __fastcall RestoreForm(AnsiString Data, TCustomForm * Form);
   AnsiString __fastcall StoreForm(TCustomForm * Form);
   void __fastcall ClearTemporaryLoginData();
@@ -170,14 +177,16 @@ public:
   __property AnsiString LogWindowParams = { read = FLogWindowParams, write = SetLogWindowParams };
   __property AnsiString MaskHistory = { read = FMaskHistory, write = SetMaskHistory };
   __property bool ConfirmDeleting = { read = FConfirmDeleting, write = SetConfirmDeleting};
+  __property bool UseLocationProfiles = { read = FUseLocationProfiles, write = SetUseLocationProfiles};
   __property AnsiString DDTemporaryDirectory  = { read=FDDTemporaryDirectory, write=SetDDTemporaryDirectory };
   __property bool DDWarnLackOfTempSpace  = { read=FDDWarnLackOfTempSpace, write=SetDDWarnLackOfTempSpace };
   __property bool ConfirmClosingSession  = { read=FConfirmClosingSession, write=SetConfirmClosingSession };
   __property double DDWarnLackOfTempSpaceRatio  = { read=FDDWarnLackOfTempSpaceRatio, write=SetDDWarnLackOfTempSpaceRatio };
-  __property TStrings * Bookmarks[TOperationSide Side][AnsiString Key] = { read = GetBookmarks, write = SetBookmarks };
+  __property TBookmarkList * Bookmarks[AnsiString Key] = { read = GetBookmarks, write = SetBookmarks };
   __property TStrings * CommandsHistory = { read = FCommandsHistory, write = SetCommandsHistory };
   __property bool EmbeddedSessions = { read = FEmbeddedSessions };
   __property bool ExpertMode = { read = FExpertMode, write = SetExpertMode };
+  __property bool DisableOpenEdit = { read = FDisableOpenEdit };
 };
 //---------------------------------------------------------------------------
 #define WinConfiguration ((TWinConfiguration *) Configuration)

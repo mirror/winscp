@@ -8,11 +8,13 @@
 //---------------------------------------------------------------------------
 TConfiguration * __fastcall CreateConfiguration();
 
-void __fastcall ShowExtendedException(Exception* E, TObject* Sender = NULL);
-void __fastcall HandleExtendedException(Exception* E, TObject* Sender = NULL);
+void __fastcall ShowExtendedException(Exception * E, TObject * Sender = NULL);
+void __fastcall HandleExtendedException(Exception * E, TObject * Sender = NULL);
 
-Integer GetSessionPassword(AnsiString Prompt, AnsiString &Password);
+int __fastcall GetSessionPassword(AnsiString Prompt, AnsiString & Password);
 AnsiString __fastcall GetRegistryKey();
+void __fastcall Busy(bool Start);
+AnsiString __fastcall SshVersionString();
 
 const int qaYes =      0x0001;
 const int qaNo =       0x0002;

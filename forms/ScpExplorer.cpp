@@ -57,6 +57,7 @@ void __fastcall TScpExplorerForm::RestoreParams()
 {
   assert(Configuration);
 
+  // called later once again after menu font is updated (see FormShow)
   SetCoolBandsMinWidth(TopCoolBar);
 
   TCustomScpExplorerForm::RestoreParams();
@@ -109,6 +110,9 @@ void __fastcall TScpExplorerForm::FormShow(TObject * /*Sender*/)
 {
   FLastDirView = RemoteDirView; // Only dir view
   RemoteDirView->SetFocus();
+
+  // called for second time after menu font was updated (see also RestoreParams)
+  SetCoolBandsMinWidth(TopCoolBar);
 }
 //---------------------------------------------------------------------------
 bool __fastcall TScpExplorerForm::AllowedAction(TAction * Action, TActionAllowed Allowed)
@@ -123,6 +127,14 @@ bool __fastcall TScpExplorerForm::AllowedAction(TAction * Action, TActionAllowed
   #undef FLAG
 }
 //---------------------------------------------------------------------------
+TControl * __fastcall TScpExplorerForm::GetComponent(Byte Component)
+{
+  switch (Component) {
+    case fcSessionCombo: return SessionCombo;
+    case fcMenuToolBar: return MenuToolBar;
+    default: return TCustomScpExplorerForm::GetComponent(Component);
+  }
+}
 
 
 

@@ -102,6 +102,8 @@ THierarchicalStorage * TConfiguration::CreateScpStorage(bool /*SessionList*/)
         KEY(Integer, CopyParam.TransferMode); \
         KEY(Integer, CopyParam.ResumeSupport); \
         KEY(Int64,   CopyParam.ResumeThreshold); \
+        KEY(Bool,    CopyParam.ReplaceInvalidChars); \
+        KEY(String,  CopyParam.LocalInvalidChars); \
       ); \
       BLOCK("Logging", CANCREATE, \
         KEY(Bool,    Logging); \
@@ -286,6 +288,23 @@ AnsiString __fastcall TConfiguration::GetVersionStr()
   }
 }
 //---------------------------------------------------------------------------
+AnsiString __fastcall TConfiguration::GetVersion()
+{
+  try
+  {
+    AnsiString Result;
+    Result = FORMAT("%d.%d.%d.%d", (HIWORD(FixedApplicationInfo->dwFileVersionMS),
+      LOWORD(FixedApplicationInfo->dwFileVersionMS),
+      HIWORD(FixedApplicationInfo->dwFileVersionLS),
+      LOWORD(FixedApplicationInfo->dwFileVersionLS)));
+    return Result;
+  }
+  catch (Exception &E)
+  {
+    throw ExtException(&E, "Can't get application version");
+  }
+}
+//---------------------------------------------------------------------------
 AnsiString __fastcall TConfiguration::GetRegistryStorageKey()
 {
   return GetRegistryKey();
@@ -345,11 +364,17 @@ AnsiString __fastcall TConfiguration::GetRootKeyStr()
 //---------------------------------------------------------------------------
 void __fastcall TConfiguration::SetStorage(TStorage value)
 {
-  if(FStorage != value)
+  if (FStorage != value)
   {
     FStorage = value;
+    ModifyAll();
     Save();
   }
+}
+//---------------------------------------------------------------------------
+void __fastcall TConfiguration::ModifyAll()
+{
+  // nothing
 }
 //---------------------------------------------------------------------------
 TStorage __fastcall TConfiguration::GetStorage()

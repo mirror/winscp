@@ -3,6 +3,7 @@
 #pragma hdrstop
 #include "WinConfiguration.h"
 #include "Common.h"
+#include "Bookmarks.h"
 #include <stdio.h>
 //---------------------------------------------------------------------------
 #define CSIDL_PERSONAL                  0x0005        // My Documents
@@ -13,8 +14,7 @@ const char ShellCommandFileNamePattern[] = "!.!";
 //---------------------------------------------------------------------------
 __fastcall TWinConfiguration::TWinConfiguration(): TGUIConfiguration()
 {
-  FBookmarks[osLocal] = new TStringList();
-  FBookmarks[osRemote] = new TStringList();
+  FBookmarks = new TBookmarks();
   FCommandsHistory = new TStringList();
   Default();
 }
@@ -24,9 +24,7 @@ __fastcall TWinConfiguration::~TWinConfiguration()
   if (!FTemporarySessionFile.IsEmpty()) DeleteFile(FTemporarySessionFile);
   ClearTemporaryLoginData();
 
-  FreeBookmarks();
-  delete FBookmarks[osLocal];
-  delete FBookmarks[osRemote];
+  delete FBookmarks;
   delete FCommandsHistory;
 }
 //---------------------------------------------------------------------------
@@ -55,6 +53,7 @@ void __fastcall TWinConfiguration::Default()
   FDimmHiddenFiles = true;
   FAutoStartSession = "";
   FExpertMode = true;
+  FUseLocationProfiles = true;
 
   FEditor.Editor = edInternal;
   FEditor.ExternalEditor = "notepad.exe";
@@ -74,7 +73,7 @@ void __fastcall TWinConfiguration::Default()
 
   FScpExplorer.WindowParams = "-1;-1;600;400;0";
   FScpExplorer.DirViewParams = "0;1;0|150,1;70,1;101,1;79,1;62,1;55,1|0;1;2;3;4;5";
-  FScpExplorer.CoolBarLayout = "6,0,1,196,6;5,1,0,104,5;4,0,0,117,4;3,0,1,127,3;2,1,0,373,2;1,1,1,281,1;0,1,1,766,0";
+  FScpExplorer.CoolBarLayout = "6,0,1,196,6;2,1,0,531,5;5,1,1,103,4;3,0,1,127,3;4,1,0,636,2;1,1,1,636,1;0,1,1,636,0";
   FScpExplorer.StatusBar = true;
   AnsiString PersonalFolder;
   SpecialFolderLocation(CSIDL_PERSONAL, PersonalFolder);
@@ -87,7 +86,7 @@ void __fastcall TWinConfiguration::Default()
   FScpCommander.StatusBar = true;
   FScpCommander.ToolBar = true;
   FScpCommander.ExplorerStyleSelection = false;
-  FScpCommander.CoolBarLayout = "5,1,0,655,6;6,1,0,311,5;4,0,0,204,4;3,1,0,137,3;2,1,0,68,2;1,1,1,127,1;0,1,1,655,0";
+  FScpCommander.CoolBarLayout = "5,0,0,219,6;1,1,0,319,5;4,0,0,227,4;3,1,0,136,3;6,1,0,121,2;2,1,1,67,1;0,1,1,649,0";
   FScpCommander.CurrentPanel = osLocal;
   FScpCommander.RemotePanel.DirViewParams = "0;1;0|150,1;70,1;101,1;79,1;62,1;55,0|0;1;2;3;4;5";
   FScpCommander.RemotePanel.StatusBar = true;
@@ -96,6 +95,33 @@ void __fastcall TWinConfiguration::Default()
   FScpCommander.LocalPanel.StatusBar = true;
   FScpCommander.LocalPanel.CoolBarLayout = "2,1,0,137,2;1,1,0,86,1;0,1,1,91,0";
 
+}
+//---------------------------------------------------------------------------
+void __fastcall TWinConfiguration::Load()
+{
+  TGUIConfiguration::Load();
+
+  TRegistry * Registry = new TRegistry();
+  try
+  {
+    Registry->Access = KEY_READ;
+    Registry->RootKey = HKEY_LOCAL_MACHINE;
+    FDisableOpenEdit = false;
+    if (Registry->OpenKey(RegistryStorageKey, false))
+    {
+      try
+      {
+        FDisableOpenEdit = Registry->ReadBool("DisableOpenEdit");
+      }
+      catch(...)
+      {
+      }
+    }
+  }
+  __finally
+  {
+    delete Registry;
+  }
 }
 //---------------------------------------------------------------------------
 TStorage __fastcall TWinConfiguration::GetStorage()
@@ -116,6 +142,12 @@ TStorage __fastcall TWinConfiguration::GetStorage()
     }
   }
   return TGUIConfiguration::GetStorage();
+}
+//---------------------------------------------------------------------------
+void __fastcall TWinConfiguration::ModifyAll()
+{
+  TGUIConfiguration::ModifyAll();
+  FBookmarks->ModifyAll(true);
 }
 //---------------------------------------------------------------------------
 THierarchicalStorage * TWinConfiguration::CreateScpStorage(bool SessionList)
@@ -156,6 +188,7 @@ THierarchicalStorage * TWinConfiguration::CreateScpStorage(bool SessionList)
     KEY(Bool,     ConfirmDeleting); \
     KEY(Bool,     ConfirmClosingSession); \
     KEY(String,   AutoStartSession); \
+    KEY(Bool,     UseLocationProfiles); \
   ); \
   BLOCK("Interface\\Editor", CANCREATE, \
     KEY(Integer,  Editor.Editor); \
@@ -213,47 +246,16 @@ void __fastcall TWinConfiguration::SaveSpecial(THierarchicalStorage * Storage)
   REGCONFIG(true);
   #undef KEY
 
-  Storage->RecursiveDeleteSubKey("Bookmarks");
   if (Storage->OpenSubKey("Bookmarks", true))
   {
-    for (int Side = 0; Side < 2; Side++)
-    {
-      if (Storage->OpenSubKey(Side == osLocal ? "Local" : "Remote", true))
-      {
-        for (int Index = 0; Index < FBookmarks[Side]->Count; Index++)
-        {
-          if (FBookmarks[Side]->Objects[Index] &&
-              ((TStrings*)FBookmarks[Side]->Objects[Index])->Count &&
-              Storage->OpenSubKey(FBookmarks[Side]->Strings[Index], true))
-          {
-            Storage->WriteValues((TStrings*)FBookmarks[Side]->Objects[Index]);
-            Storage->CloseSubKey();
-          }
-        }
-        Storage->CloseSubKey();
-      }
-    }
+    FBookmarks->Save(Storage);
+
     Storage->CloseSubKey();
   }
   if (Storage->OpenSubKey("Commands", true))
   {
     Storage->WriteValues(FCommandsHistory);
     Storage->CloseSubKey();
-  }
-}
-//---------------------------------------------------------------------------
-void __fastcall TWinConfiguration::FreeBookmarks()
-{
-  for (int Side = 0; Side < 2; Side++)
-  {
-    for (int Index = 0; Index < FBookmarks[Side]->Count; Index++)
-    {
-      if (FBookmarks[Side]->Objects[Index])
-      {
-        delete FBookmarks[Side]->Objects[Index];
-      }
-    }
-    FBookmarks[Side]->Clear();
   }
 }
 //---------------------------------------------------------------------------
@@ -268,35 +270,9 @@ void __fastcall TWinConfiguration::LoadSpecial(THierarchicalStorage * Storage)
   #pragma warn +eas
   #undef KEY
 
-  FreeBookmarks();
   if (Storage->OpenSubKey("Bookmarks", false))
   {
-    for (int Side = 0; Side < 2; Side++)
-    {
-      if (Storage->OpenSubKey(Side == osLocal ? "Local" : "Remote", false))
-      {
-        TStrings * BookmarkKeys = new TStringList();
-        try
-        {
-          Storage->GetSubKeyNames(BookmarkKeys);
-          for (int Index = 0; Index < BookmarkKeys->Count; Index++)
-          {
-            if (Storage->OpenSubKey(BookmarkKeys->Strings[Index], false))
-            {
-              TStrings * Bookmarks = new TStringList();
-              Storage->ReadValues(Bookmarks);
-              FBookmarks[Side]->AddObject(BookmarkKeys->Strings[Index], Bookmarks);
-              Storage->CloseSubKey();
-            }
-          }
-        }
-        __finally
-        {
-          delete BookmarkKeys;
-        }
-        Storage->CloseSubKey();
-      }
-    }
+    FBookmarks->Load(Storage);
     Storage->CloseSubKey();
   }
   FCommandsHistory->Clear();
@@ -495,6 +471,11 @@ void __fastcall TWinConfiguration::SetConfirmDeleting(bool value)
   SET_CONFIG_PROPERTY(ConfirmDeleting);
 }
 //---------------------------------------------------------------------------
+void __fastcall TWinConfiguration::SetUseLocationProfiles(bool value)
+{
+  SET_CONFIG_PROPERTY(UseLocationProfiles);
+}
+//---------------------------------------------------------------------------
 void __fastcall TWinConfiguration::SetConfirmClosingSession(bool value)
 {
   SET_CONFIG_PROPERTY(ConfirmClosingSession);
@@ -531,35 +512,16 @@ void __fastcall TWinConfiguration::SetCommandsHistory(TStrings * value)
   FCommandsHistory->Assign(value);
 }
 //---------------------------------------------------------------------------
-void __fastcall TWinConfiguration::SetBookmarks(TOperationSide Side, AnsiString Key,
-  TStrings * value)
+void __fastcall TWinConfiguration::SetBookmarks(AnsiString Key,
+  TBookmarkList * value)
 {
-  assert(FBookmarks[Side]);
-  int Index;
-  Key = AnsiLowerCase(Key);
-  Index = FBookmarks[Side]->IndexOf(Key);
-  TStrings * NewBookmarks = new TStringList();
-  NewBookmarks->Assign(value);
-  if (Index >= 0)
-  {
-    if (FBookmarks[Side]->Objects[Index])
-    {
-      delete FBookmarks[Side]->Objects[Index];
-    }
-    FBookmarks[Side]->Objects[Index] = NewBookmarks;
-  }
-  else
-  {
-    FBookmarks[Side]->AddObject(Key, NewBookmarks);
-  };
+  FBookmarks->Bookmarks[Key] = value;
   Changed();
 }
 //---------------------------------------------------------------------------
-TStrings * __fastcall TWinConfiguration::GetBookmarks(TOperationSide Side, AnsiString Key)
+TBookmarkList * __fastcall TWinConfiguration::GetBookmarks(AnsiString Key)
 {
-  assert(FBookmarks[Side]);
-  int Index = FBookmarks[Side]->IndexOf(AnsiLowerCase(Key));
-  return Index >= 0 ? (TStrings*)FBookmarks[Side]->Objects[Index] : NULL;
+  return FBookmarks->Bookmarks[Key];
 }
 //---------------------------------------------------------------------------
 void TWinConfiguration::ReformatFileNameCommand(AnsiString & Command)

@@ -12,17 +12,17 @@
 
 #include <VCLCommon.h>
 #include "WinConfiguration.h"
+#include "TerminalManager.h"
 //---------------------------------------------------------------------
 #pragma link "HistoryComboBox"
 #pragma link "PathLabel"
 #pragma resource "*.dfm"
 //---------------------------------------------------------------------
-void __fastcall DoConsoleDialog(TTerminal * Terminal)
+void __fastcall DoConsoleDialog()
 {
   TConsoleDialog * Dialog = new TConsoleDialog(Application);
   try
   {
-    Dialog->Terminal = Terminal;
     Dialog->Execute();
   }
   __finally
@@ -61,18 +61,24 @@ void __fastcall TConsoleDialog::SetTerminal(TTerminal * value)
   {
     if (FTerminal)
     {
+      assert(FTerminal->OnChangeDirectory == DoChangeDirectory);
       FTerminal->OnChangeDirectory = FOldChangeDirectory;
+      assert(FTerminal->Log->OnAddLine == DoLogAddLine);
       FTerminal->Log->OnAddLine = FOldLogAddLine;
       FOldChangeDirectory = NULL;
       FOldLogAddLine = NULL;
+      FTerminal->EndTransaction();
     }
     FTerminal = value;
     if (FTerminal)
     {
+      OutputMemo->Clear();
       FOldChangeDirectory = FTerminal->OnChangeDirectory;
       FTerminal->OnChangeDirectory = DoChangeDirectory;
       FOldLogAddLine = FTerminal->Log->OnAddLine;
       FTerminal->Log->OnAddLine = DoLogAddLine;
+      // avoid reloading directory after each change of current directory from console
+      FTerminal->BeginTransaction();
     }
     UpdateControls();
   }
@@ -92,28 +98,49 @@ void __fastcall TConsoleDialog::UpdateControls()
 //---------------------------------------------------------------------
 bool __fastcall TConsoleDialog::Execute()
 {
+  TTerminalManager * Manager = TTerminalManager::Instance();
+  TNotifyEvent POnChangeTerminal = Manager->OnChangeTerminal;
+  Manager->OnChangeTerminal = TerminalManagerChangeTerminal;
   try
   {
-    // avoid reloading directory after each change of current directory from console
+    Terminal = TTerminalManager::Instance()->ActiveTerminal;
     if (FTerminal)
     {
-      FTerminal->BeginTransaction();
       if (WinConfiguration->CommandsHistory->Count)
+      {
         CommandEdit->Items = WinConfiguration->CommandsHistory;
+      }
       else
+      {
         CommandEdit->Items->Clear();
+      }
     }
     ShowModal();
   }
   __finally
   {
+    assert(Manager->OnChangeTerminal == TerminalManagerChangeTerminal);
+    Manager->OnChangeTerminal = POnChangeTerminal;
     if (FTerminal)
     {
-      FTerminal->EndTransaction();
       WinConfiguration->CommandsHistory = CommandEdit->Items;
     }
   }
   return true;
+}
+//---------------------------------------------------------------------------
+void __fastcall TConsoleDialog::TerminalManagerChangeTerminal(TObject * /*Sender*/)
+{
+  TTerminal * NewTerminal = TTerminalManager::Instance()->ActiveTerminal;
+  if (!NewTerminal || NewTerminal->IsCapable[fcAnyCommand])
+  {
+    Terminal = TTerminalManager::Instance()->ActiveTerminal;
+  }
+  else
+  {
+    Terminal = NULL;
+    Close();
+  }
 }
 //---------------------------------------------------------------------------
 void __fastcall TConsoleDialog::ExecuteButtonClick(TObject * /*Sender*/)
