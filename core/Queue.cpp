@@ -916,7 +916,7 @@ void __fastcall TTerminalItem::OperationProgress(
 //---------------------------------------------------------------------------
 __fastcall TQueueItem::TQueueItem() :
   FStatus(qsPending), FTerminalItem(NULL), FSection(NULL), FProgressData(NULL),
-  FQueue(NULL), FInfo(NULL)
+  FQueue(NULL), FInfo(NULL), FCompleteEvent(INVALID_HANDLE_VALUE)
 {
   FSection = new TCriticalSection();
   FInfo = new TInfo();
@@ -924,6 +924,11 @@ __fastcall TQueueItem::TQueueItem() :
 //---------------------------------------------------------------------------
 __fastcall TQueueItem::~TQueueItem()
 {
+  if (FCompleteEvent != INVALID_HANDLE_VALUE)
+  {
+    SetEvent(FCompleteEvent);
+  }
+
   delete FSection;
   delete FInfo;
 }

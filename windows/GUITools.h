@@ -15,6 +15,8 @@ class TSessionData;
 bool __fastcall FindFile(AnsiString & Path);
 bool __fastcall FileExistsEx(AnsiString Path);
 bool __fastcall ExecuteShell(const AnsiString Path, const AnsiString Params);
+bool __fastcall ExecuteShell(const AnsiString Path, const AnsiString Params,
+  HANDLE & Handle);
 void __fastcall OpenSessionInPutty(TSessionData * SessionData);
 bool __fastcall SpecialFolderLocation(int PathID, AnsiString & Path);
 AnsiString __fastcall ItemsFormatString(const AnsiString SingleItemFormat,
