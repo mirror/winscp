@@ -10,6 +10,7 @@
 #include "GUITools.h"
 #include "GUIConfiguration.h"
 #include <TextsWin.h>
+#include <TextsCore.h>
 #include <ScpMain.h>
 #include <SessionData.h>
 //---------------------------------------------------------------------------
@@ -232,5 +233,17 @@ bool __fastcall DeleteDirectory(const AnsiString DirName)
   FindClose(sr);
   if (retval) retval = RemoveDir(DirName); // VCL function
   return retval;
+}
+//---------------------------------------------------------------------------
+AnsiString __fastcall TranslateExceptionMessage(const Exception * E)
+{
+  if (dynamic_cast<const EAccessViolation*>(E) != NULL)
+  {
+    return LoadStr(ACCESS_VIOLATION_ERROR);
+  }
+  else
+  {
+    return E->Message;
+  }
 }
 
