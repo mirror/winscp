@@ -39,7 +39,7 @@
     <DEBUGLIBPATH value="$(BCB)\lib\debug"/>
     <RELEASELIBPATH value="$(BCB)\lib\release"/>
     <LINKER value="ilink32"/>
-    <USERDEFINES value="OLD_DND;_DEBUG"/>
+    <USERDEFINES value="OLD_DND"/>
     <SYSDEFINES value="NO_STRICT"/>
     <MAINSOURCE value="WinSCP3.cpp"/>
     <INCLUDEPATH value="core;forms;windows;resource;components;packages\filemng;packages\dragndrop;packages\my;packages\my\filemng;$(BCB)\include;$(BCB)\include\vcl"/>
@@ -49,12 +49,11 @@
     <OTHERFILES value=""/>
   </MACROS>
   <OPTIONS>
-    <CFLAG1 value="-Od -H=$(BCB)\lib\vcl60.csm -Hc -Vx -Ve -X- -r- -a8 -b- -k -y -v -vi- -c 
-      -tW -tWM"/>
-    <PFLAGS value="  -$Y+ -$W -$O- -$A8 -v -JPHNE -M"/>
+    <CFLAG1 value="-O2 -H=$(BCB)\lib\vcl60.csm -Hc -Vx -Ve -X- -a8 -b- -k- -vi -c -tW -tWM"/>
+    <PFLAGS value="  -$Y- -$L- -$D- -$A8 -v -JPHNE -M"/>
     <RFLAGS value=""/>
-    <AFLAGS value="/mx /w2 /zi"/>
-    <LFLAGS value="-I -D&quot;&quot; -aa -Tpe -GD -x -Gn -v"/>
+    <AFLAGS value="/mx /w2 /zn"/>
+    <LFLAGS value="-I -D&quot;&quot; -aa -Tpe -GD -x -Gn"/>
     <OTHERFILES value=""/>
   </OPTIONS>
   <LINKER>
@@ -98,8 +97,8 @@ IncludeVerInfo=1
 AutoIncBuild=1
 MajorVer=3
 MinorVer=4
-Release=0
-Build=192
+Release=1
+Build=194
 Debug=0
 PreRelease=1
 Special=0
@@ -111,7 +110,7 @@ CodePage=1252
 [Version Info Keys]
 CompanyName=Martin Prikryl
 FileDescription=Windows SCP/SFTP client
-FileVersion=3.4.0.192
+FileVersion=3.4.1.194
 InternalName=winscp3
 LegalCopyright=(c) 2000-2003 Martin Prikryl
 LegalTrademarks=
