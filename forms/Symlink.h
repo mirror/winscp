@@ -22,8 +22,6 @@ __published:
   TCheckBox *SymbolicCheck;
   void __fastcall ControlChange(TObject *Sender);
   void __fastcall FormShow(TObject *Sender);
-  void __fastcall PathEditsKeyDown(TObject *Sender, WORD &Key,
-    TShiftState Shift);
 private:
   bool FAllowSymbolic;
   bool FEdit;

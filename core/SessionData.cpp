@@ -329,27 +329,19 @@ void __fastcall TSessionData::StoreToConfig(void * config)
     {
       ASCOPY(cfg->remote_cmd, Shell);
     }
-    cfg->remote_cmd_ptr = &cfg->remote_cmd[0];
-    cfg->remote_cmd_ptr2 = NULL; // no second attempt for SCPonly
   }
   else
   {
     cfg->ssh_subsys = TRUE;
     strcpy(cfg->remote_cmd, "sftp");
-    cfg->remote_cmd_ptr = &cfg->remote_cmd[0];
 
     if (FSProtocol != fsSFTPonly)
     {
       cfg->ssh_subsys2 = FALSE;
-      if (Shell.IsEmpty())
-      {
-        cfg->remote_cmd2[0] = '\0';
-      }
-      else
+      if (!Shell.IsEmpty())
       {
         ASCOPY(cfg->remote_cmd2, Shell);
       }
-      cfg->remote_cmd_ptr2 = &cfg->remote_cmd2[0];
     }
     else
     {
@@ -469,7 +461,16 @@ void __fastcall TSessionData::Load(THierarchicalStorage * Storage)
     ProxyHost = Storage->ReadString("ProxyHost", ProxyHost);
     ProxyPort = Storage->ReadInteger("ProxyPort", ProxyPort);
     ProxyUsername = Storage->ReadString("ProxyUsername", ProxyUsername);
-    FProxyPassword = Storage->ReadString("ProxyPassword", FProxyPassword);
+    if (Storage->ValueExists("ProxyPassword"))
+    {
+      // encrypt unencrypted password
+      ProxyPassword = Storage->ReadString("ProxyPassword", "");
+    }
+    else
+    {
+      // load encrypted password
+      FProxyPassword = Storage->ReadString("ProxyPasswordEnc", FProxyPassword);
+    }
     ProxyTelnetCommand = Storage->ReadStringRaw("ProxyTelnetCommand", ProxyTelnetCommand);
     ProxyDNS = TAutoSwitch((Storage->ReadInteger("ProxyDNS", (ProxyDNS + 2) % 3) + 1) % 3);
     ProxyLocalhost = Storage->ReadBool("ProxyLocalhost", ProxyLocalhost);
@@ -640,7 +641,17 @@ void __fastcall TSessionData::Save(THierarchicalStorage * Storage,
     WRITE_DATA(String, ProxyHost);
     WRITE_DATA(Integer, ProxyPort);
     WRITE_DATA(String, ProxyUsername);
-    WRITE_DATA_EX(String, "ProxyPassword", FProxyPassword, );
+    if (PuttyExport)
+    {
+      // save password unencrypted
+      WRITE_DATA(String, ProxyPassword);
+    }
+    else
+    {
+      // save password encrypted
+      WRITE_DATA_EX(String, "ProxyPasswordEnc", FProxyPassword, );
+      Storage->DeleteValue("ProxyPassword");
+    }
     WRITE_DATA(StringRaw, ProxyTelnetCommand);
     #define WRITE_DATA_CONV_FUNC(X) (((X) + 2) % 3)
     WRITE_DATA_CONV(Integer, "ProxyDNS", ProxyDNS);
@@ -1323,13 +1334,13 @@ void __fastcall TSessionData::SetProxyUsername(AnsiString value)
 //---------------------------------------------------------------------
 void __fastcall TSessionData::SetProxyPassword(AnsiString value)
 {
-  // proxy password unencrypted to maintain compatibility with Putty
+  value = EncryptPassword(value, ProxyUsername+ProxyHost);
   SET_SESSION_PROPERTY(ProxyPassword);
 }
 //---------------------------------------------------------------------
-AnsiString __fastcall TSessionData::GetProxyPassword()
+AnsiString __fastcall TSessionData::GetProxyPassword() const
 {
-  return FProxyPassword;
+  return DecryptPassword(FProxyPassword, ProxyUsername+ProxyHost);
 }
 //---------------------------------------------------------------------
 void __fastcall TSessionData::SetProxyTelnetCommand(AnsiString value)

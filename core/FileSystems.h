@@ -19,7 +19,10 @@ enum TFSCommand { fsNull = 0, fsVarValue, fsLastLine, fsFirstLine,
   fsHomeDirectory, fsUnset, fsUnalias, fsAliasGroupList, fsCreateLink, fsCopyFile, 
   fsAnyCommand, fsReadSymlink, fsChangeProperties, fsMoveFile };
 //---------------------------------------------------------------------------
-typedef void __fastcall (__closure *TLogAddLineEvent)(System::TObject* Sender, const AnsiString AddedLine);
+// Duplicated in LogMemo.h for design-time-only purposes
+enum TLogLineType {llOutput, llInput, llStdError, llMessage, llException};
+typedef void __fastcall (__closure *TLogAddLineEvent)(System::TObject* Sender,
+  TLogLineType Type, const AnsiString AddedLine);
 //---------------------------------------------------------------------------
 class TCustomFileSystem : public TObject
 {

@@ -104,8 +104,10 @@ void __fastcall TGUIConfiguration::Default()
   FErrorDialogExpanded = false;
   FContinueOnError = false;
   FConfirmCommandSession = true;
-  FSynchronizeParams = TTerminal::spDelete | TTerminal::spNoConfirmation;
-  FSynchronizeRecurse = true; 
+  FSynchronizeParams = TTerminal::spNoConfirmation;
+  FSynchronizeModeAuto = -1;
+  FSynchronizeMode = TTerminal::smRemote;
+  FSynchronizeOptions = soRecurse | soSynchronizeAsk;
   FQueueTransfersLimit = 2;
   FQueueAutoPopup = true;
   FQueueRememberPassword = false;
@@ -117,6 +119,7 @@ void __fastcall TGUIConfiguration::Default()
   FPuttySession = "WinSCP temporary session";
   FBeepOnFinish = false;
   FBeepOnFinishAfter = TDateTime(0, 0, 30, 0);
+  FSynchronizeBrowsing = false;
 }
 //---------------------------------------------------------------------------
 AnsiString __fastcall TGUIConfiguration::PropertyToKey(const AnsiString Property)
@@ -142,7 +145,9 @@ AnsiString __fastcall TGUIConfiguration::PropertyToKey(const AnsiString Property
     KEY(Bool,     ContinueOnError); \
     KEY(Bool,     ConfirmCommandSession); \
     KEY(Integer,  SynchronizeParams); \
-    KEY(Bool,     SynchronizeRecurse); \
+    KEY(Integer,  SynchronizeOptions); \
+    KEY(Integer,  SynchronizeModeAuto); \
+    KEY(Integer,  SynchronizeMode); \
     KEY(Integer,  QueueTransfersLimit); \
     KEY(Bool,     QueueAutoPopup); \
     KEY(Bool,     QueueRememberPassword); \
@@ -152,6 +157,7 @@ AnsiString __fastcall TGUIConfiguration::PropertyToKey(const AnsiString Property
     KEY(DateTime, IgnoreCancelBeforeFinish); \
     KEY(Bool,     BeepOnFinish); \
     KEY(DateTime, BeepOnFinishAfter); \
+    KEY(Bool,     SynchronizeBrowsing); \
   ); \
   BLOCK("Interface\\CopyParam", CANCREATE, \
     KEY(Bool,    CopyParam.AddXToDirectories); \
@@ -345,7 +351,7 @@ void __fastcall TGUIConfiguration::FreeResourceModule(HANDLE Instance)
   TPasLibModule * MainModule = FindModule(HInstance);
   if (Instance != MainModule->Instance)
   {
-    FreeLibrary(Instance);
+    FreeLibrary(static_cast<HMODULE>(Instance));
   }
 }
 //---------------------------------------------------------------------------

@@ -45,11 +45,12 @@ private:
   void __fastcall ExecuteCommand();
   void __fastcall SetTerminal(TTerminal * value);
   void __fastcall TerminalClose(TObject * Sender);
-  void __fastcall AddLine(AnsiString Line);
+  void __fastcall AddLine(TLogLineType Type, AnsiString Line);
 
 protected:
   void __fastcall DoChangeDirectory(TObject * Sender);
-  void __fastcall DoLogAddLine(System::TObject* Sender, const AnsiString AddedLine);
+  void __fastcall DoLogAddLine(System::TObject* Sender, TLogLineType Type,
+    const AnsiString AddedLine);
   void __fastcall UpdateControls();
   virtual void __fastcall CreateParams(TCreateParams & Params);
 

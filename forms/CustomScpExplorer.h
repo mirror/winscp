@@ -160,6 +160,7 @@ private:
   bool FPendingTempSpaceWarn;
   TEditorManager * FEditorManager;
   TStrings * FCapturedLog;
+  bool FDragDropOperation;
 
   bool __fastcall GetEnableFocusedOperation(TOperationSide Side);
   bool __fastcall GetEnableSelectedOperation(TOperationSide Side);
@@ -171,7 +172,8 @@ private:
   void __fastcall SessionComboChange(TObject * Sender);
   void __fastcall CloseInternalEditor(TObject * Sender);
   void __fastcall ForceCloseInternalEditor(TObject * Sender);
-  void __fastcall TerminalCaptureLog(TObject* Sender, const AnsiString AddedLine);
+  void __fastcall TerminalCaptureLog(TObject* Sender, TLogLineType Type,
+    const AnsiString AddedLine);
 
 protected:
   TOperationSide FCurrentSide;
@@ -184,7 +186,7 @@ protected:
   TQueueItemProxy * FPendingQueueActionItem;
 
   virtual bool __fastcall CopyParamDialog(TTransferDirection Direction,
-    TTransferType Type, bool DragDrop, TStrings * FileList,
+    TTransferType Type, bool Temp, TStrings * FileList,
     AnsiString & TargetDirectory, TGUICopyParamType & CopyParam, bool Confirm);
   virtual bool __fastcall RemoteTransferDialog(TStrings * FileList,
     AnsiString & Target, AnsiString & FileMask, bool NoConfirmation, bool Move);
@@ -208,7 +210,7 @@ protected:
   virtual void __fastcall QueueChanged();
   void __fastcall UpdateStatusBar();
   virtual void __fastcall DoOperationFinished(TFileOperation Operation,
-    TOperationSide Side, bool DragDrop, const AnsiString FileName, bool Success,
+    TOperationSide Side, bool Temp, const AnsiString FileName, bool Success,
     bool & DisconnectWhenFinished);
   virtual void __fastcall DoOpenDirectoryDialog(TOpenDirectoryMode Mode, TOperationSide Side);
   virtual void __fastcall FileOperationProgress(
@@ -229,12 +231,13 @@ protected:
     const AnsiString RemoteDirectory, bool & Continue);
   void __fastcall DoSynchronize(TSynchronizeController * Sender,
     const AnsiString LocalDirectory, const AnsiString RemoteDirectory,
-    const TSynchronizeParamType & Params);
+    const TCopyParamType & CopyParam, const TSynchronizeParamType & Params, 
+    TSynchronizeStats * Stats, bool Full);
   void __fastcall DoSynchronizeInvalid(TSynchronizeController * Sender,
-    const AnsiString Directory);
+    const AnsiString Directory, const AnsiString ErrorStr);
   void __fastcall Synchronize(const AnsiString LocalDirectory,
     const AnsiString RemoteDirectory, TSynchronizeMode Mode,
-    const TCopyParamType & CopyParam, int Params);
+    const TCopyParamType & CopyParam, int Params, TSynchronizeStats * Stats);
   virtual void __fastcall BatchStart(void *& Storage);
   virtual void __fastcall BatchEnd(void * Storage);
   void __fastcall ExecuteFileOperation(TFileOperation Operation, TOperationSide Side,
@@ -329,12 +332,12 @@ public:
     TStrings * MoreMessages, TQueryType Type, int Answers,
     int HelpCtx, const TMessageParams * Params = NULL);
   void __fastcall OperationFinished(TFileOperation Operation, TOperationSide Side,
-    bool DragDrop, const AnsiString FileName, bool Success, bool & DisconnectWhenFinished);
+    bool Temp, const AnsiString FileName, bool Success, bool & DisconnectWhenFinished);
   void __fastcall OperationProgress(TFileOperationProgressType & ProgressData, TCancelStatus & Cancel);
   bool __fastcall DoSynchronizeDirectories(AnsiString & LocalDirectory,
     AnsiString & RemoteDirectory);
   bool __fastcall DoFullSynchronizeDirectories(AnsiString & LocalDirectory,
-    AnsiString & RemoteDirectory, TSynchronizeMode & Mode);
+    AnsiString & RemoteDirectory, TSynchronizeMode & Mode, bool & SaveMode);
   bool __fastcall CanPasteFromClipBoard();
   void __fastcall PasteFromClipBoard();
 

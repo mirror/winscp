@@ -142,7 +142,8 @@ __fastcall TFileMasks::TFileMasks(const AnsiString AMasks)
 bool __fastcall TFileMasks::Matches(AnsiString FileName) const
 {
   AnsiString S = Masks;
-  FileName = ExtractFileName(FileName);
+  // we used to extract filename here using ExtractFileName, but it fails
+  // for unix filename with colon in name (:)
   while (!S.IsEmpty())
   {
     AnsiString M;

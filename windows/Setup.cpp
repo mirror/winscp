@@ -624,10 +624,20 @@ void __fastcall CheckForUpdates()
         NetInitialize();
       }
 
+      TVSFixedFileInfo * FileInfo = Configuration->FixedApplicationInfo;
+      int CurrentCompoundVer = CalculateCompoundVersion(
+        HIWORD(FileInfo->dwFileVersionMS), LOWORD(FileInfo->dwFileVersionMS),
+        HIWORD(FileInfo->dwFileVersionLS), LOWORD(FileInfo->dwFileVersionLS));
+      AnsiString CurrentVersionStr =
+        FORMAT("%d.%d.%d.%d",
+          (HIWORD(FileInfo->dwFileVersionMS), LOWORD(FileInfo->dwFileVersionMS),
+           HIWORD(FileInfo->dwFileVersionLS), LOWORD(FileInfo->dwFileVersionLS)));
+
       THttp * CheckForUpdatesHTTP = new THttp(Application);
       try
       {
-        CheckForUpdatesHTTP->URL = LoadStr(UPDATES_URL);
+        AnsiString URL = LoadStr(UPDATES_URL) + FORMAT("?v=%s", (CurrentVersionStr));
+        CheckForUpdatesHTTP->URL = URL;
         CheckForUpdatesHTTP->Action();
         Response.SetLength(static_cast<int>(CheckForUpdatesHTTP->Stream->Size));
         CheckForUpdatesHTTP->Stream->Read(Response.c_str(), Response.Length());
@@ -641,7 +651,11 @@ void __fastcall CheckForUpdates()
         }
       }
 
-      while (!Response.IsEmpty() && !Found)
+      int CompoundVer;
+      AnsiString VersionStr;
+      AnsiString ServerMessage;
+      
+      while (!Response.IsEmpty())
       {
         AnsiString Line = ::CutToChar(Response, '\n', false);
         AnsiString Name = ::CutToChar(Line, '=', false);
@@ -652,31 +666,43 @@ void __fastcall CheckForUpdates()
           int MinorVer = StrToInt(::CutToChar(Line, '.', false));
           int Release = StrToInt(::CutToChar(Line, '.', false));
           int Build = StrToInt(::CutToChar(Line, '.', false));
-          int CompoundVer = CalculateCompoundVersion(MajorVer, MinorVer, Release, Build);
+          CompoundVer = CalculateCompoundVersion(MajorVer, MinorVer, Release, Build);
 
-          AnsiString VersionStr =
+          VersionStr =
             FORMAT("%d.%d", (MajorVer, MinorVer)) + (Release ? "."+IntToStr(Release) : AnsiString());
-
-          TVSFixedFileInfo * FileInfo = Configuration->FixedApplicationInfo;
-          int CurrentCompoundVer = CalculateCompoundVersion(
-            HIWORD(FileInfo->dwFileVersionMS), LOWORD(FileInfo->dwFileVersionMS),
-            HIWORD(FileInfo->dwFileVersionLS), LOWORD(FileInfo->dwFileVersionLS));
-
-          if (CurrentCompoundVer < CompoundVer)
-          {
-            if (MessageDialog(FMTLOAD(NEW_VERSION, (VersionStr)), qtInformation,
-                  qaOK | qaCancel, 0) == qaOK)
-            {
-              OpenBrowser(LoadStr(DOWNLOAD_URL));
-            }
-          }
-          else
-          {
-            MessageDialog(LoadStr(NO_NEW_VERSION), qtInformation, qaOK, 0);
-          }
+        }
+        else if (AnsiSameText(Name, "Message"))
+        {
+          ServerMessage = Line;
         }
       }
 
+      AnsiString Message;
+      bool New;
+
+      New = (CurrentCompoundVer < CompoundVer);
+
+      if (New)
+      {
+        Message = FMTLOAD(NEW_VERSION, (VersionStr));
+      }
+      else
+      {
+        Message = LoadStr(NO_NEW_VERSION);
+      }
+
+      if (!ServerMessage.IsEmpty())
+      {
+        Message += "\n \n";
+        Message += FMTLOAD(UPDATE_MESSAGE,
+          (StringReplace(ServerMessage, "|", "\n", TReplaceFlags() << rfReplaceAll)));
+      }
+
+      if ((MessageDialog(Message, qtInformation,
+            New ? qaOK | qaCancel : qaOK, 0) == qaOK) && New)
+      {
+        OpenBrowser(LoadStr(DOWNLOAD_URL));
+      }
     }
     catch(Exception & E)
     {

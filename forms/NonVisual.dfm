@@ -1094,7 +1094,7 @@ object NonVisualDataModule: TNonVisualDataModule
       Caption = 'Synchronize &Browsing'
       Hint = 
         'Synchronize browsing|Synchronize local and remote directory brow' +
-        'ing'
+        'sing'
       ImageIndex = 59
       ShortCut = 49218
     end

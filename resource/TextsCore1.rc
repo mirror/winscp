@@ -125,6 +125,8 @@ BEGIN
   SCRIPT_OPTION_UNKNOWN, "Unknown option '%s'."
   SCRIPT_VALUE_UNKNOWN, "Unknown value '%s' of option '%s'."
   UNKNOWN_SOCKET_STATUS, "Cannot determine status of socket (%d)."
+  DELETE_BEFORE_RESUME_ERROR, "Error deleting file '%s'. Before resumable file upload the existing destination file must be deleted. If you do not have permissions to delete file destination file, you need to disable resumable file transfers."
+  SFTP_PACKET_ERROR, "Error decoding SFTP packet (%d, %d, %d)."
 
   CORE_CONFIRMATION_STRINGS, "CORE_CONFIRMATION"
   CONFIRM_PROLONG_TIMEOUT, "Host has not answered for %d seconds.\n\nWait for another %0:d seconds? Pressing 'Abort' button will close session."
@@ -145,7 +147,7 @@ BEGIN
   REMOTE_FILE_OVERWRITE, "Remote file '%s' already exists. Overwrite?"
   SYNCHRONIZE_UPLOAD, "%d new or changed file(s) in local directory '%s' were found. They will be uploaded to remote directory '%s'. Continue?"
   SYNCHRONIZE_REMOTE_DELETE, "%d obsolete file(s) in remote directory '%s' were found. They will be deleted. Continue?"
-  SYNCHRONIZE_DOWNLOAD, "%d new or changed file(s) in remote directory '%s' were found. They will be uploaded to local directory '%s'. Continue?"
+  SYNCHRONIZE_DOWNLOAD, "%d new or changed file(s) in remote directory '%s' were found. They will be downloaded to local directory '%s'. Continue?"
   SYNCHRONIZE_LOCAL_DELETE, "%d obsolete file(s) in local directory '%s' were found. They will be deleted. Continue?"
   TIMEOUT_STILL_WAITING, "Host has not answered for more than %d seconds. Still waiting..."
   KEX_BELOW_TRESHOLD, "The first key-exchange algorithm supported by the server is %s, which is below the configured warning threshold.\n\nDo you want to continue with this connection?"
@@ -193,6 +195,7 @@ BEGIN
   SCRIPT_SYNCHRONIZE, "Local '%s' %s Remote '%s'"
   SCRIPT_SYNCHRONIZE_DELETED, "'%s' deleted"
   SCRIPT_KEEPING_UP_TO_DATE, "Watching for changes, press Ctrl-C to abort..."
+  SKIP_ALL_BUTTON, "Ski&p all"
 
   CORE_VARIABLE_STRINGS, "CORE_VARIABLE"
   PUTTY_BASED_ON, "SSH and SCP code based on PuTTY %s"

@@ -20,7 +20,7 @@
 //---------------------------------------------------------------------------
 bool __fastcall DoCopyDialog(bool ToRemote,
   bool Move, TStrings * FileList, AnsiString & TargetDirectory,
-  TGUICopyParamType * Params, int Options)
+  TGUICopyParamType * Params, int Options, int * OutputOptions)
 {
   bool Result;
   TCopyDialog *CopyDialog = new TCopyDialog(Application);
@@ -38,11 +38,19 @@ bool __fastcall DoCopyDialog(bool ToRemote,
     CopyDialog->FileList = FileList;
     CopyDialog->Params = *Params;
     CopyDialog->Move = Move;
+    if (OutputOptions != NULL)
+    {
+      CopyDialog->OutputOptions = *OutputOptions;
+    }
     Result = CopyDialog->Execute();
     if (Result)
     {
       TargetDirectory = CopyDialog->Directory;
       *Params = CopyDialog->Params;
+      if (OutputOptions != NULL)
+      {
+        *OutputOptions = CopyDialog->OutputOptions;
+      }
     }
   }
   __finally
@@ -62,15 +70,20 @@ __fastcall TCopyDialog::TCopyDialog(TComponent* Owner)
   ToRemote = true;
   Move = false;
   FOptions = 0;
+  FOutputOptions = 0;
 
   UseSystemSettings(this);
 }
 //---------------------------------------------------------------------------
 void __fastcall TCopyDialog::AdjustControls()
 {
+  if (FLAGSET(Options, coDoNotShowAgain))
+  {
+    SaveSettingsCheck->Caption = LoadStr(NEVER_SHOW_DIALOG_AGAIN);
+  }
   RemoteDirectoryEdit->Visible = false;
   LocalDirectoryEdit->Visible = false;
-  DirectoryEdit->Visible = FLAGCLEAR(Options, coDragDropTemp);
+  DirectoryEdit->Visible = FLAGCLEAR(Options, coTemp);
   EnableControl(DirectoryEdit, FLAGCLEAR(Options, coDisableDirectory));
   EnableControl(DirectoryLabel, DirectoryEdit->Enabled);
   EnableControl(LocalDirectoryBrowseButton, DirectoryEdit->Enabled);
@@ -85,8 +98,10 @@ void __fastcall TCopyDialog::AdjustControls()
   if (FileList && FileList->Count)
   {
     AnsiString TransferStr = LoadStr(!Move ? COPY_COPY : COPY_MOVE);
+    // currently the copy dialog is shown when downloading to temp folder
+    // only for drag&drop downloads, for we dare to display d&d specific prompt
     AnsiString DirectionStr =
-      LoadStr(((Options & coDragDropTemp) != 0) ? COPY_TODROP :
+      LoadStr(((Options & coTemp) != 0) ? COPY_TODROP :
         (ToRemote ? COPY_TOREMOTE : COPY_TOLOCAL));
 
     if (FileList->Count == 1)
@@ -116,7 +131,7 @@ void __fastcall TCopyDialog::AdjustControls()
   }
 
   LocalDirectoryBrowseButton->Visible = !ToRemote &&
-    ((Options & coDragDropTemp) == 0);
+    ((Options & coTemp) == 0);
 
   UpdateControls();
 }
@@ -141,6 +156,21 @@ void __fastcall TCopyDialog::SetOptions(int value)
 
     AdjustControls();
   }
+}
+//---------------------------------------------------------------------------
+void __fastcall TCopyDialog::SetOutputOptions(int value)
+{
+  if (OutputOptions != value)
+  {
+    SaveSettingsCheck->Checked = FLAGSET(FOutputOptions, cooDoNotShowAgain);
+    FOutputOptions = (value & ~cooDoNotShowAgain);
+  }
+}
+//---------------------------------------------------------------------------
+int __fastcall TCopyDialog::GetOutputOptions()
+{
+  return FOutputOptions |
+    FLAGMASK(SaveSettingsCheck->Checked, cooDoNotShowAgain);
 }
 //---------------------------------------------------------------------------
 THistoryComboBox * __fastcall TCopyDialog::GetDirectoryEdit()
@@ -221,9 +251,9 @@ void __fastcall TCopyDialog::SetFileList(TStrings * value)
 void __fastcall TCopyDialog::UpdateControls()
 {
   EnableControl(QueueCheck,
-    (Options & (coDisableQueue | coDragDropTemp)) == 0);
+    (Options & (coDisableQueue | coTemp)) == 0);
   EnableControl(QueueNoConfirmationCheck,
-    ((Options & coDragDropTemp) == 0) && QueueCheck->Checked);
+    ((Options & coTemp) == 0) && QueueCheck->Checked);
   QueueNoConfirmationCheck->Visible = MoreButton->Expanded;
 }
 //---------------------------------------------------------------------------
@@ -253,13 +283,15 @@ void __fastcall TCopyDialog::FormShow(TObject * /*Sender*/)
     CopyButton->SetFocus();
   }
   UpdateControls();
+
+  InstallPathWordBreakProc(RemoteDirectoryEdit);
+  InstallPathWordBreakProc(LocalDirectoryEdit);
 }
 //---------------------------------------------------------------------------
 bool __fastcall TCopyDialog::Execute()
 {
   DirectoryEdit->Items = CustomWinConfiguration->History[
     ToRemote ? "RemoteTarget" : "LocalTarget"];
-  SaveSettingsCheck->Checked = false;
   MoreButton->Expanded = GUIConfiguration->CopyParamDialogExpanded;
   CopyParamsFrame->BeforeExecute();
   bool Result = (ShowModal() == mrOk);
@@ -270,7 +302,7 @@ bool __fastcall TCopyDialog::Execute()
     try
     {
       GUIConfiguration->CopyParamDialogExpanded = MoreButton->Expanded;
-      if (SaveSettingsCheck->Checked)
+      if (FLAGSET(OutputOptions, cooSaveSettings))
       {
         GUIConfiguration->CopyParam = Params;
       }
@@ -291,7 +323,7 @@ void __fastcall TCopyDialog::FormCloseQuery(TObject * /*Sender*/,
 {
   if (ModalResult != mrCancel)
   {
-    if (!ToRemote && ((Options & coDragDropTemp) == 0))
+    if (!ToRemote && ((Options & coTemp) == 0))
     {
       AnsiString Dir = Directory;
       AnsiString Drive = ExtractFileDrive(Dir);
@@ -335,13 +367,6 @@ void __fastcall TCopyDialog::LocalDirectoryBrowseButtonClick(
   {
     LocalDirectoryEdit->Text = Directory;
   }
-}
-//---------------------------------------------------------------------------
-void __fastcall TCopyDialog::DirectoryEditKeyDown(TObject * Sender,
-  WORD & Key, TShiftState Shift)
-{
-  PathComboBoxKeyDown(dynamic_cast<TCustomComboBox*>(Sender), Key, Shift,
-    (Sender == RemoteDirectoryEdit));
 }
 //---------------------------------------------------------------------------
 void __fastcall TCopyDialog::ControlChange(TObject * /*Sender*/)

@@ -4,6 +4,7 @@
 
 #include <Common.h>
 
+#include "WinInterface.h"
 #include "Synchronize.h"
 #include "VCLCommon.h"
 
@@ -15,6 +16,7 @@
 #pragma package(smart_init)
 #pragma link "XPThemes"
 #pragma link "HistoryComboBox"
+#pragma link "GrayedCheckBox"
 #pragma resource "*.dfm"
 //---------------------------------------------------------------------------
 const int WM_USER_STOP = WM_WINSCP_USER + 2;
@@ -50,6 +52,9 @@ __fastcall TSynchronizeDialog::TSynchronizeDialog(TComponent* Owner)
   UseSystemSettings(this);
   FSynchronizing = false;
   FMinimizedByMe = false;
+
+  InstallPathWordBreakProc(LocalDirectoryEdit);
+  InstallPathWordBreakProc(RemoteDirectoryEdit);
 }
 //---------------------------------------------------------------------------
 void __fastcall TSynchronizeDialog::UpdateControls()
@@ -101,7 +106,10 @@ void __fastcall TSynchronizeDialog::SetParams(const TSynchronizeParamType& value
   SynchronizeDeleteCheck->Checked = FLAGSET(value.Params, spDelete);
   SynchronizeExistingOnlyCheck->Checked = FLAGSET(value.Params, spExistingOnly);
   SynchronizeNoConfirmationCheck->Checked = FLAGSET(value.Params, spNoConfirmation);
-  SynchronizeRecursiveCheck->Checked = value.Recurse;
+  SynchronizeRecursiveCheck->Checked = FLAGSET(value.Options, soRecurse);
+  SynchronizeSynchronizeCheck->State =
+    FLAGSET(value.Options, soSynchronizeAsk) ? cbGrayed :
+      (FLAGSET(value.Options, soSynchronize) ? cbChecked : cbUnchecked);
 }
 //---------------------------------------------------------------------------
 TSynchronizeParamType __fastcall TSynchronizeDialog::GetParams()
@@ -114,7 +122,11 @@ TSynchronizeParamType __fastcall TSynchronizeDialog::GetParams()
     FLAGMASK(SynchronizeDeleteCheck->Checked, spDelete) |
     FLAGMASK(SynchronizeExistingOnlyCheck->Checked, spExistingOnly) |
     FLAGMASK(SynchronizeNoConfirmationCheck->Checked, spNoConfirmation);
-  Result.Recurse = SynchronizeRecursiveCheck->Checked;
+  Result.Options =
+    (Result.Options & ~(soRecurse | soSynchronize | soSynchronizeAsk)) |
+    FLAGMASK(SynchronizeRecursiveCheck->Checked, soRecurse) |
+    FLAGMASK(SynchronizeSynchronizeCheck->State == cbChecked, soSynchronize) |
+    FLAGMASK(SynchronizeSynchronizeCheck->State == cbGrayed, soSynchronizeAsk);
   return Result;
 }
 //---------------------------------------------------------------------------
@@ -128,24 +140,23 @@ void __fastcall TSynchronizeDialog::LocalDirectoryBrowseButtonClick(
   }
 }
 //---------------------------------------------------------------------------
-void __fastcall TSynchronizeDialog::DirectoryEditKeyDown(
-  TObject * Sender, WORD & Key, TShiftState Shift)
-{
-  PathComboBoxKeyDown(dynamic_cast<TCustomComboBox*>(Sender), Key, Shift,
-    (Sender == RemoteDirectoryEdit));
-}
-//---------------------------------------------------------------------------
 void __fastcall TSynchronizeDialog::TransferPreferencesButtonClick(
   TObject * /*Sender*/)
 {
   DoPreferencesDialog(pmTransfer);
 }
 //---------------------------------------------------------------------------
-void __fastcall TSynchronizeDialog::DoStartStop(bool Start)
+void __fastcall TSynchronizeDialog::DoStartStop(bool Start, bool Synchronize)
 {
   if (FOnStartStop)
   {
-    FOnStartStop(this, Start, GetParams(), DoAbort, NULL);
+    TCopyParamType CopyParam = GUIConfiguration->CopyParam;
+    CopyParam.PreserveTime = true;
+    TSynchronizeParamType SParams = GetParams();
+    SParams.Options =
+      (SParams.Options & ~(soSynchronize | soSynchronizeAsk)) |
+      FLAGMASK(Synchronize, soSynchronize);
+    FOnStartStop(this, Start, SParams, CopyParam, DoAbort, NULL);
   }
 }
 //---------------------------------------------------------------------------
@@ -179,26 +190,61 @@ void __fastcall TSynchronizeDialog::DoAbort(TObject * /*Sender*/, bool Close)
 //---------------------------------------------------------------------------
 void __fastcall TSynchronizeDialog::StartButtonClick(TObject * /*Sender*/)
 {
-  assert(!FSynchronizing);
-
-  LocalDirectoryEdit->SaveToHistory();
-  CustomWinConfiguration->History["LocalDirectory"] = LocalDirectoryEdit->Items;
-  RemoteDirectoryEdit->SaveToHistory();
-  CustomWinConfiguration->History["RemoteDirectory"] = RemoteDirectoryEdit->Items;
-
-  FSynchronizing = true;
-  try
+  bool Synchronize;
+  bool Continue = true;
+  if (SynchronizeSynchronizeCheck->State == cbGrayed)
   {
-    UpdateControls();
+    TMessageParams Params(mpNeverAskAgainCheck);
+    switch (MoreMessageDialog(LoadStr(SYNCHRONISE_BEFORE_KEEPUPTODATE),
+        NULL, qtConfirmation, qaYes | qaNo | qaCancel, 0, &Params))
+    {
+      case qaNeverAskAgain:
+        SynchronizeSynchronizeCheck->State = cbChecked;
+        // fall thru
+        break;
 
-    FAbort = false;
-    DoStartStop(true);
+      case qaYes:
+        Synchronize = true;
+        break;
+
+      case qaNo:
+        Synchronize = false;
+        break;
+
+      default:
+      case qaCancel:
+        Continue = false;
+        break;
+    };
   }
-  catch(...)
+  else
   {
-    FSynchronizing = false;
-    UpdateControls();
-    throw;
+    Synchronize = SynchronizeSynchronizeCheck->Checked;
+  }
+
+  if (Continue)
+  {
+    assert(!FSynchronizing);
+
+    LocalDirectoryEdit->SaveToHistory();
+    CustomWinConfiguration->History["LocalDirectory"] = LocalDirectoryEdit->Items;
+    RemoteDirectoryEdit->SaveToHistory();
+    CustomWinConfiguration->History["RemoteDirectory"] = RemoteDirectoryEdit->Items;
+
+    FSynchronizing = true;
+    try
+    {
+      UpdateControls();
+
+      FAbort = false;
+      DoStartStop(true, Synchronize);
+    }
+    catch(...)
+    {
+      FSynchronizing = false;
+      UpdateControls();
+      throw;
+    }
   }
 }
 //---------------------------------------------------------------------------
@@ -210,7 +256,7 @@ void __fastcall TSynchronizeDialog::StopButtonClick(TObject * /*Sender*/)
 void __fastcall TSynchronizeDialog::Stop()
 {
   FSynchronizing = false;
-  DoStartStop(false);
+  DoStartStop(false, false);
   UpdateControls();
   if (IsIconic(Application->Handle) && FMinimizedByMe)
   {

@@ -7,6 +7,10 @@
 #include <GUIConfiguration.h>
 #include <SynchronizeController.h>
 
+#ifdef LOCALINTERFACE
+#include <LocalInterface.h>
+#endif
+
 class TStoredSessionList;
 class TConfiguration;
 class TTerminal;
@@ -55,7 +59,7 @@ int __fastcall MessageDialog(const AnsiString Msg, TQueryType Type,
   int Answers, int HelpCtx = 0, const TMessageParams * Params = NULL);
 int __fastcall MessageDialog(int Ident, TQueryType Type,
   int Answers, int HelpCtx = 0, const TMessageParams * Params = NULL);
-int __fastcall SimpleErrorDialog(const AnsiString Msg);
+int __fastcall SimpleErrorDialog(const AnsiString Msg, const AnsiString MoreMessages = "");
 
 int __fastcall MoreMessageDialog(const AnsiString Message,
   TStrings * MoreMessages, TQueryType Type, int Answers,
@@ -88,14 +92,17 @@ void __fastcall DoConsoleDialog(TTerminal * Terminal,
     const AnsiString Command = "", const TStrings * Log = NULL);
 
 // forms\Copy.cpp
-const coDragDropTemp        = 0x01;
+const coTemp                = 0x01;
 const coDisableQueue        = 0x02;
 const coDisableTransferMode = 0x04;
 const coDisableDirectory    = 0x08; // not used anymore
 const coDisableNewerOnly    = 0x10;
+const coDoNotShowAgain      = 0x20;
+const cooDoNotShowAgain     = 0x01;
+const cooSaveSettings       = cooDoNotShowAgain;
 bool __fastcall DoCopyDialog(bool ToRemote,
   bool Move, TStrings * FileList, AnsiString & TargetDirectory,
-  TGUICopyParamType * Params, int Options);
+  TGUICopyParamType * Params, int Options, int * OutputOptions = NULL);
 
 // forms\CopyParams.cpp
 enum TParamsForDirection { pdBoth, pdToRemote, pdToLocal, pdAll };
@@ -182,6 +189,9 @@ const spDelete = 0x01;
 const spNoConfirmation = 0x02;
 const spExistingOnly = 0x04;
 const spPreviewChanges = 0x40;
+const spTimestamp = 0x100;
+const spNotByTime = 0x200;
+const spBySize = 0x400;
 
 // forms\Synchronize.cpp
 bool __fastcall DoSynchronizeDialog(TSynchronizeParamType & Params,
@@ -189,8 +199,10 @@ bool __fastcall DoSynchronizeDialog(TSynchronizeParamType & Params,
 
 // forms\FullSynchronize.cpp
 enum TSynchronizeMode { smRemote, smLocal, smBoth };
+const fsoDisableTimestamp = 0x01;
 bool __fastcall DoFullSynchronizeDialog(TSynchronizeMode & Mode, int & Params,
-  AnsiString & LocalDirectory, AnsiString & RemoteDirectory, bool & SaveSettings);
+  AnsiString & LocalDirectory, AnsiString & RemoteDirectory,
+  bool & SaveSettings, bool & SaveMode, int Options);
 
 TForm * __fastcall ShowEditorForm(const AnsiString FileName, TCustomForm * ParentForm,
   TNotifyEvent OnFileChanged, TNotifyEvent OnClose, const AnsiString Caption = "",

@@ -48,6 +48,7 @@ __published:
   THistoryComboBox *ExcludeFileMaskCombo;
   TRadioButton *CCLowerCaseShortButton;
   TCheckBox *ClearArchiveCheck;
+  TComboBox *NegativeExcludeCombo;
   void __fastcall ControlChange(TObject *Sender);
   void __fastcall ValidateMaskComboExit(TObject *Sender);
 private:

@@ -10,7 +10,7 @@
       &quot;my\PathLabel.obj&quot; &quot;my\ToolbarPanel.obj&quot; &quot;my\UpDownEdit.obj&quot; 
       &quot;my\ComboEdit.obj&quot; &quot;my\XPThemes.obj&quot; &quot;my\PasswordEdit.obj&quot; 
       &quot;my\ResourceModule.obj&quot; &quot;my\CompThread.obj&quot; &quot;my\DiscMon.obj&quot; 
-      &quot;my\TcpIp.obj&quot;"/>
+      &quot;my\TcpIp.obj&quot; &quot;my\GrayedCheckBox.obj&quot;"/>
     <RESFILES value="Moje_B5.res &quot;my\HistoryComboBox.dcr&quot; 
       &quot;my\NortonLikeListView.dcr&quot; &quot;my\PathLabel.dcr&quot; &quot;my\DiscMon.dcr&quot;"/>
     <DEFFILE value=""/>
@@ -77,6 +77,7 @@
       <FILE FILENAME="my\DiscMon.pas" FORMNAME="" UNITNAME="DiscMon" CONTAINERID="PascalCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
       <FILE FILENAME="my\DiscMon.dcr" FORMNAME="" UNITNAME="" CONTAINERID="DcrTool" DESIGNCLASS="" LOCALCOMMAND=""/>
       <FILE FILENAME="my\TcpIp.pas" FORMNAME="" UNITNAME="TcpIp" CONTAINERID="PascalCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="my\GrayedCheckBox.pas" FORMNAME="" UNITNAME="GrayedCheckBox" CONTAINERID="PascalCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
   </FILELIST>
   <BUILDTOOLS>
   </BUILDTOOLS>

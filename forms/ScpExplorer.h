@@ -97,7 +97,7 @@ __published:
 private:
 protected:
   virtual bool __fastcall CopyParamDialog(TTransferDirection Direction,
-    TTransferType Type, bool DragDrop, TStrings * FileList,
+    TTransferType Type, bool Temp, TStrings * FileList,
     AnsiString & TargetDirectory, TGUICopyParamType & CopyParam, bool Confirm);
   virtual void __fastcall RestoreFormParams();
   virtual void __fastcall RestoreParams();

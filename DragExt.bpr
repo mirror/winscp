@@ -77,7 +77,7 @@ OriginalFilename=dragext.dll
 ProductName=WinSCP
 ProductVersion=3.7.4.0
 Comments=
-WWW=http://winscp.sourceforge.net/
+WWW=http://winscp.net/
 
 [Compiler]
 ShowInfoMsgs=0

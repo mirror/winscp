@@ -94,6 +94,12 @@ void __fastcall TLoginDialog::InitControls()
 
   InitializeBugsCombo(SFTPBugSymlinkCombo);
   InitializeBugsCombo(SFTPBugUtfCombo);
+  InitializeBugsCombo(SFTPBugSignedTSCombo);
+
+  InstallPathWordBreakProc(RemoteDirectoryEdit);
+  InstallPathWordBreakProc(LocalDirectoryEdit);
+  InstallPathWordBreakProc(PrivateKeyEdit);
+  InstallPathWordBreakProc(RecycleBinPathEdit);
 }
 //---------------------------------------------------------------------
 void __fastcall TLoginDialog::Init()
@@ -122,6 +128,12 @@ void __fastcall TLoginDialog::Init()
   {
     ChangePage(SessionListSheet);
     SessionListView->SetFocus();
+    assert(SessionListView->Items->Count > 0);
+    if (SessionListView->Items->Count > 0)
+    {
+      SessionListView->ItemIndex = 0;
+      SessionListView->ItemFocused = SessionListView->Selected;
+    }
   }
   else
   {
@@ -231,7 +243,10 @@ void __fastcall TLoginDialog::LoadSession(TSessionData * aSessionData)
       if (SFTPBug ## BUG ## Combo->ItemIndex < 0) SFTPBug ## BUG ## Combo->ItemIndex = 0
     LOAD_SFTP_BUG_COMBO(Symlink);
     LOAD_SFTP_BUG_COMBO(Utf);
+    LOAD_SFTP_BUG_COMBO(SignedTS);
     #undef LOAD_SFTP_BUG_COMBO
+
+    SFTPMaxVersionCombo->ItemIndex = aSessionData->SFTPMaxVersion;
     
     // Authentication tab
     AuthTISCheck->Checked = aSessionData->AuthTIS;
@@ -495,7 +510,10 @@ void __fastcall TLoginDialog::SaveSession(TSessionData * aSessionData)
   #define SAVE_SFTP_BUG_COMBO(BUG) aSessionData->SFTPBug[sb ## BUG] = (TAutoSwitch)(2 - SFTPBug ## BUG ## Combo->ItemIndex);
   SAVE_SFTP_BUG_COMBO(Symlink);
   SAVE_SFTP_BUG_COMBO(Utf);
+  SAVE_SFTP_BUG_COMBO(SignedTS);
   #undef SAVE_SFTP_BUG_COMBO
+
+  aSessionData->SFTPMaxVersion = SFTPMaxVersionCombo->ItemIndex;
 
   // Proxy tab
   if (ProxyHTTPButton->Checked) aSessionData->ProxyMethod = pmHTTP;
@@ -1253,13 +1271,6 @@ void __fastcall TLoginDialog::LocaleClick(TObject * Sender)
 void __fastcall TLoginDialog::LocaleGetClick(TObject * /*Sender*/)
 {
   OpenBrowser(LoadStr(LOCALES_URL));
-}
-//---------------------------------------------------------------------------
-void __fastcall TLoginDialog::PathEditsKeyDown(TObject * Sender,
-  WORD & Key, TShiftState Shift)
-{
-  PathEditKeyDown(dynamic_cast<TCustomEdit*>(Sender), Key, Shift,
-    (Sender == RemoteDirectoryEdit));
 }
 //---------------------------------------------------------------------------
 void __fastcall TLoginDialog::AuthGSSAPICheckClick(TObject * /*Sender*/)

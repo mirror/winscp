@@ -6,6 +6,7 @@
 #include <VCLCommon.h>
 #include <TextsWin.h>
 
+#include "WinInterface.h"
 #include "Password.h"
 //---------------------------------------------------------------------
 #pragma link "PasswordEdit"

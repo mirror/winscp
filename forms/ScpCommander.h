@@ -203,7 +203,7 @@ private:
 
 protected:
   virtual bool __fastcall CopyParamDialog(TTransferDirection Direction,
-    TTransferType Type, bool DragDrop, TStrings * FileList,
+    TTransferType Type, bool Temp, TStrings * FileList,
     AnsiString & TargetDirectory, TGUICopyParamType & CopyParam, bool Confirm);
   virtual TCustomDirView * __fastcall DirView(TOperationSide Side);
   TControl * __fastcall GetComponent(Byte Component);

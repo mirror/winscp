@@ -55,8 +55,6 @@ __published:
   void __fastcall FormShow(TObject *Sender);
   void __fastcall BookmarksListKeyDown(TObject *Sender, WORD &Key,
           TShiftState Shift);
-  void __fastcall DirectoryEditKeyDown(TObject *Sender, WORD &Key,
-          TShiftState Shift);
   void __fastcall LocalDirectoryBrowseButtonClick(TObject *Sender);
   void __fastcall SwitchButtonClick(TObject *Sender);
 

@@ -369,8 +369,8 @@ protected:
 	virtual void __fastcall SetPath(AnsiString Value);
 	virtual void __fastcall SetItemImageIndex(Comctrls::TListItem* Item, int Index);
 	void __fastcall SetCompressedColor(Graphics::TColor Value);
-	void __fastcall ChangeDetected(System::TObject* Sender, const AnsiString Directory);
-	void __fastcall ChangeInvalid(System::TObject* Sender, const AnsiString Directory);
+	void __fastcall ChangeDetected(System::TObject* Sender, const AnsiString Directory, bool &SubdirsChanged);
+	void __fastcall ChangeInvalid(System::TObject* Sender, const AnsiString Directory, const AnsiString ErrorStr);
 	void __fastcall TimerOnTimer(System::TObject* Sender);
 	void __fastcall ResetItemImage(int Index);
 	void __fastcall SetAttrSpace(AnsiString Value);

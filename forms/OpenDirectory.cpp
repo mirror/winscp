@@ -52,6 +52,9 @@ __fastcall TOpenDirectoryDialog::TOpenDirectoryDialog(TComponent * AOwner):
   FTerminal = NULL;
   FBookmarkList = new TBookmarkList();
   UseSystemSettings(this);
+
+  InstallPathWordBreakProc(LocalDirectoryEdit);
+  InstallPathWordBreakProc(RemoteDirectoryEdit);
 }
 //---------------------------------------------------------------------
 __fastcall TOpenDirectoryDialog::~TOpenDirectoryDialog()
@@ -387,13 +390,6 @@ void __fastcall TOpenDirectoryDialog::BookmarksListKeyDown(TObject * /*Sender*/,
   {
     RemoveBookmarkButtonClick(NULL);
   }
-}
-//---------------------------------------------------------------------------
-void __fastcall TOpenDirectoryDialog::DirectoryEditKeyDown(
-  TObject * Sender, WORD & Key, TShiftState Shift)
-{
-  PathComboBoxKeyDown(dynamic_cast<TCustomComboBox*>(Sender), Key, Shift,
-    (Sender == RemoteDirectoryEdit));
 }
 //---------------------------------------------------------------------------
 void __fastcall TOpenDirectoryDialog::LocalDirectoryBrowseButtonClick(

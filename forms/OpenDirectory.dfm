@@ -35,7 +35,6 @@ object OpenDirectoryDialog: TOpenDirectoryDialog
     TabOrder = 1
     Text = 'LocalDirectoryEdit'
     OnChange = DirectoryEditChange
-    OnKeyDown = DirectoryEditKeyDown
   end
   object RemoteDirectoryEdit: TIEComboBox
     Left = 8
@@ -48,7 +47,6 @@ object OpenDirectoryDialog: TOpenDirectoryDialog
     TabOrder = 0
     Text = 'RemoteDirectoryEdit'
     OnChange = DirectoryEditChange
-    OnKeyDown = DirectoryEditKeyDown
   end
   object OKBtn: TButton
     Left = 204
@@ -163,7 +161,7 @@ object OpenDirectoryDialog: TOpenDirectoryDialog
     Top = 274
     Width = 121
     Height = 25
-    Anchors = [akRight, akBottom]
+    Anchors = [akLeft, akBottom]
     Caption = '&Location Profiles...'
     ModalResult = 2
     TabOrder = 4

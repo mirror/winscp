@@ -64,7 +64,6 @@ object SynchronizeDialog: TSynchronizeDialog
       TabOrder = 2
       Text = 'RemoteDirectoryEdit'
       OnChange = ControlChange
-      OnKeyDown = DirectoryEditKeyDown
     end
     object LocalDirectoryEdit: THistoryComboBox
       Left = 11
@@ -78,7 +77,6 @@ object SynchronizeDialog: TSynchronizeDialog
       TabOrder = 0
       Text = 'LocalDirectoryEdit'
       OnChange = ControlChange
-      OnKeyDown = DirectoryEditKeyDown
     end
     object LocalDirectoryBrowseButton: TButton
       Left = 293
@@ -145,7 +143,7 @@ object SynchronizeDialog: TSynchronizeDialog
     object SaveSettingsCheck: TCheckBox
       Left = 11
       Top = 68
-      Width = 361
+      Width = 182
       Height = 17
       Caption = 'Use same &options next time'
       TabOrder = 4
@@ -168,6 +166,17 @@ object SynchronizeDialog: TSynchronizeDialog
       Height = 17
       Caption = 'Update s&ubdirectories'
       TabOrder = 2
+      OnClick = ControlChange
+    end
+    object SynchronizeSynchronizeCheck: TGrayedCheckBox
+      Left = 203
+      Top = 68
+      Width = 166
+      Height = 17
+      AllowGrayed = True
+      Anchors = [akLeft, akTop, akRight]
+      Caption = 'Synchronize on s&tart'
+      TabOrder = 5
       OnClick = ControlChange
     end
   end

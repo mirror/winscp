@@ -180,7 +180,7 @@ private:
   void __fastcall SetProxyTelnetCommand(AnsiString value);
   void __fastcall SetProxyDNS(TAutoSwitch value);
   void __fastcall SetProxyLocalhost(bool value);
-  AnsiString __fastcall GetProxyPassword();
+  AnsiString __fastcall GetProxyPassword() const;
   void __fastcall SetBug(TSshBug Bug, TAutoSwitch value);
   TAutoSwitch __fastcall GetBug(TSshBug Bug) const;
   AnsiString __fastcall GetSessionKey();

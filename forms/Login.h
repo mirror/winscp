@@ -214,7 +214,6 @@ __published:
   TLabel *Label10;
   TLabel *Label16;
   TComboBox *SFTPBugSymlinkCombo;
-  TComboBox *SFTPBugUtfCombo;
   TTabSheet *KexSheet;
   TXPGroupBox *KexOptionsGroup;
   TLabel *Label28;
@@ -232,6 +231,12 @@ __published:
   TRadioButton *IPv6Button;
   TLabel *Label33;
   TComboBox *BugRekey2Combo;
+  TXPGroupBox *SFTPProtocolGroup;
+  TLabel *Label34;
+  TLabel *Label35;
+  TComboBox *SFTPMaxVersionCombo;
+  TComboBox *SFTPBugUtfCombo;
+  TComboBox *SFTPBugSignedTSCombo;
   void __fastcall DataChange(TObject *Sender);
   void __fastcall FormShow(TObject *Sender);
   void __fastcall SessionListViewSelectItem(TObject *Sender,
@@ -269,8 +274,6 @@ __published:
   void __fastcall SendToHookActionExecute(TObject *Sender);
   void __fastcall CheckForUpdatesActionExecute(TObject *Sender);
   void __fastcall LanguagesButtonClick(TObject *Sender);
-  void __fastcall PathEditsKeyDown(TObject *Sender, WORD &Key,
-          TShiftState Shift);
   void __fastcall AuthGSSAPICheckClick(TObject *Sender);
   void __fastcall KexButtonClick(TObject *Sender);
 

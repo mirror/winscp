@@ -10,6 +10,7 @@
 #include <HistoryComboBox.hpp>
 
 #include <WinInterface.h>
+#include "GrayedCheckBox.hpp"
 //---------------------------------------------------------------------------
 class TSynchronizeDialog : public TForm
 {
@@ -31,10 +32,9 @@ __published:
   TButton *MinimizeButton;
   TButton *TransferPreferencesButton;
   TCheckBox *SynchronizeRecursiveCheck;
+  TGrayedCheckBox *SynchronizeSynchronizeCheck;
   void __fastcall ControlChange(TObject *Sender);
   void __fastcall LocalDirectoryBrowseButtonClick(TObject *Sender);
-  void __fastcall DirectoryEditKeyDown(TObject *Sender, WORD &Key,
-    TShiftState Shift);
   void __fastcall TransferPreferencesButtonClick(TObject *Sender);
   void __fastcall StartButtonClick(TObject *Sender);
   void __fastcall StopButtonClick(TObject *Sender);
@@ -56,7 +56,7 @@ private:
   bool __fastcall GetSaveSettings();
 
 protected:
-  void __fastcall DoStartStop(bool Start);
+  void __fastcall DoStartStop(bool Start, bool Synchronize);
   void __fastcall DoAbort(TObject * Sender, bool Close);
   void __fastcall Stop();
   virtual void __fastcall Dispatch(void * Message);

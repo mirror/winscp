@@ -2,12 +2,12 @@
 #include <vcl.h>
 #pragma hdrstop
 
+#include <WinInterface.h>
 #include "SynchronizeProgress.h"
 #include <Common.h>
 #include <Configuration.h>
 #include <ScpMain.h>
 #include <TextsWin.h>
-#include <WinInterface.h>
 #include <VCLCommon.h>
 #include <GUITools.h>
 //---------------------------------------------------------------------------

@@ -139,10 +139,17 @@ void __fastcall FullSynchronize(TTerminal * Terminal, TCustomScpExplorerForm * S
 
   SynchronizeDirectories(Terminal, Params, ParamStart, LocalDirectory, RemoteDirectory);
 
-  TSynchronizeMode Mode = smRemote;
+  bool SaveMode = true;
+  // bit ugly
+  TSynchronizeMode Mode = (TSynchronizeMode)GUIConfiguration->SynchronizeMode;
   if (ScpExplorer->DoFullSynchronizeDirectories(LocalDirectory,
-        RemoteDirectory, Mode))
+        RemoteDirectory, Mode, SaveMode))
   {
+    if (SaveMode)
+    {
+      GUIConfiguration->SynchronizeMode = Mode;
+    }
+
     Terminal->CloseOnCompletion();
   }
   else

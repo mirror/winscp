@@ -516,7 +516,7 @@ void __fastcall TTerminalManager::DeleteLocalFile(const AnsiString FileName)
 //---------------------------------------------------------------------------
 void __fastcall TTerminalManager::TerminalQueryUser(TObject * /*Sender*/,
   const AnsiString Query, TStrings * MoreMessages, int Answers,
-  const TQueryParams * Params, int & Answer, TQueryType Type)
+  const TQueryParams * Params, int & Answer, TQueryType Type, void * /*Arg*/)
 {
   TMessageParams MessageParams(Params);
   AnsiString AQuery = Query;
@@ -543,13 +543,13 @@ void __fastcall TTerminalManager::TerminalQueryUser(TObject * /*Sender*/,
 //---------------------------------------------------------------------------
 void __fastcall TTerminalManager::TerminalPromptUser(
   TSecureShell * /*SecureShell*/, AnsiString Prompt, TPromptKind Kind,
-  AnsiString & Response, bool & Result)
+  AnsiString & Response, bool & Result, void * /*Arg*/)
 {
   Result = DoPasswordDialog(Prompt, Kind, Response);
 }
 //---------------------------------------------------------------------------
 void __fastcall TTerminalManager::TerminalShowExtendedException(
-  TSecureShell * SecureShell, Exception * E)
+  TSecureShell * SecureShell, Exception * E, void * /*Arg*/)
 {
   ShowExtendedExceptionEx(SecureShell, E);
 }
@@ -581,11 +581,11 @@ void __fastcall TTerminalManager::TerminalReadDirectoryProgress(
 }
 //---------------------------------------------------------------------------
 void __fastcall TTerminalManager::OperationFinished(::TFileOperation Operation,
-  TOperationSide Side, bool DragDrop, const AnsiString FileName, bool Success,
+  TOperationSide Side, bool Temp, const AnsiString FileName, bool Success,
   bool & DisconnectWhenFinished)
 {
   assert(ScpExplorer);
-  ScpExplorer->OperationFinished(Operation, Side, DragDrop, FileName, Success,
+  ScpExplorer->OperationFinished(Operation, Side, Temp, FileName, Success,
     DisconnectWhenFinished);
 }
 //---------------------------------------------------------------------------

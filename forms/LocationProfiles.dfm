@@ -165,7 +165,6 @@ object LocationProfilesDialog: TLocationProfilesDialog
     TabOrder = 0
     Text = 'LocalDirectoryEdit'
     OnChange = DirectoryEditChange
-    OnKeyDown = DirectoryEditKeyDown
   end
   object RemoteDirectoryEdit: TIEComboBox
     Left = 8
@@ -178,7 +177,6 @@ object LocationProfilesDialog: TLocationProfilesDialog
     TabOrder = 2
     Text = 'RemoteDirectoryEdit'
     OnChange = DirectoryEditChange
-    OnKeyDown = DirectoryEditKeyDown
   end
   object LocalDirectoryBrowseButton: TButton
     Left = 470

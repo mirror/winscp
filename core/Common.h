@@ -90,6 +90,16 @@ private:
   TCriticalSection * FCriticalSection;
 };
 //---------------------------------------------------------------------------
+class TUnguard
+{
+public:
+  __fastcall TUnguard(TCriticalSection * ACriticalSection);
+  __fastcall ~TUnguard();
+
+private:
+  TCriticalSection * FCriticalSection;
+};
+//---------------------------------------------------------------------------
 // C++B TLibModule is invalid (differs from PAS definition)
 struct TPasLibModule
 {

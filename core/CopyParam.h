@@ -30,6 +30,7 @@ private:
   bool FCalculateSize;
   AnsiString FFileMask;
   TFileMasks FExcludeFileMask;
+  bool FNegativeExclude;
   bool FClearArchive;
 
 public:
@@ -46,7 +47,7 @@ public:
   bool __fastcall UseAsciiTransfer(const AnsiString FileName) const;
   bool __fastcall AllowResume(__int64 Size) const;
   AnsiString __fastcall ValidLocalFileName(AnsiString FileName) const;
-  bool __fastcall AllowTransfer(AnsiString FileName) const;
+  bool __fastcall AllowTransfer(AnsiString FileName, TOperationSide Side) const;
 
   __property TFileMasks AsciiFileMask = { read = FAsciiFileMask, write = FAsciiFileMask };
   __property TFileNameCase FileNameCase = { read = FFileNameCase, write = FFileNameCase };
@@ -64,6 +65,7 @@ public:
   __property bool CalculateSize = { read = FCalculateSize, write = FCalculateSize };
   __property AnsiString FileMask = { read = FFileMask, write = FFileMask };
   __property TFileMasks ExcludeFileMask = { read = FExcludeFileMask, write = FExcludeFileMask };
+  __property bool NegativeExclude = { read = FNegativeExclude, write = FNegativeExclude };
   __property bool ClearArchive = { read = FClearArchive, write = FClearArchive };
 };
 //---------------------------------------------------------------------------

@@ -47,6 +47,7 @@ __fastcall TCustomCommandDialog::TCustomCommandDialog(TComponent* Owner)
   UseSystemSettings(this);
   FCustomCommands = NULL;
   FEdit = true;
+  InstallPathWordBreakProc(CommandEdit);
 }
 //---------------------------------------------------------------------------
 void __fastcall TCustomCommandDialog::UpdateControls()
@@ -132,12 +133,6 @@ void __fastcall TCustomCommandDialog::FormShow(TObject * /*Sender*/)
 {
   Caption = LoadStr(Edit ? CUSTOM_COMMAND_EDIT : CUSTOM_COMMAND_ADD);
   UpdateControls();
-}
-//---------------------------------------------------------------------------
-void __fastcall TCustomCommandDialog::PathEditsKeyDown(TObject * /*Sender*/,
-  WORD & Key, TShiftState Shift)
-{
-  PathEditKeyDown(CommandEdit, Key, Shift, RemoteCommandButton->Checked);
 }
 //---------------------------------------------------------------------------
 void __fastcall TCustomCommandDialog::FormCloseQuery(TObject * /*Sender*/,

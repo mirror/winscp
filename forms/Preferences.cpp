@@ -23,6 +23,7 @@
 #pragma link "CopyParams"
 #pragma link "UpDownEdit"
 #pragma link "IEComboBox"
+#pragma link "HistoryComboBox"
 #pragma resource "*.dfm"
 //---------------------------------------------------------------------
 bool __fastcall DoPreferencesDialog(TPreferencesMode APreferencesMode)
@@ -48,11 +49,20 @@ __fastcall TPreferencesDialog::TPreferencesDialog(TComponent* AOwner)
   LoggingFrame->OnGetDefaultLogFileName = LoggingGetDefaultLogFileName;
   CopyParamsFrame->Direction = pdAll;
   FEditorFont = new TFont();
+  FEditorFont->Color = clWindowText;
+  // color tends to reset in object inspector
+  EditorFontLabel->Color = clWindow;
+  // currently useless
   FAfterFilenameEditDialog = false;
   FCustomCommands = new TCustomCommands();
   FCustomCommandChanging = false;
   FCustomCommandDragDest = -1;
   UseSystemSettings(this);
+
+  InstallPathWordBreakProc(RandomSeedFileEdit);
+  InstallPathWordBreakProc(DDTemporaryDirectoryEdit);
+  InstallPathWordBreakProc(PuttyPathEdit);
+  InstallPathWordBreakProc(ExternalEditorEdit);
 }
 //---------------------------------------------------------------------------
 __fastcall TPreferencesDialog::~TPreferencesDialog()
@@ -193,6 +203,15 @@ void __fastcall TPreferencesDialog::LoadConfiguration()
     TWinConfiguration::ReformatFileNameCommand(ExternalEditor);
   }
   ExternalEditorEdit->Text = ExternalEditor;
+  TStrings * ExternalEditorHistory = CustomWinConfiguration->History["ExternalEditor"];
+  if ((ExternalEditorHistory != NULL) && (ExternalEditorHistory->Count > 0))
+  {
+    ExternalEditorEdit->Items = ExternalEditorHistory;
+  }
+  else
+  {
+    ExternalEditorEdit->Items->Clear();
+  }
   ExternalEditorTextCheck->Checked = WinConfiguration->Editor.ExternalEditorText;
   MDIExternalEditorCheck->Checked = WinConfiguration->Editor.MDIExternalEditor;
   EditorWordWrapCheck->Checked = WinConfiguration->Editor.WordWrap;
@@ -228,6 +247,7 @@ void __fastcall TPreferencesDialog::LoadConfiguration()
   QueueTransferLimitEdit->AsInteger = GUIConfiguration->QueueTransfersLimit;
   QueueAutoPopupCheck->Checked = GUIConfiguration->QueueAutoPopup;
   QueueCheck->Checked = GUIConfiguration->CopyParam.Queue;
+  QueueNoConfirmationCheck->Checked = GUIConfiguration->CopyParam.QueueNoConfirmation;
   RememberPasswordCheck->Checked = GUIConfiguration->QueueRememberPassword;
   if (WinConfiguration->QueueView.Show == qvShow)
   {
@@ -319,6 +339,7 @@ void __fastcall TPreferencesDialog::SaveConfiguration()
       (EditorInternalButton->Checked || ExternalEditorEdit->Text.IsEmpty()) ?
         edInternal : edExternal;
     WinConfiguration->Editor.ExternalEditor = ExternalEditorEdit->Text;
+    CustomWinConfiguration->History["ExternalEditor"] = ExternalEditorEdit->Items;
     WinConfiguration->Editor.ExternalEditorText = ExternalEditorTextCheck->Checked;
     WinConfiguration->Editor.MDIExternalEditor = MDIExternalEditorCheck->Checked;
     WinConfiguration->Editor.WordWrap = EditorWordWrapCheck->Checked;
@@ -343,6 +364,7 @@ void __fastcall TPreferencesDialog::SaveConfiguration()
     GUIConfiguration->QueueTransfersLimit = QueueTransferLimitEdit->AsInteger;
     GUIConfiguration->QueueAutoPopup = QueueAutoPopupCheck->Checked;
     CopyParam.Queue = QueueCheck->Checked;
+    CopyParam.QueueNoConfirmation = QueueNoConfirmationCheck->Checked;
     GUIConfiguration->QueueRememberPassword = RememberPasswordCheck->Checked;
 
     if (QueueViewShowButton->Checked)
@@ -412,6 +434,7 @@ void __fastcall TPreferencesDialog::UpdateControls()
 
   EditorFontLabel->Caption = FMTLOAD(EDITOR_FONT_FMT,
     (FEditorFont->Name, FEditorFont->Size));
+  EditorFontLabel->Font = FEditorFont;
 
   bool CommandSelected = (CustomCommandsView->Selected != NULL);
   EnableControl(EditCommandButton, CommandSelected);
@@ -434,6 +457,7 @@ void __fastcall TPreferencesDialog::UpdateControls()
   EnableControl(ExternalEditorTextCheck, !ExternalEditorEdit->Text.IsEmpty());
   EnableControl(MDIExternalEditorCheck,
     !ExternalEditorEdit->Text.IsEmpty() && !EditorSingleEditorOnCheck->Checked);
+  EditorFontLabel->WordWrap = EditorWordWrapCheck->Checked;
 }
 //---------------------------------------------------------------------------
 void __fastcall TPreferencesDialog::EditorFontButtonClick(TObject * /*Sender*/)
@@ -458,7 +482,7 @@ void __fastcall TPreferencesDialog::EditorFontButtonClick(TObject * /*Sender*/)
 //---------------------------------------------------------------------------
 void __fastcall TPreferencesDialog::FilenameEditExit(TObject * Sender)
 {
-  TFilenameEdit * FilenameEdit = dynamic_cast<TFilenameEdit *>(Sender);
+  THistoryComboBox * FilenameEdit = dynamic_cast<THistoryComboBox *>(Sender);
   try
   {
     AnsiString Filename = FilenameEdit->Text;
@@ -474,15 +498,6 @@ void __fastcall TPreferencesDialog::FilenameEditExit(TObject * Sender)
     FilenameEdit->SelectAll();
     FilenameEdit->SetFocus();
     throw;
-  }
-}
-//---------------------------------------------------------------------------
-void __fastcall TPreferencesDialog::FilenameEditAfterDialog(
-      TObject * /*Sender*/, AnsiString & /*Name*/, bool & Action)
-{
-  if (Action)
-  {
-    FAfterFilenameEditDialog = true;
   }
 }
 //---------------------------------------------------------------------------
@@ -740,26 +755,6 @@ void __fastcall TPreferencesDialog::CustomCommandsViewDragOver(
   }
 }
 //---------------------------------------------------------------------------
-void __fastcall TPreferencesDialog::CompareByTimeCheckClick(
-      TObject * /*Sender*/)
-{
-  if (!CompareByTimeCheck->Checked)
-  {
-    CompareBySizeCheck->Checked = true;
-  }
-  UpdateControls();
-}
-//---------------------------------------------------------------------------
-void __fastcall TPreferencesDialog::CompareBySizeCheckClick(
-      TObject * /*Sender*/)
-{
-  if (!CompareBySizeCheck->Checked)
-  {
-    CompareByTimeCheck->Checked = true;
-  }
-  UpdateControls();
-}
-//---------------------------------------------------------------------------
 void __fastcall TPreferencesDialog::NavigationTreeChange(TObject * /*Sender*/,
       TTreeNode *Node)
 {
@@ -859,12 +854,6 @@ void __fastcall TPreferencesDialog::DDExtLabelClick(TObject * Sender)
     SetFocus();
 }
 //---------------------------------------------------------------------------
-void __fastcall TPreferencesDialog::PathEditsKeyDown(
-  TObject * Sender, WORD & Key, TShiftState Shift)
-{
-  PathEditKeyDown(dynamic_cast<TCustomEdit*>(Sender), Key, Shift, false);
-}
-//---------------------------------------------------------------------------
 void __fastcall TPreferencesDialog::AddSearchPathButtonClick(
   TObject * /*Sender*/)
 {
@@ -874,6 +863,40 @@ void __fastcall TPreferencesDialog::AddSearchPathButtonClick(
   {
     AddSearchPath(AppPath);
   }
+}
+//---------------------------------------------------------------------------
+void __fastcall TPreferencesDialog::ExternalEditorBrowseButtonClick(
+  TObject * /*Sender*/)
+{
+  AnsiString ExternalEditor, Program, Params, Dir;
+  ExternalEditor = ExternalEditorEdit->Text;
+  TWinConfiguration::ReformatFileNameCommand(ExternalEditor);
+  SplitCommand(ExternalEditor, Program, Params, Dir);
+
+  TOpenDialog * FileDialog = new TOpenDialog(this);
+  try
+  {
+    FileDialog->FileName = Program;
+    FileDialog->Filter = LoadStr(PREFERENCES_EXTERNAL_EDITOR_FILTER);
+    FileDialog->Title = LoadStr(PREFERENCES_SELECT_EXTERNAL_EDITOR);
+
+    if (FileDialog->Execute())
+    {
+      FAfterFilenameEditDialog = true;
+      ExternalEditorEdit->Text = FormatCommand(FileDialog->FileName, Params);
+      FilenameEditChange(ExternalEditorEdit);
+    }
+  }
+  __finally
+  {
+    delete FileDialog;
+  }
+}
+//---------------------------------------------------------------------------
+void __fastcall TPreferencesDialog::EditorFontLabelDblClick(
+  TObject * Sender)
+{
+  EditorFontButtonClick(Sender);
 }
 //---------------------------------------------------------------------------
 

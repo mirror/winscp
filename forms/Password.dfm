@@ -1,6 +1,6 @@
 object PasswordDialog: TPasswordDialog
-  Left = 390
-  Top = 251
+  Left = 197
+  Top = 77
   HelpType = htKeyword
   HelpKeyword = 'ui_password'
   BorderIcons = [biSystemMenu, biMinimize, biMaximize, biHelp]

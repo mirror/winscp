@@ -365,9 +365,24 @@ int __fastcall MessageDialog(const AnsiString Msg, TQueryType Type,
   return MoreMessageDialog(Msg, NULL, Type, Answers, HelpCtx, Params);
 }
 //---------------------------------------------------------------------------
-int __fastcall SimpleErrorDialog(const AnsiString Msg)
+int __fastcall SimpleErrorDialog(const AnsiString Msg, const AnsiString MoreMessages)
 {
-  return MoreMessageDialog(Msg, NULL, qtError, qaOK, NULL);
+  int Result;
+  TStrings * More = NULL;
+  try
+  {
+    if (!MoreMessages.IsEmpty())
+    {
+      More = new TStringList();
+      More->Text = MoreMessages;
+    }
+    Result = MoreMessageDialog(Msg, More, qtError, qaOK, NULL);
+  }
+  __finally
+  {
+    delete More;
+  }
+  return Result;
 }
 //---------------------------------------------------------------------------
 int __fastcall ExceptionMessageDialog(Exception * E, TQueryType Type,

@@ -302,7 +302,6 @@ object LoginDialog: TLoginDialog
             TabOrder = 4
             Text = 'PrivateKeyEdit'
             OnChange = DataChange
-            OnKeyDown = PathEditsKeyDown
           end
         end
         object TransferProtocolGroup: TXPGroupBox
@@ -460,7 +459,7 @@ object LoginDialog: TLoginDialog
             Width = 317
             Height = 17
             Anchors = [akLeft, akTop, akRight]
-            Caption = 'Enable legacy use of single-&DES in SSH 2'
+            Caption = 'Enable legacy use of single-&DES in SSH-2'
             TabOrder = 3
           end
           object CipherUpButton: TButton
@@ -599,7 +598,6 @@ object LoginDialog: TLoginDialog
             TabOrder = 2
             Text = 'RecycleBinPathEdit'
             OnChange = DataChange
-            OnKeyDown = PathEditsKeyDown
           end
         end
       end
@@ -659,7 +657,6 @@ object LoginDialog: TLoginDialog
             TabOrder = 6
             Text = 'LocalDirectoryEdit'
             OnChange = DataChange
-            OnKeyDown = PathEditsKeyDown
           end
           object RemoteDirectoryEdit: TEdit
             Left = 11
@@ -671,7 +668,6 @@ object LoginDialog: TLoginDialog
             TabOrder = 5
             Text = 'RemoteDirectoryEdit'
             OnChange = DataChange
-            OnKeyDown = PathEditsKeyDown
           end
           object UpdateDirectoriesCheck: TCheckBox
             Left = 11
@@ -967,12 +963,12 @@ object LoginDialog: TLoginDialog
           269)
         object SFTPBugsGroupBox: TXPGroupBox
           Left = 0
-          Top = 6
+          Top = 84
           Width = 345
           Height = 70
           Anchors = [akLeft, akTop, akRight]
           Caption = 'Detection of known bugs in SFTP servers'
-          TabOrder = 0
+          TabOrder = 1
           DesignSize = (
             345
             70)
@@ -987,10 +983,9 @@ object LoginDialog: TLoginDialog
           object Label16: TLabel
             Left = 12
             Top = 44
-            Width = 200
+            Width = 192
             Height = 13
-            Caption = 'Does not use &UTF-8 for SFTP4 and newer'
-            FocusControl = SFTPBugUtfCombo
+            Caption = '&Misinterprets file timestamps prior to 1970'
           end
           object SFTPBugSymlinkCombo: TComboBox
             Left = 272
@@ -1001,6 +996,60 @@ object LoginDialog: TLoginDialog
             Anchors = [akLeft, akTop, akRight]
             ItemHeight = 0
             TabOrder = 0
+          end
+          object SFTPBugSignedTSCombo: TComboBox
+            Left = 272
+            Top = 39
+            Width = 61
+            Height = 21
+            Style = csDropDownList
+            Anchors = [akLeft, akTop, akRight]
+            ItemHeight = 0
+            TabOrder = 1
+          end
+        end
+        object SFTPProtocolGroup: TXPGroupBox
+          Left = 0
+          Top = 6
+          Width = 345
+          Height = 70
+          Anchors = [akLeft, akTop, akRight]
+          Caption = 'Protocol options'
+          TabOrder = 0
+          DesignSize = (
+            345
+            70)
+          object Label34: TLabel
+            Left = 12
+            Top = 20
+            Width = 151
+            Height = 13
+            Caption = '&Preferred SFTP protocol version'
+            FocusControl = SFTPMaxVersionCombo
+          end
+          object Label35: TLabel
+            Left = 12
+            Top = 44
+            Width = 128
+            Height = 13
+            Caption = 'Server does not use &UTF-8'
+          end
+          object SFTPMaxVersionCombo: TComboBox
+            Left = 272
+            Top = 15
+            Width = 61
+            Height = 21
+            Style = csDropDownList
+            Anchors = [akLeft, akTop, akRight]
+            ItemHeight = 13
+            TabOrder = 0
+            Items.Strings = (
+              '0'
+              '1'
+              '2'
+              '3'
+              '4'
+              '5')
           end
           object SFTPBugUtfCombo: TComboBox
             Left = 272
@@ -1025,11 +1074,11 @@ object LoginDialog: TLoginDialog
           Left = -3
           Top = 0
           Width = 356
-          Height = 212
+          Height = 241
           TabOrder = 0
           DesignSize = (
             356
-            212)
+            241)
           inherited LoggingCheck: TCheckBox
             Width = 307
           end
@@ -1174,7 +1223,7 @@ object LoginDialog: TLoginDialog
             Alignment = taRightJustify
             MaxValue = 3600
             MinValue = 1
-            MaxLength = 2
+            MaxLength = 4
             TabOrder = 3
             OnChange = DataChange
           end
@@ -1491,65 +1540,65 @@ object LoginDialog: TLoginDialog
           object Label22: TLabel
             Left = 12
             Top = 20
-            Width = 164
+            Width = 167
             Height = 13
-            Caption = 'Chokes on SSH1 &ignore messages'
+            Caption = 'Chokes on SSH-1 &ignore messages'
             FocusControl = BugIgnore1Combo
           end
           object Label23: TLabel
             Left = 12
             Top = 44
-            Width = 189
+            Width = 192
             Height = 13
-            Caption = 'Refuses all SSH1 pass&word camouflage'
+            Caption = 'Refuses all SSH-1 pass&word camouflage'
             FocusControl = BugPlainPW1Combo
           end
           object Label24: TLabel
             Left = 12
             Top = 68
-            Width = 177
+            Width = 180
             Height = 13
-            Caption = 'Chokes on SSH1 &RSA authentication'
+            Caption = 'Chokes on SSH-1 &RSA authentication'
             FocusControl = BugRSA1Combo
           end
           object Label25: TLabel
             Left = 12
             Top = 92
-            Width = 152
+            Width = 155
             Height = 13
-            Caption = 'Miscomputes SSH2 H&MAC keys'
+            Caption = 'Miscomputes SSH-2 H&MAC keys'
             FocusControl = BugHMAC2Combo
           end
           object Label26: TLabel
             Left = 12
             Top = 116
-            Width = 170
+            Width = 173
             Height = 13
-            Caption = 'Miscomputes SSH2 &encryption keys'
+            Caption = 'Miscomputes SSH-2 &encryption keys'
             FocusControl = BugDeriveKey2Combo
           end
           object Label27: TLabel
             Left = 12
             Top = 140
-            Width = 205
+            Width = 208
             Height = 13
-            Caption = 'Requires &padding on SSH2 RSA signatures'
+            Caption = 'Requires &padding on SSH-2 RSA signatures'
             FocusControl = BugRSAPad2Combo
           end
           object Label14: TLabel
             Left = 12
             Top = 164
-            Width = 160
+            Width = 194
             Height = 13
-            Caption = 'Misuses the sessio&n ID in PK auth'
+            Caption = 'Misuses the sessio&n ID in SSH-2 PK auth'
             FocusControl = BugPKSessID2Combo
           end
           object Label33: TLabel
             Left = 12
             Top = 188
-            Width = 149
+            Width = 183
             Height = 13
-            Caption = 'Handles &key re-exchange badly'
+            Caption = 'Handles SSH-2 &key re-exchange badly'
             FocusControl = BugRekey2Combo
           end
           object BugIgnore1Combo: TComboBox
@@ -1661,7 +1710,7 @@ object LoginDialog: TLoginDialog
             Width = 321
             Height = 17
             Anchors = [akLeft, akTop, akRight]
-            Caption = 'Attempt &TIS or CryptoCard authentication (SSH1)'
+            Caption = 'Attempt &TIS or CryptoCard authentication (SSH-1)'
             TabOrder = 0
             OnClick = DataChange
           end
@@ -1681,7 +1730,7 @@ object LoginDialog: TLoginDialog
             Width = 325
             Height = 17
             Anchors = [akLeft, akTop, akRight]
-            Caption = 'Attempt '#39'keyboard-&interactive'#39' authentication (SSH2)'
+            Caption = 'Attempt '#39'keyboard-&interactive'#39' authentication (SSH-2)'
             TabOrder = 1
             OnClick = DataChange
           end
@@ -1700,7 +1749,7 @@ object LoginDialog: TLoginDialog
             Top = 91
             Width = 325
             Height = 17
-            Caption = 'Attempt MIT Kerberos 5 &GSSAPI authentication (SSH2)'
+            Caption = 'Attempt MIT Kerberos 5 &GSSAPI authentication (SSH-2)'
             TabOrder = 3
             OnClick = AuthGSSAPICheckClick
           end

@@ -236,17 +236,17 @@ object PreferencesDialog: TPreferencesDialog
           Left = 5
           Top = 0
           Width = 377
-          Height = 212
+          Height = 241
           Anchors = [akLeft, akTop, akRight]
           TabOrder = 0
           DesignSize = (
             377
-            212)
+            241)
           inherited LoggingGroup: TXPGroupBox
             Width = 362
             DesignSize = (
               362
-              177)
+              198)
             inherited LogFileNameEdit: TFilenameEdit
               Width = 308
             end
@@ -479,7 +479,7 @@ object PreferencesDialog: TPreferencesDialog
             Anchors = [akLeft, akTop, akRight]
             Caption = 'Compare by &time'
             TabOrder = 0
-            OnClick = CompareByTimeCheckClick
+            OnClick = ControlChange
           end
           object CompareBySizeCheck: TCheckBox
             Left = 16
@@ -489,7 +489,7 @@ object PreferencesDialog: TPreferencesDialog
             Anchors = [akLeft, akTop, akRight]
             Caption = 'Compare by &size'
             TabOrder = 1
-            OnClick = CompareBySizeCheckClick
+            OnClick = ControlChange
           end
         end
       end
@@ -630,7 +630,7 @@ object PreferencesDialog: TPreferencesDialog
               362
               61)
             inherited ExcludeFileMaskCombo: THistoryComboBox
-              Width = 254
+              Width = 235
             end
           end
         end
@@ -645,15 +645,15 @@ object PreferencesDialog: TPreferencesDialog
           352)
         object EditorGroup: TXPGroupBox
           Left = 8
-          Top = 86
+          Top = 8
           Width = 362
-          Height = 144
+          Height = 101
           Anchors = [akLeft, akTop, akRight]
           Caption = 'Default editor'
           TabOrder = 1
           DesignSize = (
             362
-            144)
+            101)
           object EditorInternalButton: TRadioButton
             Left = 16
             Top = 21
@@ -672,101 +672,107 @@ object PreferencesDialog: TPreferencesDialog
             TabOrder = 1
             OnClick = ControlChange
           end
-          object ExternalEditorEdit: TFilenameEdit
+          object ExternalEditorEdit: THistoryComboBox
             Left = 32
             Top = 69
-            Width = 315
+            Width = 241
             Height = 21
-            OnAfterDialog = FilenameEditAfterDialog
-            Filter = 'Executable files (*.exe)|*.exe|All files (*.*)|*.*'
-            DialogTitle = 'Select editor application.'
-            ClickKey = 16397
             Anchors = [akLeft, akTop, akRight]
+            ItemHeight = 0
             TabOrder = 2
             Text = 'ExternalEditorEdit'
             OnChange = FilenameEditChange
             OnExit = FilenameEditExit
-            OnKeyDown = PathEditsKeyDown
           end
-          object ExternalEditorTextCheck: TCheckBox
-            Left = 40
-            Top = 96
-            Width = 305
-            Height = 17
-            Caption = 'Force &text transfer mode for files edited in external editor'
-            TabOrder = 3
-            OnClick = ControlChange
-          end
-          object MDIExternalEditorCheck: TCheckBox
-            Left = 40
-            Top = 118
-            Width = 305
-            Height = 17
-            Caption = 'External editor &opens multiple files in one window (process)'
-            TabOrder = 4
-            OnClick = ControlChange
-          end
-        end
-        object EditorFontGroup: TXPGroupBox
-          Left = 8
-          Top = 235
-          Width = 362
-          Height = 56
-          Anchors = [akLeft, akTop, akRight]
-          Caption = 'Editor font'
-          TabOrder = 2
-          DesignSize = (
-            362
-            56)
-          object EditorFontLabel: TLabel
-            Left = 16
-            Top = 25
-            Width = 249
-            Height = 13
-            Anchors = [akLeft, akTop, akRight]
-            AutoSize = False
-            Caption = 'EditorFontLabel'
-          end
-          object EditorFontButton: TButton
-            Left = 271
-            Top = 18
+          object ExternalEditorBrowseButton: TButton
+            Left = 279
+            Top = 67
             Width = 75
             Height = 25
             Anchors = [akTop, akRight]
-            Caption = '&Select...'
+            Caption = 'B&rowse...'
+            TabOrder = 3
+            OnClick = ExternalEditorBrowseButtonClick
+          end
+        end
+        object InternalEditorGroup: TXPGroupBox
+          Left = 8
+          Top = 190
+          Width = 362
+          Height = 79
+          Anchors = [akLeft, akTop, akRight]
+          Caption = 'Internal editor options'
+          TabOrder = 2
+          DesignSize = (
+            362
+            79)
+          object EditorFontLabel: TLabel
+            Left = 144
+            Top = 19
+            Width = 209
+            Height = 50
+            Anchors = [akLeft, akTop, akRight]
+            AutoSize = False
+            Caption = 'EditorFontLabel'
+            Color = clBtnFace
+            ParentColor = False
+            OnDblClick = EditorFontLabelDblClick
+          end
+          object EditorFontButton: TButton
+            Left = 16
+            Top = 18
+            Width = 105
+            Height = 25
+            Anchors = [akTop, akRight]
+            Caption = '&Select font...'
             TabOrder = 0
             OnClick = EditorFontButtonClick
           end
-        end
-        object EditorOptionsGroup: TXPGroupBox
-          Left = 8
-          Top = 296
-          Width = 362
-          Height = 51
-          Anchors = [akLeft, akTop, akRight]
-          Caption = 'Options'
-          TabOrder = 3
-          DesignSize = (
-            362
-            51)
           object EditorWordWrapCheck: TCheckBox
             Left = 16
-            Top = 21
-            Width = 330
+            Top = 52
+            Width = 121
             Height = 17
             Anchors = [akLeft, akTop, akRight]
             Caption = '&Wrap long lines'
+            TabOrder = 1
+            OnClick = ControlChange
+          end
+        end
+        object ExternalEditorGroup: TXPGroupBox
+          Left = 8
+          Top = 273
+          Width = 362
+          Height = 73
+          Anchors = [akLeft, akTop, akRight]
+          Caption = 'External editor options (affects editing remote files only)'
+          TabOrder = 3
+          object ExternalEditorTextCheck: TCheckBox
+            Left = 16
+            Top = 21
+            Width = 337
+            Height = 17
+            Caption = 'Force &text transfer mode for files edited in external editor'
             TabOrder = 0
+            OnClick = ControlChange
+          end
+          object MDIExternalEditorCheck: TCheckBox
+            Left = 16
+            Top = 45
+            Width = 337
+            Height = 17
+            Caption = 'E&xternal editor opens multiple files in one window (process)'
+            TabOrder = 1
             OnClick = ControlChange
           end
         end
         object SingleEditorGroup: TXPGroupBox
           Left = 8
-          Top = 8
+          Top = 113
           Width = 362
           Height = 73
           Anchors = [akLeft, akTop, akRight]
-          Caption = 'Allow multiple opened files (editors)'
+          Caption = 'Allow multiple remote opened files (editors)'
           TabOrder = 0
           object EditorSingleEditorOnCheck: TRadioButton
             Left = 16
@@ -901,7 +907,6 @@ object PreferencesDialog: TPreferencesDialog
             Anchors = [akLeft, akTop, akRight]
             TabOrder = 0
             Text = 'PuttyPathEdit'
-            OnKeyDown = PathEditsKeyDown
           end
           object PuttyPasswordCheck: TCheckBox
             Left = 24
@@ -1145,7 +1150,7 @@ object PreferencesDialog: TPreferencesDialog
           Left = 8
           Top = 8
           Width = 362
-          Height = 126
+          Height = 150
           Anchors = [akLeft, akTop, akRight]
           Caption = 'Background transfers'
           TabOrder = 0
@@ -1170,11 +1175,11 @@ object PreferencesDialog: TPreferencesDialog
           end
           object QueueAutoPopupCheck: TCheckBox
             Left = 16
-            Top = 74
+            Top = 98
             Width = 337
             Height = 17
             Caption = '&Automatically popup prompts of background transfers when idle'
-            TabOrder = 2
+            TabOrder = 3
           end
           object QueueCheck: TCheckBox
             Left = 16
@@ -1186,16 +1191,24 @@ object PreferencesDialog: TPreferencesDialog
           end
           object RememberPasswordCheck: TCheckBox
             Left = 16
-            Top = 98
+            Top = 122
             Width = 337
             Height = 17
             Caption = 'Remember &password of main session for background transfers'
-            TabOrder = 3
+            TabOrder = 4
+          end
+          object QueueNoConfirmationCheck: TCheckBox
+            Left = 16
+            Top = 74
+            Width = 337
+            Height = 17
+            Caption = '&No confirmations for background transfers'
+            TabOrder = 2
           end
         end
         object QueueViewGroup: TXPGroupBox
           Left = 8
-          Top = 140
+          Top = 164
           Width = 362
           Height = 99
           Anchors = [akLeft, akTop, akRight]
@@ -1314,7 +1327,6 @@ object PreferencesDialog: TPreferencesDialog
             TabOrder = 2
             Text = 'DDTemporaryDirectoryEdit'
             OnClick = ControlChange
-            OnKeyDown = PathEditsKeyDown
           end
           object TemporaryDirectoryCleanupCheck: TCheckBox
             Left = 16
@@ -1371,7 +1383,6 @@ object PreferencesDialog: TPreferencesDialog
             TabOrder = 0
             Text = 'RandomSeedFileEdit'
             OnChange = ControlChange
-            OnKeyDown = PathEditsKeyDown
           end
         end
       end

@@ -22,12 +22,14 @@ __fastcall TLoggingFrame::TLoggingFrame(TComponent* Owner)
         : TFrame(Owner)
 {
   FEnableLogWindow = true;
+  InstallPathWordBreakProc(LogFileNameEdit);
 }
 //---------------------------------------------------------------------------
 void __fastcall TLoggingFrame::LoadConfiguration()
 {
   //Log tab
   LoggingCheck->Checked = Configuration->Logging;
+  LogProtocolCombo->ItemIndex = Configuration->LogProtocol;
   LogToFileCheck->Checked = Configuration->LogToFile;
   LogFileNameEdit->Text = Configuration->LogFileName;
   if (Configuration->LogFileAppend)
@@ -51,6 +53,7 @@ void __fastcall TLoggingFrame::SaveConfiguration()
   try
   {
     Configuration->Logging = LoggingCheck->Checked;
+    Configuration->LogProtocol = LogProtocolCombo->ItemIndex;
     Configuration->LogToFile = LogToFileCheck->Checked;
     if (LogToFileCheck->Checked)
     {
@@ -84,6 +87,8 @@ void __fastcall TLoggingFrame::UpdateControls()
     LoggingGroup->Enabled = True;
 
     EnableControl(LogToFileCheck, True);
+    EnableControl(LogProtocolLabel, True);
+    EnableControl(LogProtocolCombo, True);
     EnableControl(LogFileNameEdit, LogToFileCheck->Checked);
     EnableControl(LogFilePanel, LogToFileCheck->Checked);
 
@@ -125,12 +130,6 @@ void __fastcall TLoggingFrame::SetEnableLogWindow(bool value)
     FEnableLogWindow = value;
     UpdateControls();
   }
-}
-//---------------------------------------------------------------------------
-void __fastcall TLoggingFrame::LogFileNameEditKeyDown(TObject * /*Sender*/,
-  WORD & Key, TShiftState Shift)
-{
-  PathEditKeyDown(LogFileNameEdit, Key, Shift, false);
 }
 //---------------------------------------------------------------------------
 

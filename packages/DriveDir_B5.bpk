@@ -19,8 +19,8 @@
     <RESDEPEN value="$(RESFILES)"/>
     <LIBFILES value=""/>
     <LIBRARIES value="bcb2kaxserver.lib dclocx.lib"/>
-    <SPARELIBS value="bcb2kaxserver.lib bcbie.lib bcbsmp.lib dclocx.lib
-      rtl.lib vcl.lib"/>
+    <SPARELIBS value="DragDrop_B5.lib Moje_B5.lib bcb2kaxserver.lib
+      bcbie.lib bcbsmp.lib dclocx.lib rtl.lib vcl.lib"/>
     <PACKAGES value="DragDrop_B5.bpi Moje_B5.bpi bcbie.bpi bcbsmp.bpi
       rtl.bpi vcl.bpi vclx.bpi"/>
     <PATHCPP value=".;"/>

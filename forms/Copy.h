@@ -33,14 +33,13 @@ __published:
   void __fastcall FormShow(TObject *Sender);
   void __fastcall FormCloseQuery(TObject *Sender, bool &CanClose);
   void __fastcall LocalDirectoryBrowseButtonClick(TObject *Sender);
-  void __fastcall DirectoryEditKeyDown(TObject *Sender, WORD &Key,
-    TShiftState Shift);
   void __fastcall ControlChange(TObject *Sender);
 private:
   bool FToRemote;
   TStrings * FFileList;
   bool FMove;
   int FOptions;
+  int FOutputOptions;
   TGUICopyParamType FParams;
   AnsiString __fastcall GetDirectory();
   void __fastcall SetToRemote(bool value);
@@ -52,6 +51,8 @@ private:
   void __fastcall SetMove(bool value);
   AnsiString __fastcall GetFileMask();
   void __fastcall SetOptions(int value);
+  void __fastcall SetOutputOptions(int value);
+  int __fastcall GetOutputOptions();
 protected:
   void __fastcall UpdateControls();
   void __fastcall AdjustControls();
@@ -66,6 +67,7 @@ public:
   __property TGUICopyParamType Params = { read = GetParams, write = SetParams };
   __property bool Move = { read = FMove, write = SetMove };
   __property int Options = { read = FOptions, write = SetOptions };
+  __property int OutputOptions = { read = GetOutputOptions, write = SetOutputOptions };
 };
 //---------------------------------------------------------------------------
 #endif

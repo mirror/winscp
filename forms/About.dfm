@@ -55,7 +55,7 @@ object AboutDialog: TAboutDialog
     Width = 188
     Height = 13
     Cursor = crHandPoint
-    Caption = 'http://XXXXXXwinscp.sourceforge.net/'
+    Caption = 'http://XXXXXXwinscp.net/'
     Color = clBtnFace
     Font.Charset = DEFAULT_CHARSET
     Font.Color = clBlue
@@ -79,7 +79,7 @@ object AboutDialog: TAboutDialog
     Width = 205
     Height = 13
     Cursor = crHandPoint
-    Caption = 'http://XXXXwinscp.sourceforge.net/forum/'
+    Caption = 'http://XXXXwinscp.net/forum/'
     Font.Charset = DEFAULT_CHARSET
     Font.Color = clBlue
     Font.Height = -11

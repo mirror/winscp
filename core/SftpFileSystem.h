@@ -75,6 +75,7 @@ protected:
   TStrings * FExtensions;
   TSFTPSupport * FSupport;
   bool FUtfStrings;
+  bool FUtfNever;
   bool FSignedTS;
 
   void __fastcall CustomReadFile(const AnsiString FileName,

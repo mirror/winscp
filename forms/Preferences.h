@@ -23,6 +23,7 @@
 #include "LogSettings.h"
 #include "UpDownEdit.hpp"
 #include "IEComboBox.hpp"
+#include "HistoryComboBox.hpp"
 //----------------------------------------------------------------------------
 class TCustomCommands;
 //----------------------------------------------------------------------------
@@ -73,12 +74,11 @@ __published:
   TXPGroupBox *EditorGroup;
   TRadioButton *EditorInternalButton;
   TRadioButton *EditorExternalButton;
-  TFilenameEdit *ExternalEditorEdit;
-  TXPGroupBox *EditorFontGroup;
+  THistoryComboBox *ExternalEditorEdit;
+  TXPGroupBox *InternalEditorGroup;
   TLabel *EditorFontLabel;
   TButton *EditorFontButton;
-  TXPGroupBox *EditorOptionsGroup;
-  TCheckBox *EditorWordWrapCheck;
+  TXPGroupBox *ExternalEditorGroup;
   TTabSheet *IntegrationSheet;
   TXPGroupBox *ShellIconsGroup;
   TLabel *ShellIconsLabel;
@@ -110,7 +110,6 @@ __published:
   TCheckBox *DDWarnLackOfTempSpaceCheck;
   TCheckBox *DDWarnOnMoveCheck;
   TCheckBox *ConfirmExitOnCompletionCheck;
-  TCheckBox *ExternalEditorTextCheck;
   TTabSheet *QueueSheet;
   TXPGroupBox *QueueGroup;
   TUpDownEdit *QueueTransferLimitEdit;
@@ -157,13 +156,15 @@ __published:
   TCheckBox *SwappedPanelsCheck;
   TCheckBox *PreservePanelStateCheck;
   TButton *AddSearchPathButton;
+  TCheckBox *QueueNoConfirmationCheck;
+  TCheckBox *EditorWordWrapCheck;
+  TCheckBox *ExternalEditorTextCheck;
   TCheckBox *MDIExternalEditorCheck;
+  TButton *ExternalEditorBrowseButton;
   void __fastcall FormShow(TObject *Sender);
   void __fastcall ControlChange(TObject *Sender);
   void __fastcall EditorFontButtonClick(TObject *Sender);
   void __fastcall FilenameEditExit(TObject *Sender);
-  void __fastcall FilenameEditAfterDialog(TObject *Sender,
-          AnsiString &Name, bool &Action);
   void __fastcall FilenameEditChange(TObject *Sender);
   void __fastcall FormCloseQuery(TObject *Sender, bool &CanClose);
   void __fastcall IconButtonClick(TObject *Sender);
@@ -181,16 +182,14 @@ __published:
           TObject *Source, int X, int Y);
   void __fastcall CustomCommandsViewDragOver(TObject *Sender,
           TObject *Source, int X, int Y, TDragState State, bool &Accept);
-  void __fastcall CompareByTimeCheckClick(TObject *Sender);
-  void __fastcall CompareBySizeCheckClick(TObject *Sender);
   void __fastcall NavigationTreeChange(TObject *Sender, TTreeNode *Node);
   void __fastcall PageControlChange(TObject *Sender);
   void __fastcall RegisterAsUrlHandlerButtonClick(TObject *Sender);
   void __fastcall DDExtLabelClick(TObject *Sender);
-  void __fastcall PathEditsKeyDown(TObject *Sender, WORD &Key,
-          TShiftState Shift);
   void __fastcall CustomCommandsViewDblClick(TObject *Sender);
   void __fastcall AddSearchPathButtonClick(TObject *Sender);
+  void __fastcall ExternalEditorBrowseButtonClick(TObject *Sender);
+  void __fastcall EditorFontLabelDblClick(TObject *Sender);
 private:
   TPreferencesMode FPreferencesMode;
   TFont * FEditorFont;

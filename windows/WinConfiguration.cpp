@@ -131,7 +131,6 @@ void __fastcall TWinConfiguration::Default()
   FScpCommander.CurrentPanel = osLocal;
   FScpCommander.CompareByTime = true;
   FScpCommander.CompareBySize = false;
-  FScpCommander.SynchronizeBrowsing = false;
   FScpCommander.SessionComboWidth = 114;
   FScpCommander.RemotePanel.DirViewParams = "0;1;0|150,1;70,1;101,1;79,1;62,1;55,0|0;1;2;3;4;5";
   FScpCommander.RemotePanel.StatusBar = true;
@@ -304,7 +303,6 @@ THierarchicalStorage * TWinConfiguration::CreateScpStorage(bool SessionList)
     KEY(Bool,    ScpCommander.PreserveLocalDirectory); \
     KEY(Bool,    ScpCommander.CompareByTime); \
     KEY(Bool,    ScpCommander.CompareBySize); \
-    KEY(Bool,    ScpCommander.SynchronizeBrowsing); \
     KEY(Integer, ScpCommander.SessionComboWidth); \
   ); \
   BLOCK("Interface\\Commander\\LocalPanel", CANCREATE, \

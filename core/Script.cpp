@@ -610,7 +610,7 @@ bool __fastcall TScript::HandleExtendedException(Exception * E)
 
   if (Result)
   {
-    OnShowExtendedException(FTerminal, E);
+    OnShowExtendedException(FTerminal, E, NULL);
   }
 
   return Result;
@@ -1087,7 +1087,7 @@ void __fastcall TScript::SynchronizeProc(TScriptProcParams * Parameters)
     FTerminal->Synchronize(LocalDirectory, RemoteDirectory,
       static_cast<TTerminal::TSynchronizeMode>(FSynchronizeMode),
       &CopyParam, FSynchronizeParams | TTerminal::spNoConfirmation,
-      OnTerminalSynchronizeDirectory);
+      OnTerminalSynchronizeDirectory, NULL);
   }
   __finally
   {
@@ -1096,20 +1096,20 @@ void __fastcall TScript::SynchronizeProc(TScriptProcParams * Parameters)
 }
 //---------------------------------------------------------------------------
 void __fastcall TScript::Synchronize(const AnsiString LocalDirectory,
-  const AnsiString RemoteDirectory)
+  const AnsiString RemoteDirectory, const TCopyParamType & ACopyParam,
+  TSynchronizeStats * /*Stats*/)
 {
   try
   {
     FKeepingUpToDate = true;
 
-    TCopyParamType CopyParam = FCopyParam;
+    TCopyParamType CopyParam = ACopyParam;
     CopyParam.CalculateSize = false;
-    CopyParam.PreserveTime = true;
 
     FTerminal->Synchronize(LocalDirectory, RemoteDirectory, TTerminal::smRemote, &CopyParam,
       FSynchronizeParams | TTerminal::spNoConfirmation | TTerminal::spNoRecurse |
-      TTerminal::spUseCache | TTerminal::spDelayProgress,
-      OnTerminalSynchronizeDirectory);
+      TTerminal::spUseCache | TTerminal::spDelayProgress | TTerminal::spSubDirs,
+      OnTerminalSynchronizeDirectory, NULL);
 
     // to break line after the last transfer (if any); 
     Print("");    
@@ -1260,7 +1260,7 @@ bool __fastcall TManagementScript::QueryCancel()
 }
 //---------------------------------------------------------------------------
 void __fastcall TManagementScript::TerminalOnStdError(TObject * Sender,
-  const AnsiString AddedLine)
+  TLogLineType /*Type*/, const AnsiString AddedLine)
 {
   TTerminal * Terminal = dynamic_cast<TTerminal*>(Sender);
   assert(Terminal != NULL);
@@ -1322,7 +1322,7 @@ void __fastcall TManagementScript::TerminalOperationProgress(
 //---------------------------------------------------------------------------
 void __fastcall TManagementScript::TerminalOperationFinished(
   TFileOperation Operation, TOperationSide /*Side*/,
-  bool /*DragDrop*/, const AnsiString FileName, Boolean Success,
+  bool /*Temp*/, const AnsiString FileName, Boolean Success,
   bool & /*DisconnectWhenComplete*/)
 {
   if (Success && (Operation != foCalculateSize) && (Operation != foCopy))

@@ -279,8 +279,9 @@ type
     procedure SetPath(Value: string); override;
     procedure SetItemImageIndex(Item: TListItem; Index: Integer); override;
     procedure SetCompressedColor(Value: TColor);
-    procedure ChangeDetected(Sender: TObject; const Directory: string);
-    procedure ChangeInvalid(Sender: TObject; const Directory: string);
+    procedure ChangeDetected(Sender: TObject; const Directory: string; 
+      var SubdirsChanged: Boolean);
+    procedure ChangeInvalid(Sender: TObject; const Directory: string; const ErrorStr: string);
     procedure TimerOnTimer(Sender: TObject);
     procedure ResetItemImage(Index: Integer);
     procedure SetAttrSpace(Value: string);
@@ -3245,7 +3246,8 @@ begin
   end
 end; {TimerOnTimer}
 
-procedure TDirView.ChangeDetected(Sender: TObject; const Directory: string);
+procedure TDirView.ChangeDetected(Sender: TObject; const Directory: string; 
+  var SubdirsChanged: Boolean);
 begin
   FDirty := True;
   FChangeTimer.Enabled := False;
@@ -3254,7 +3256,8 @@ begin
   FChangeTimer.Enabled := True;
 end; {ChangeDetected}
 
-procedure TDirView.ChangeInvalid(Sender: TObject; const Directory: string);
+procedure TDirView.ChangeInvalid(Sender: TObject; const Directory: string; 
+  const ErrorStr: string);
 begin
   FDiscMonitor.Close;
   if Assigned(FOnChangeInvalid) then

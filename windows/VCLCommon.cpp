@@ -2,6 +2,7 @@
 #include <vcl.h>
 #pragma hdrstop
 
+#include "WinInterface.h"
 #include "VCLCommon.h"
 
 #include <Common.h>
@@ -272,38 +273,88 @@ void __fastcall ListViewCheckAll(TListView * ListView,
   }
 }
 //---------------------------------------------------------------------------
-void __fastcall PathComboBoxKeyDown(
-  TCustomComboBox * ComboBox, WORD & Key, TShiftState Shift, bool Unix)
+// Windows algorithm is as follows (tested on W2k):
+// right:
+//   is_delimiter(current)
+//     false:
+//       right(left(current) + 1)
+//     true:
+//       right(right(current) + 1)
+// left:
+//   right(left(current) + 1)
+int CALLBACK PathWordBreakProc(char * Ch, int Current, int Len, int Code)
 {
-  assert(ComboBox != NULL);
-
-  if (((Key == VK_LEFT) || (Key == VK_RIGHT)) && Shift.Contains(ssCtrl))
+  char Delimiters[] = "\\/ ;,.";
+  int Result;
+  AnsiString ACh;
+  // stupid unicode autodetection
+  // (on WinXP (or rather for RichEdit 2.0) we get unicode on input)
+  if ((Len > 1) && (Ch[1] == '\0'))
   {
-    int SelStart = ComboBox->SelStart;
-    int SelLength = ComboBox->SelLength;
-    SkipPathComponent(reinterpret_cast<TComboBox*>(ComboBox)->Text,
-      SelStart, SelLength, (Key == VK_LEFT), Unix);
-    ComboBox->SelStart = SelStart;
-    ComboBox->SelLength = SelLength;
-    Key = 0;
+    // this convertes the unicode to ansi
+    ACh = (wchar_t*)Ch;
   }
+  else
+  {
+    ACh = Ch;
+  }
+  if (Code == WB_ISDELIMITER)
+  {
+    // we return negacy of what WinAPI docs says
+    Result = (strchr(Delimiters, ACh[Current + 1]) == NULL);
+  }
+  else if (Code == WB_LEFT)
+  {
+    Result = ACh.SubString(1, Current - 1).LastDelimiter(Delimiters);
+  }
+  else if (Code == WB_RIGHT)
+  {
+    if (Current == 0)
+    {
+      // will be called gain with Current == 1
+      Result = 0;
+    }
+    else
+    {
+      const char * P = strpbrk(ACh.c_str() + Current - 1, Delimiters);
+      if (P == NULL)
+      {
+        Result = Len;
+      }
+      else
+      {
+        Result = P - ACh.c_str() + 1;
+      }
+    }
+  }
+  else
+  {
+    assert(false);
+    Result = 0;
+  }
+  return Result;
 }
 //---------------------------------------------------------------------------
-void __fastcall PathEditKeyDown(
-  TCustomEdit * Edit, WORD & Key, TShiftState Shift, bool Unix)
+class TPublicCustomCombo : public TCustomCombo
 {
-  assert(Edit != NULL);
-
-  if (((Key == VK_LEFT) || (Key == VK_RIGHT)) && Shift.Contains(ssCtrl))
+friend void __fastcall InstallPathWordBreakProc(TWinControl * Control);
+};
+//---------------------------------------------------------------------------
+void __fastcall InstallPathWordBreakProc(TWinControl * Control)
+{
+  HWND Wnd;
+  if (dynamic_cast<TCustomCombo*>(Control) != NULL)
   {
-    int SelStart = Edit->SelStart;
-    int SelLength = Edit->SelLength;
-    SkipPathComponent(Edit->Text,
-      SelStart, SelLength, (Key == VK_LEFT), Unix);
-    Edit->SelStart = SelStart;
-    Edit->SelLength = SelLength;
-    Key = 0;
+    TPublicCustomCombo * Combo =
+      static_cast<TPublicCustomCombo *>(dynamic_cast<TCustomCombo *>(Control));
+    Combo->HandleNeeded();
+    Wnd = Combo->EditHandle;
   }
+  else
+  {
+    Wnd = Control->Handle;
+  }
+  SendMessage(Wnd, EM_SETWORDBREAKPROC, 0, (LPARAM)(EDITWORDBREAKPROC)PathWordBreakProc);
 }
 //---------------------------------------------------------------------------
 void __fastcall RepaintStatusBar(TCustomStatusBar * StatusBar)

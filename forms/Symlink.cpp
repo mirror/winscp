@@ -45,6 +45,9 @@ __fastcall TSymlinkDialog::TSymlinkDialog(TComponent* Owner)
 {
   UseSystemSettings(this);
   FSide = osLocal;
+
+  InstallPathWordBreakProc(PointToEdit);
+  InstallPathWordBreakProc(FileNameEdit);
 }
 //---------------------------------------------------------------------------
 void __fastcall TSymlinkDialog::UpdateControls()
@@ -119,13 +122,6 @@ void __fastcall TSymlinkDialog::FormShow(TObject * /*Sender*/)
 {
   Caption = LoadStr(Edit ? LINK_EDIT_CAPTION : LINK_ADD_CAPTION);
   UpdateControls();
-}
-//---------------------------------------------------------------------------
-void __fastcall TSymlinkDialog::PathEditsKeyDown(TObject * Sender,
-  WORD & Key, TShiftState Shift)
-{
-  PathEditKeyDown(dynamic_cast<TCustomEdit*>(Sender), Key, Shift,
-    (Side == osRemote));
 }
 //---------------------------------------------------------------------------
 

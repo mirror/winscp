@@ -6,8 +6,8 @@
 //---------------------------------------------------------------------
 #include <VCLCommon.h>
 #include <Common.h>
-#include "About.h"
 #include "WinInterface.h"
+#include "About.h"
 #include "TextsCore.h"
 #include "TextsWin.h"
 //---------------------------------------------------------------------

@@ -79,47 +79,6 @@ AnsiString __fastcall UnixExtractFileExt(const AnsiString Path)
   return (Pos > 0) ? Path.SubString(Pos, Path.Length() - Pos + 1) : AnsiString();
 }
 //---------------------------------------------------------------------------
-void __fastcall SkipPathComponent(const AnsiString & Text,
-  int & SelStart, int & SelLength, bool Left, bool Unix)
-{
-  AnsiString Delimiter = Unix ? "/" : "\\";
-
-  int P;
-  bool WholeSelected = (SelLength >= Text.Length());
-  if (!Left)
-  {
-    int ASelStart = WholeSelected ? 0 : SelStart;
-    int P2;
-    P = Text.SubString(ASelStart + 1, Text.Length()).Pos(Delimiter);
-    P2 = Text.SubString(ASelStart + 1, Text.Length()).Pos(" ");
-    if ((P2 >= 1) && ((P2 < P) || (P < 1)))
-    {
-      P = P2;
-    }
-
-    if (P < 1)
-    {
-      P = Text.Length();
-    }
-    else
-    {
-      P += ASelStart;
-    }
-  }
-  else
-  {
-    int ASelStart = WholeSelected ? Text.Length() : SelStart;
-    P = Text.SubString(1, ASelStart - 1).LastDelimiter(Delimiter + " ");
-    if (P < 1)
-    {
-      P = 0;
-    }
-  }
-
-  SelStart = P;
-  SelLength = 0;
-}
-//---------------------------------------------------------------------------
 bool __fastcall ExtractCommonPath(TStrings * Files, AnsiString & Path)
 {
   assert(Files->Count > 0);
@@ -1890,7 +1849,9 @@ bool __fastcall TRemoteProperties::operator ==(const TRemoteProperties & rhp) co
     if ((Valid.Contains(vpRights) &&
           (Rights != rhp.Rights || AddXToDirectories != rhp.AddXToDirectories)) ||
         (Valid.Contains(vpOwner) && Owner != rhp.Owner) ||
-        (Valid.Contains(vpGroup) && Group != rhp.Group))
+        (Valid.Contains(vpGroup) && Group != rhp.Group) ||
+        (Valid.Contains(vpModification) && (Modification != rhp.Modification)) ||
+        (Valid.Contains(vpLastAccess) && (LastAccess != rhp.LastAccess)))
     {
       Result = false;
     }
@@ -1905,6 +1866,7 @@ bool __fastcall TRemoteProperties::operator !=(const TRemoteProperties & rhp) co
 //---------------------------------------------------------------------------
 TRemoteProperties __fastcall TRemoteProperties::CommonProperties(TStrings * FileList)
 {
+  // TODO: Modification and LastAccess
   TRemoteProperties CommonProperties;
   for (int Index = 0; Index < FileList->Count; Index++)
   {
@@ -1913,7 +1875,10 @@ TRemoteProperties __fastcall TRemoteProperties::CommonProperties(TStrings * File
     if (!Index)
     {
       CommonProperties.Rights = *(File->Rights);
-      CommonProperties.Rights.AllowUndef = File->IsDirectory || File->Rights->IsUndef;
+      // previously we allowed undef implicitly for directories,
+      // now we do it explicitly in properties dialog and only in combination
+      // with "recursive" option
+      CommonProperties.Rights.AllowUndef = File->Rights->IsUndef;
       CommonProperties.Valid << vpRights;
       if (!File->Owner.IsEmpty())
       {
@@ -1948,6 +1913,7 @@ TRemoteProperties __fastcall TRemoteProperties::CommonProperties(TStrings * File
 TRemoteProperties __fastcall TRemoteProperties::ChangedProperties(
   const TRemoteProperties & OriginalProperties, TRemoteProperties NewProperties)
 {
+  // TODO: Modification and LastAccess
   if (!NewProperties.Recursive)
   {
     if (NewProperties.Rights == OriginalProperties.Rights &&

@@ -4,6 +4,7 @@
 
 #include <Common.h>
 
+#include "WinInterface.h"
 #include "FullSynchronize.h"
 #include "VCLCommon.h"
 
@@ -18,17 +19,20 @@
 #pragma resource "*.dfm"
 //---------------------------------------------------------------------------
 bool __fastcall DoFullSynchronizeDialog(TSynchronizeMode & Mode, int & Params,
-  AnsiString & LocalDirectory, AnsiString & RemoteDirectory, bool & SaveSettings)
+  AnsiString & LocalDirectory, AnsiString & RemoteDirectory, bool & SaveSettings,
+  bool & SaveMode, int Options)
 {
   bool Result;
   TFullSynchronizeDialog * Dialog = new TFullSynchronizeDialog(Application);
   try
   {
     Dialog->Mode = Mode;
+    Dialog->Options = Options;
     Dialog->Params = Params;
     Dialog->LocalDirectory = LocalDirectory;
     Dialog->RemoteDirectory = RemoteDirectory;
     Dialog->SaveSettings = SaveSettings;
+    Dialog->SaveMode = SaveMode;
     Result = Dialog->Execute();
     if (Result)
     {
@@ -37,6 +41,7 @@ bool __fastcall DoFullSynchronizeDialog(TSynchronizeMode & Mode, int & Params,
       LocalDirectory = Dialog->LocalDirectory;
       RemoteDirectory = Dialog->RemoteDirectory;
       SaveSettings = Dialog->SaveSettings;
+      SaveMode = Dialog->SaveMode;
     }
   }
   __finally
@@ -51,11 +56,36 @@ __fastcall TFullSynchronizeDialog::TFullSynchronizeDialog(TComponent* Owner)
 {
   UseSystemSettings(this);
   FParams = 0;
+  FSaveMode = false;
+  FOptions = 0;
+  InstallPathWordBreakProc(LocalDirectoryEdit);
+  InstallPathWordBreakProc(RemoteDirectoryEdit);
 }
 //---------------------------------------------------------------------------
 void __fastcall TFullSynchronizeDialog::UpdateControls()
 {
-  EnableControl(SynchronizeDeleteCheck, !SynchronizeBothButton->Checked);
+  EnableControl(SynchronizeTimestampCheck, FLAGCLEAR(Options, fsoDisableTimestamp));
+  if (SynchronizeTimestampCheck->Checked)
+  {
+    SynchronizeExistingOnlyCheck->Checked = true;
+    SynchronizePreviewChangesCheck->Checked = false;
+    SynchronizeNoConfirmationCheck->Checked = false;
+  }
+  if (SynchronizeTimestampCheck->Checked || SynchronizeBothButton->Checked)
+  {
+    SynchronizeDeleteCheck->Checked = false;
+    SynchronizeByTimeCheck->Checked = true;
+    SynchronizeBySizeCheck->Checked = false;
+  }
+  EnableControl(SynchronizeDeleteCheck, !SynchronizeBothButton->Checked && 
+    !SynchronizeTimestampCheck->Checked);
+  EnableControl(SynchronizeExistingOnlyCheck, !SynchronizeTimestampCheck->Checked);
+  EnableControl(SynchronizePreviewChangesCheck, !SynchronizeTimestampCheck->Checked);
+  EnableControl(SynchronizeNoConfirmationCheck, !SynchronizeTimestampCheck->Checked);
+  EnableControl(SynchronizeByTimeCheck, !SynchronizeBothButton->Checked && 
+    !SynchronizeTimestampCheck->Checked);
+  EnableControl(SynchronizeBySizeCheck, !SynchronizeBothButton->Checked && 
+    !SynchronizeTimestampCheck->Checked);
   EnableControl(OkButton, !LocalDirectoryEdit->Text.IsEmpty() &&
     !RemoteDirectoryEdit->Text.IsEmpty());
 }
@@ -102,6 +132,7 @@ AnsiString __fastcall TFullSynchronizeDialog::GetLocalDirectory()
 //---------------------------------------------------------------------------
 void __fastcall TFullSynchronizeDialog::SetMode(TSynchronizeMode value)
 {
+  FOrigMode = value;
   switch (value)
   {
     case smRemote:
@@ -140,20 +171,30 @@ TSynchronizeMode __fastcall TFullSynchronizeDialog::GetMode()
 //---------------------------------------------------------------------------
 void __fastcall TFullSynchronizeDialog::SetParams(int value)
 {
-  FParams = value & ~(spDelete | spNoConfirmation | spExistingOnly | spPreviewChanges);
+  FParams = value & ~(spDelete | spNoConfirmation | spExistingOnly |
+    spPreviewChanges | spTimestamp | spNotByTime | spBySize);
   SynchronizeDeleteCheck->Checked = FLAGSET(value, spDelete);
   SynchronizeNoConfirmationCheck->Checked = FLAGSET(value, spNoConfirmation);
   SynchronizeExistingOnlyCheck->Checked = FLAGSET(value, spExistingOnly);
   SynchronizePreviewChangesCheck->Checked = FLAGSET(value, spPreviewChanges);
+  SynchronizeTimestampCheck->Checked = FLAGSET(value, spTimestamp) &&
+    FLAGCLEAR(Options, fsoDisableTimestamp);
+  SynchronizeByTimeCheck->Checked = FLAGCLEAR(value, spNotByTime);
+  SynchronizeBySizeCheck->Checked = FLAGSET(value, spBySize);
+  UpdateControls();
 }
 //---------------------------------------------------------------------------
 int __fastcall TFullSynchronizeDialog::GetParams()
 {
   return FParams |
-    (SynchronizeDeleteCheck->Checked ? spDelete : 0) |
-    (SynchronizeNoConfirmationCheck->Checked ? spNoConfirmation : 0) |
-    (SynchronizeExistingOnlyCheck->Checked ? spExistingOnly : 0) |
-    (SynchronizePreviewChangesCheck->Checked ? spPreviewChanges : 0);
+    FLAGMASK(SynchronizeDeleteCheck->Checked, spDelete) |
+    FLAGMASK(SynchronizeNoConfirmationCheck->Checked, spNoConfirmation) |
+    FLAGMASK(SynchronizeExistingOnlyCheck->Checked, spExistingOnly) |
+    FLAGMASK(SynchronizePreviewChangesCheck->Checked, spPreviewChanges) |
+    FLAGMASK(SynchronizeTimestampCheck->Checked && FLAGCLEAR(Options, fsoDisableTimestamp),
+      spTimestamp) |
+    FLAGMASK(!SynchronizeByTimeCheck->Checked, spNotByTime) |
+    FLAGMASK(SynchronizeBySizeCheck->Checked, spBySize);
 }
 //---------------------------------------------------------------------------
 void __fastcall TFullSynchronizeDialog::LocalDirectoryBrowseButtonClick(
@@ -176,11 +217,17 @@ bool __fastcall TFullSynchronizeDialog::GetSaveSettings()
   return SaveSettingsCheck->Checked;
 }
 //---------------------------------------------------------------------------
-void __fastcall TFullSynchronizeDialog::DirectoryEditKeyDown(
-  TObject * Sender, WORD & Key, TShiftState Shift)
+void __fastcall TFullSynchronizeDialog::SetOptions(int value)
 {
-  PathComboBoxKeyDown(dynamic_cast<TCustomComboBox*>(Sender), Key, Shift,
-    (Sender == RemoteDirectoryEdit));
+  if (Options != value)
+  {
+    FOptions = value;
+    if (FLAGSET(Options, fsoDisableTimestamp))
+    {
+      SynchronizeTimestampCheck->Checked = false;
+    }
+    UpdateControls();
+  }
 }
 //---------------------------------------------------------------------------
 void __fastcall TFullSynchronizeDialog::TransferPreferencesButtonClick(
@@ -191,6 +238,37 @@ void __fastcall TFullSynchronizeDialog::TransferPreferencesButtonClick(
 //---------------------------------------------------------------------------
 void __fastcall TFullSynchronizeDialog::FormShow(TObject * /*Sender*/)
 {
+  UpdateControls();
+}
+//---------------------------------------------------------------------------
+void __fastcall TFullSynchronizeDialog::FormCloseQuery(TObject * /*Sender*/,
+  bool & CanClose)
+{
+  if ((ModalResult != mrCancel) &&
+      SaveSettings && (FOrigMode != Mode) && !FSaveMode)
+  {
+    switch (MessageDialog(LoadStr(SAVE_SYNCHRONIZE_MODE),
+          qtConfirmation, qaYes | qaNo | qaCancel, 0))
+    {
+      case qaYes:
+        FSaveMode = true;
+        break;
+
+      case qaCancel:
+        CanClose = false;
+        break;
+    }
+  }
+}
+//---------------------------------------------------------------------------
+void __fastcall TFullSynchronizeDialog::SynchronizeByTimeSizeCheckClick(
+  TObject * Sender)
+{
+  if (!dynamic_cast<TCheckBox*>(Sender)->Checked)
+  {
+    (Sender == SynchronizeByTimeCheck ? SynchronizeBySizeCheck : SynchronizeByTimeCheck)->
+      Checked = true;
+  }
   UpdateControls();
 }
 //---------------------------------------------------------------------------

@@ -21,10 +21,7 @@ enum TListViewCheckAll { caCheck, caUncheck, caToggle };
 bool __fastcall ListViewAnyChecked(TListView * ListView, bool Checked = true);
 void __fastcall ListViewCheckAll(TListView * ListView,
   TListViewCheckAll CheckAll);
-void __fastcall PathComboBoxKeyDown(
-  TCustomComboBox * ComboBox, WORD & Key, TShiftState Shift, bool Unix);
-void __fastcall PathEditKeyDown(
-  TCustomEdit * Edit, WORD & Key, TShiftState Shift, bool Unix);
+void __fastcall InstallPathWordBreakProc(TWinControl * Control);
 void __fastcall RepaintStatusBar(TCustomStatusBar * StatusBar);
 void __fastcall SetVerticalControlsOrder(TControl ** ControlsOrder, int Count);
 void __fastcall SetHorizontalControlsOrder(TControl ** ControlsOrder, int Count);

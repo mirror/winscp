@@ -84,7 +84,6 @@ object CustomCommandDialog: TCustomCommandDialog
       MaxLength = 250
       TabOrder = 1
       OnChange = ControlChange
-      OnKeyDown = PathEditsKeyDown
     end
     object ApplyToDirectoriesCheck: TCheckBox
       Left = 16

@@ -37,6 +37,7 @@ void __fastcall TCopyParamType::Default()
   CalculateSize = true;
   FileMask = "*.*";
   ExcludeFileMask.Masks = "";
+  NegativeExclude = false;
   ClearArchive = false;
 }
 //---------------------------------------------------------------------------
@@ -59,6 +60,7 @@ void __fastcall TCopyParamType::Assign(const TCopyParamType * Source)
   COPY(CalculateSize);
   COPY(FileMask);
   COPY(ExcludeFileMask);
+  COPY(NegativeExclude);
   COPY(ClearArchive);
   #undef COPY
 }
@@ -138,7 +140,7 @@ AnsiString __fastcall TCopyParamType::GetLogStr() const
   return FORMAT(
     "  PrTime: %s; PrRO: %s; Rght: %s; PrR: %s; FnCs: %s; RIC: %s; "
       "Resume: %s (%d); CalcS: %s; Mask: %s\n"
-    "  TM: %s; ClAr: %s; ExclM: %s\n"
+    "  TM: %s; ClAr: %s; ExclM(%s): %s\n"
     "  AscM: %s\n",
     (BooleanToEngStr(PreserveTime),
      BooleanToEngStr(PreserveReadOnly),
@@ -152,6 +154,7 @@ AnsiString __fastcall TCopyParamType::GetLogStr() const
      FileMask,
      ModeC[TransferMode],
      BooleanToEngStr(ClearArchive),
+     BooleanToEngStr(NegativeExclude),
      ExcludeFileMask.Masks,
      AsciiFileMask.Masks));
 }
@@ -176,12 +179,22 @@ bool __fastcall TCopyParamType::AllowResume(__int64 Size) const
   }
 }
 //---------------------------------------------------------------------------
-bool __fastcall TCopyParamType::AllowTransfer(AnsiString FileName) const
+bool __fastcall TCopyParamType::AllowTransfer(AnsiString FileName,
+  TOperationSide Side) const
 {
   bool Result = true;
   if (!ExcludeFileMask.Masks.IsEmpty())
   {
-    Result = !ExcludeFileMask.Matches(FileName);
+    // workaround for problems with colons in TFileMasks::Matches
+    if (Side == osLocal)
+    {
+      FileName = ExtractFileName(FileName);
+    }
+    else
+    {
+      FileName = UnixExtractFileName(FileName);
+    }
+    Result = (ExcludeFileMask.Matches(FileName) == NegativeExclude);
   }
   return Result;
 }

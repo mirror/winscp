@@ -36,9 +36,9 @@ AppId=winscp3
 AppName=WinSCP3
 AppMutex=WinSCP
 AppPublisher=Martin Prikryl
-AppPublisherURL=http://winscp.sourceforge.net/
-AppSupportURL=http://winscp.sourceforge.net/forum/
-AppUpdatesURL=http://winscp.sourceforge.net/eng/download.php
+AppPublisherURL=http://winscp.net/
+AppSupportURL=http://winscp.net/forum/
+AppUpdatesURL=http://winscp.net/eng/download.php
 VersionInfoCompany=Martin Prikryl
 VersionInfoDescription=Setup for WinSCP {#Version} (Freeware SCP/SFTP client for Windows)
 VersionInfoVersion={#Major}.{#Minor}.{#Rev}.{#Build}
@@ -140,9 +140,9 @@ Name: searchpath; Description: {cm:AddSearchPath}; \
 
 [INI]
 Filename: "{app}\{cm:SupportForum}.url"; Section: "InternetShortcut"; \
-  Key: "URL"; String: "http://winscp.sourceforge.net/forum/"
+  Key: "URL"; String: "http://winscp.net/forum/"
 Filename: "{app}\WinSCP.url"; Section: "InternetShortcut"; \
-  Key: "URL"; String: "http://winscp.sourceforge.net/"
+  Key: "URL"; String: "http://winscp.net/"
 Filename: "{app}\PuTTY\PuTTY.url"; Section: "InternetShortcut"; \
   Key: "URL"; String: "http://www.chiark.greenend.org.uk/~sgtatham/putty/"; \
   Components: pageant puttygen

@@ -12,6 +12,10 @@ enum TInterface { ifCommander, ifExplorer };
 extern const ccLocal;
 extern const ccShowResults;
 //---------------------------------------------------------------------------
+const soRecurse =        0x01;
+const soSynchronize =    0x02;
+const soSynchronizeAsk = 0x04;
+//---------------------------------------------------------------------------
 class TGUICopyParamType : public TCopyParamType
 {
 public:
@@ -51,7 +55,9 @@ private:
   bool FPuttyPassword;
   AnsiString FPuttySession;
   int FSynchronizeParams;
-  bool FSynchronizeRecurse;
+  int FSynchronizeOptions;
+  int FSynchronizeModeAuto;
+  int FSynchronizeMode;
   TDateTime FIgnoreCancelBeforeFinish;
   bool FQueueAutoPopup;
   bool FQueueRememberPassword;
@@ -60,6 +66,7 @@ private:
   bool FBeepOnFinish;
   TDateTime FBeepOnFinishAfter;
   AnsiString FDefaultPuttyPath;
+  bool FSynchronizeBrowsing;
 
 protected:
   LCID FLocale;
@@ -91,7 +98,9 @@ public:
   __property bool ContinueOnError = { read = FContinueOnError, write = FContinueOnError };
   __property bool ConfirmCommandSession = { read = FConfirmCommandSession, write = FConfirmCommandSession };
   __property int SynchronizeParams = { read = FSynchronizeParams, write = FSynchronizeParams };
-  __property bool SynchronizeRecurse = { read = FSynchronizeRecurse, write = FSynchronizeRecurse };
+  __property int SynchronizeOptions = { read = FSynchronizeOptions, write = FSynchronizeOptions };
+  __property int SynchronizeModeAuto = { read = FSynchronizeModeAuto, write = FSynchronizeModeAuto };
+  __property int SynchronizeMode = { read = FSynchronizeMode, write = FSynchronizeMode };
   __property int QueueTransfersLimit = { read = FQueueTransfersLimit, write = FQueueTransfersLimit };
   __property bool QueueAutoPopup = { read = FQueueAutoPopup, write = FQueueAutoPopup };
   __property bool QueueRememberPassword = { read = FQueueRememberPassword, write = FQueueRememberPassword };
@@ -104,6 +113,7 @@ public:
   __property TDateTime IgnoreCancelBeforeFinish = { read = FIgnoreCancelBeforeFinish, write = FIgnoreCancelBeforeFinish };
   __property TGUICopyParamType CopyParam = { read = FCopyParam, write = SetCopyParam };
   __property bool BeepOnFinish = { read = FBeepOnFinish, write = FBeepOnFinish };
+  __property bool SynchronizeBrowsing = { read = FSynchronizeBrowsing, write = FSynchronizeBrowsing };
   __property TDateTime BeepOnFinishAfter = { read = FBeepOnFinishAfter, write = FBeepOnFinishAfter };
 };
 //---------------------------------------------------------------------------

@@ -506,21 +506,22 @@ private:
   void __fastcall ScriptInput(TScript * Script, const AnsiString Prompt, AnsiString & Str);
   void __fastcall ScriptTerminalUpdateStatus(TObject * Sender);
   void __fastcall ScriptTerminalPromptUser(TSecureShell * SecureShell,
-    AnsiString Prompt, TPromptKind Kind, AnsiString & Response, bool & Result);
+    AnsiString Prompt, TPromptKind Kind, AnsiString & Response, bool & Result, void * Arg);
   void __fastcall ScriptShowExtendedException(TSecureShell * SecureShell,
-    Exception * E);
+    Exception * E, void * Arg);
   void __fastcall ScriptTerminalQueryUser(TObject * Sender, const AnsiString Query,
     TStrings * MoreMessages, int Answers, const TQueryParams * Params, int & Answer,
-    TQueryType QueryType);
+    TQueryType QueryType, void * Arg);
   void __fastcall ScriptQueryCancel(TScript * Script, bool & Cancel);
   void __fastcall SynchronizeControllerAbort(TObject * Sender, bool Close);
   void __fastcall ScriptSynchronizeStartStop(TScript * Script, 
     const AnsiString LocalDirectory, const AnsiString RemoteDirectory);
   void __fastcall SynchronizeControllerSynchronize(TSynchronizeController * Sender,
     const AnsiString LocalDirectory, const AnsiString RemoteDirectory,
-    const TSynchronizeParamType & Params);
+    const TCopyParamType & CopyParam, const TSynchronizeParamType & Params,
+    TSynchronizeStats * Stats, bool Full);
   void __fastcall SynchronizeControllerSynchronizeInvalid(TSynchronizeController * Sender,
-    const AnsiString Directory);
+    const AnsiString Directory, const AnsiString ErrorStr);
   void __fastcall ShowException(Exception * E);
 };
 //---------------------------------------------------------------------------
@@ -605,7 +606,8 @@ void __fastcall TConsoleRunner::ScriptTerminalUpdateStatus(TObject * Sender)
 }
 //---------------------------------------------------------------------------
 void __fastcall TConsoleRunner::ScriptTerminalPromptUser(TSecureShell * /*SecureShell*/,
-  AnsiString Prompt, TPromptKind /*Kind*/, AnsiString & Response, bool & Result)
+  AnsiString Prompt, TPromptKind /*Kind*/, AnsiString & Response, bool & Result, 
+  void * /*Arg*/)
 {
   if (!Prompt.IsEmpty() && (Prompt[Prompt.Length()] != ' '))
   {
@@ -617,14 +619,15 @@ void __fastcall TConsoleRunner::ScriptTerminalPromptUser(TSecureShell * /*Secure
 }
 //---------------------------------------------------------------------------
 void __fastcall TConsoleRunner::ScriptShowExtendedException(
-  TSecureShell * /*SecureShell*/, Exception * E)
+  TSecureShell * /*SecureShell*/, Exception * E, void * /*Arg*/)
 {
   ShowException(E);
 }
 //---------------------------------------------------------------------------
 void __fastcall TConsoleRunner::ScriptTerminalQueryUser(TObject * /*Sender*/,
   const AnsiString Query, TStrings * MoreMessages, int Answers,
-  const TQueryParams * Params, int & Answer, TQueryType /*QueryType*/)
+  const TQueryParams * Params, int & Answer, TQueryType /*QueryType*/, 
+  void * /*Arg*/)
 {
   PrintMessage(Query);
   if ((MoreMessages != NULL) && (MoreMessages->Count > 0))
@@ -656,12 +659,13 @@ void __fastcall TConsoleRunner::ScriptTerminalQueryUser(TObject * /*Sender*/,
   ADD_BUTTON_RES(Abort);
   ADD_BUTTON_RES(Retry);
   ADD_BUTTON_RES(Ignore);
+  // to keep the same order as for GUI message box
+  ADD_BUTTON(Skip, LoadStr(SKIP_BUTTON));
   ADD_BUTTON_RES(All);
   ADD_BUTTON_RES(NoToAll);
   ADD_BUTTON_RES(YesToAll);
   ADD_BUTTON_RES(Help);
   #undef ADD_BUTTON_RES
-  ADD_BUTTON(Skip, LoadStr(SKIP_BUTTON));
   #undef ADD_BUTTON
 
   USEDPARAM(AAnswers);
@@ -823,10 +827,10 @@ void __fastcall TConsoleRunner::ScriptSynchronizeStartStop(TScript * /*Script*/,
   Params.LocalDirectory = LocalDirectory;
   Params.RemoteDirectory = RemoteDirectory;
   Params.Params = -1; // never used
-  Params.Recurse = true;
+  Params.Options = soRecurse;
 
   FSynchronizeController.StartStop(Application, true, Params,
-    SynchronizeControllerAbort, NULL);
+    FScript->CopyParam, SynchronizeControllerAbort, NULL);
 
   try
   {
@@ -840,7 +844,7 @@ void __fastcall TConsoleRunner::ScriptSynchronizeStartStop(TScript * /*Script*/,
   __finally
   {
     FSynchronizeController.StartStop(Application, false, Params,
-      SynchronizeControllerAbort, NULL);
+      FScript->CopyParam, SynchronizeControllerAbort, NULL);
   }
 }
 //---------------------------------------------------------------------------
@@ -852,13 +856,17 @@ void __fastcall TConsoleRunner::SynchronizeControllerAbort(TObject * /*Sender*/,
 //---------------------------------------------------------------------------
 void __fastcall TConsoleRunner::SynchronizeControllerSynchronize(
   TSynchronizeController * /*Sender*/, const AnsiString LocalDirectory,
-  const AnsiString RemoteDirectory, const TSynchronizeParamType & /*Params*/)
+  const AnsiString RemoteDirectory, const TCopyParamType & CopyParam,
+  const TSynchronizeParamType & /*Params*/, TSynchronizeStats * Stats, bool Full)
 {
-  FScript->Synchronize(LocalDirectory, RemoteDirectory);
+  if (!Full)
+  {
+    FScript->Synchronize(LocalDirectory, RemoteDirectory, CopyParam, Stats);
+  }
 }
 //---------------------------------------------------------------------------
 void __fastcall TConsoleRunner::SynchronizeControllerSynchronizeInvalid(
-  TSynchronizeController * /*Sender*/, const AnsiString Directory)
+  TSynchronizeController * /*Sender*/, const AnsiString Directory, const AnsiString ErrorStr)
 {
   if (!Directory.IsEmpty())
   {
@@ -867,6 +875,11 @@ void __fastcall TConsoleRunner::SynchronizeControllerSynchronizeInvalid(
   else
   {
     PrintLine(LoadStr(WATCH_ERROR_GENERAL));
+  }
+
+  if (!ErrorStr.IsEmpty())
+  {
+    PrintLine(ErrorStr);
   }
 }
 //---------------------------------------------------------------------------

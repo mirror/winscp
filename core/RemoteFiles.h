@@ -320,8 +320,8 @@ private:
   void __fastcall SetRightUndef(TRight Right, TState value);
 };
 //---------------------------------------------------------------------------
-enum TValidProperty { vpRights, vpGroup, vpOwner };
-typedef Set<TValidProperty, vpRights, vpOwner> TValidProperties;
+enum TValidProperty { vpRights, vpGroup, vpOwner, vpModification, vpLastAccess };
+typedef Set<TValidProperty, vpRights, vpLastAccess> TValidProperties;
 class TRemoteProperties
 {
 public:
@@ -331,6 +331,8 @@ public:
   bool AddXToDirectories;
   AnsiString Group;
   AnsiString Owner;
+  __int64 Modification; // unix time
+  __int64 LastAccess; // unix time
 
   __fastcall TRemoteProperties();
   bool __fastcall operator ==(const TRemoteProperties & rhp) const;
@@ -349,8 +351,6 @@ AnsiString __fastcall UnixExtractFileName(const AnsiString Path);
 AnsiString __fastcall UnixExtractFileExt(const AnsiString Path);
 Boolean __fastcall ComparePaths(const AnsiString Path1, const AnsiString Path2);
 Boolean __fastcall UnixComparePaths(const AnsiString Path1, const AnsiString Path2);
-void __fastcall SkipPathComponent(const AnsiString & Text,
-  int & SelStart, int & SelLength, bool Left, bool Unix);
 bool __fastcall ExtractCommonPath(TStrings * Files, AnsiString & Path);
 bool __fastcall UnixExtractCommonPath(TStrings * Files, AnsiString & Path);
 bool __fastcall IsUnixRootPath(const AnsiString Path);
@@ -361,4 +361,3 @@ AnsiString __fastcall MinimizeName(const AnsiString FileName, int MaxLen, bool U
 AnsiString __fastcall MakeFileList(TStrings * FileList);
 //---------------------------------------------------------------------------
 #endif
-

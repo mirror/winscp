@@ -45,7 +45,8 @@ public:
   void __fastcall Command(const AnsiString Cmd);
 
   void __fastcall Synchronize(const AnsiString LocalDirectory,
-    const AnsiString RemoteDirectory);
+    const AnsiString RemoteDirectory, const TCopyParamType & CopyParam,
+    TSynchronizeStats * Stats);
 
   __property TScriptPrintEvent OnPrint = { read = FOnPrint, write = FOnPrint };
   __property TExtendedExceptionEvent OnShowExtendedException = { read = FOnShowExtendedException, write = FOnShowExtendedException };
@@ -78,7 +79,7 @@ protected:
   void __fastcall Tokenize(const AnsiString Str, TStrings * Tokens);
   void __fastcall CheckSession();
   enum TFileListType
-  { 
+  {
     fltDefault =     0x00,
     fltDirectories = 0x01,
     fltQueryServer = 0x02,
@@ -156,11 +157,12 @@ protected:
 
   virtual void __fastcall ResetTransfer();
   void __fastcall Input(const AnsiString Prompt, AnsiString & Str, bool AllowEmpty);
-  void __fastcall TerminalOnStdError(TObject * Sender, const AnsiString AddedLine);
+  void __fastcall TerminalOnStdError(TObject * Sender, TLogLineType Type,
+    const AnsiString AddedLine);
   void __fastcall TerminalOperationProgress(TFileOperationProgressType & ProgressData,
     TCancelStatus & Cancel);
   void __fastcall TerminalOperationFinished(TFileOperation Operation, TOperationSide Side,
-    bool DragDrop, const AnsiString FileName, Boolean Success,
+    bool Temp, const AnsiString FileName, Boolean Success,
     bool & DisconnectWhenComplete);
 
   void __fastcall PrintActiveSession();

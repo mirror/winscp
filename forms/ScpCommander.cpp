@@ -128,7 +128,7 @@ void __fastcall TScpCommanderForm::RestoreParams()
   LocalDirView->DirColProperties->ExtVisible = false;
   RemoteDirView->UnixColProperties->ExtVisible = false;
 
-  NonVisualDataModule->SynchronizeBrowsingAction->Checked = WinConfiguration->ScpCommander.SynchronizeBrowsing;
+  NonVisualDataModule->SynchronizeBrowsingAction->Checked = WinConfiguration->SynchronizeBrowsing;
 }
 //---------------------------------------------------------------------------
 void __fastcall TScpCommanderForm::StoreParams()
@@ -161,7 +161,7 @@ void __fastcall TScpCommanderForm::StoreParams()
 
     WinConfiguration->ScpCommander.WindowParams = WinConfiguration->StoreForm(this);;
 
-    WinConfiguration->ScpCommander.SynchronizeBrowsing = NonVisualDataModule->SynchronizeBrowsingAction->Checked;
+    WinConfiguration->SynchronizeBrowsing = NonVisualDataModule->SynchronizeBrowsingAction->Checked;
 
     TCustomScpExplorerForm::StoreParams();
   }
@@ -227,11 +227,12 @@ bool __fastcall TScpCommanderForm::InternalDDDownload(AnsiString & TargetDirecto
 }
 //---------------------------------------------------------------------------
 bool __fastcall TScpCommanderForm::CopyParamDialog(TTransferDirection Direction,
-  TTransferType Type, bool DragDrop, TStrings * FileList, AnsiString & TargetDirectory,
+  TTransferType Type, bool Temp, TStrings * FileList, AnsiString & TargetDirectory,
   TGUICopyParamType & CopyParam, bool Confirm)
 {
   bool Result = false;
-  if (DragDrop && (Direction == tdToLocal) &&
+  // Temp means d&d here so far, may change in future!
+  if (Temp && (Direction == tdToLocal) &&
       IsFileControl(FDDTargetControl, osLocal))
   {
     Result = InternalDDDownload(TargetDirectory);
@@ -241,7 +242,7 @@ bool __fastcall TScpCommanderForm::CopyParamDialog(TTransferDirection Direction,
       FInternalDDDownloadList->Assign(FileList);
     }
   }
-  else if (!DragDrop && TargetDirectory.IsEmpty())
+  else if (!Temp && TargetDirectory.IsEmpty())
   {
     if (Direction == tdToLocal)
     {
@@ -255,7 +256,7 @@ bool __fastcall TScpCommanderForm::CopyParamDialog(TTransferDirection Direction,
 
   if (!Result)
   {
-    Result = TCustomScpExplorerForm::CopyParamDialog(Direction, Type, DragDrop,
+    Result = TCustomScpExplorerForm::CopyParamDialog(Direction, Type, Temp,
       FileList, TargetDirectory, CopyParam, Confirm);
   }
   return Result;
@@ -669,8 +670,17 @@ void __fastcall TScpCommanderForm::FullSynchronizeDirectories()
 {
   AnsiString LocalDirectory = LocalDirView->PathName;
   AnsiString RemoteDirectory = RemoteDirView->PathName;
-  TSynchronizeMode Mode = (FCurrentSide == osLocal) ? smRemote : smLocal;
-  DoFullSynchronizeDirectories(LocalDirectory, RemoteDirectory, Mode);
+  bool SaveMode = !(GUIConfiguration->SynchronizeModeAuto < 0);
+  TSynchronizeMode Mode =
+    (SaveMode ? (TSynchronizeMode)GUIConfiguration->SynchronizeModeAuto :
+      ((FCurrentSide == osLocal) ? smRemote : smLocal));
+  if (DoFullSynchronizeDirectories(LocalDirectory, RemoteDirectory, Mode, SaveMode))
+  {
+    if (SaveMode)
+    {
+      GUIConfiguration->SynchronizeModeAuto = Mode;
+    }
+  }
 }
 //---------------------------------------------------------------------------
 void __fastcall TScpCommanderForm::ExploreLocalDirectory()

@@ -74,6 +74,20 @@ __fastcall TGuard::~TGuard()
   FCriticalSection->Leave();
 }
 //---------------------------------------------------------------------------
+// TUnguard
+//---------------------------------------------------------------------------
+__fastcall TUnguard::TUnguard(TCriticalSection * ACriticalSection) :
+  FCriticalSection(ACriticalSection)
+{
+  assert(ACriticalSection != NULL);
+  FCriticalSection->Leave();
+}
+//---------------------------------------------------------------------------
+__fastcall TUnguard::~TUnguard()
+{
+  FCriticalSection->Enter();
+}
+//---------------------------------------------------------------------------
 //---------------------------------------------------------------------------
 const char EngShortMonthNames[12][4] =
   {"Jan", "Feb", "Mar", "Apr", "May", "Jun",

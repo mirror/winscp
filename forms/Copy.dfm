@@ -39,7 +39,6 @@ object CopyDialog: TCopyDialog
     ItemHeight = 13
     TabOrder = 0
     Text = 'LocalDirectoryEdit'
-    OnKeyDown = DirectoryEditKeyDown
   end
   object RemoteDirectoryEdit: THistoryComboBox
     Left = 8
@@ -52,7 +51,6 @@ object CopyDialog: TCopyDialog
     MaxLength = 1000
     TabOrder = 2
     Text = 'RemoteDirectoryEdit'
-    OnKeyDown = DirectoryEditKeyDown
   end
   object MoreButton: TMoreButton
     Left = 251

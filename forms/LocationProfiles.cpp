@@ -61,6 +61,9 @@ __fastcall TLocationProfilesDialog::TLocationProfilesDialog(TComponent * AOwner)
   FFolders->Duplicates = dupIgnore;
 
   UseSystemSettings(this);
+
+  InstallPathWordBreakProc(LocalDirectoryEdit);
+  InstallPathWordBreakProc(RemoteDirectoryEdit);
 }
 //---------------------------------------------------------------------
 __fastcall TLocationProfilesDialog::~TLocationProfilesDialog()
@@ -612,13 +615,6 @@ void __fastcall TLocationProfilesDialog::ProfilesViewGetSelectedIndex(
       TObject * /*Sender*/, TTreeNode * Node)
 {
   Node->SelectedIndex = Node->Data ? 0 : (Node->Expanded ? 1 : 2);
-}
-//---------------------------------------------------------------------------
-void __fastcall TLocationProfilesDialog::DirectoryEditKeyDown(
-  TObject * Sender, WORD & Key, TShiftState Shift)
-{
-  PathComboBoxKeyDown(dynamic_cast<TCustomComboBox*>(Sender), Key, Shift,
-    (Sender == RemoteDirectoryEdit));
 }
 //---------------------------------------------------------------------------
 void __fastcall TLocationProfilesDialog::LocalDirectoryBrowseButtonClick(

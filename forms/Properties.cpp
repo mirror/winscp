@@ -2,6 +2,7 @@
 #include <vcl.h>
 #pragma hdrstop
 
+#include "WinInterface.h"
 #include "Properties.h"
 
 #include <AssociatedStatusBar.hpp> // FormatBytes()
@@ -10,8 +11,6 @@
 #include <Common.h>
 #include <Terminal.h>
 #include <TextsWin.h>
-
-#include "WinInterface.h"
 //---------------------------------------------------------------------
 #pragma link "PathLabel"
 #pragma link "Rights"
@@ -136,8 +135,7 @@ void __fastcall TPropertiesDialog::LoadInfo()
 {
   if (FFileList)
   {
-    assert(FFileList > 0);
-    bool Multiple = (FFileList->Count != 1);
+    assert(FFileList->Count > 0);
     FAllowCalculateSize = false;
     FSizeNotCalculated = false;
     FileIconImage->Picture->Bitmap = NULL;
@@ -334,6 +332,7 @@ void __fastcall TPropertiesDialog::SetFileProperties(TRemoteProperties value)
   GroupComboBox->Text = value.Valid.Contains(vpGroup) ? value.Group : AnsiString();
   OwnerComboBox->Text = value.Valid.Contains(vpOwner) ? value.Owner : AnsiString();
   RecursiveCheck->Checked = value.Recursive;
+  UpdateControls();
 }
 //---------------------------------------------------------------------------
 TRemoteProperties __fastcall TPropertiesDialog::GetFileProperties()
@@ -386,6 +385,17 @@ void __fastcall TPropertiesDialog::UpdateControls()
   EnableControl(OwnerComboBox, FAllowedChanges & cpOwner);
   EnableControl(RightsFrame, FAllowedChanges & cpMode);
   CalculateSizeButton->Visible = Terminal && FAllowCalculateSize;
+
+  if (!Multiple)
+  {
+    // when setting properties for one file only, allow undef state
+    // only when the input right explicitly requires it or
+    // when "recursive" is on (possible for directory only).
+    RightsFrame->AllowUndef =
+      (FOrigProperties.Valid.Contains(vpRights) &&
+       FOrigProperties.Rights.AllowUndef) ||
+      (RecursiveCheck->Checked);
+  }
 }
 //---------------------------------------------------------------------------
 bool __fastcall TPropertiesDialog::GetMultiple()

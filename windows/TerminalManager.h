@@ -67,11 +67,12 @@ private:
   void __fastcall ConfigurationChange(TObject * Sender);
   void __fastcall TerminalQueryUser(TObject * Sender,
     const AnsiString Query, TStrings * MoreMessages, int Answers,
-    const TQueryParams * Params, int & Answer, TQueryType Type);
+    const TQueryParams * Params, int & Answer, TQueryType Type, void * Arg);
   void __fastcall TerminalPromptUser(TSecureShell * SecureShell,
-    AnsiString Prompt, TPromptKind Kind, AnsiString & Response, bool & Result);
+    AnsiString Prompt, TPromptKind Kind, AnsiString & Response, bool & Result, 
+    void * Arg);
   void __fastcall TerminalShowExtendedException(TSecureShell * SecureShell,
-    Exception * E);
+    Exception * E, void * Arg);
   void __fastcall TerminalReadDirectoryProgress(TObject * Sender, int Progress);
   void __fastcall FreeAll();
   void __fastcall TerminalReady();
@@ -82,7 +83,7 @@ private:
   void __fastcall SaveTerminal(TTerminal * Terminal);
   void __fastcall SetActiveTerminalIndex(int value);
   void __fastcall OperationFinished(::TFileOperation Operation, TOperationSide Side,
-    bool DragDrop, const AnsiString FileName, bool Success,
+    bool Temp, const AnsiString FileName, bool Success,
     bool & DisconnectWhenFinished);
   void __fastcall OperationProgress(TFileOperationProgressType & ProgressData,
     TCancelStatus & Cancel);
