@@ -400,8 +400,13 @@ static void do_ssh2_authconn(Ssh ssh, unsigned char *in, int inlen,
 
 #define SSH1_BUFFER_LIMIT 32768
 #define SSH_MAX_BACKLOG 32768
+#ifdef MPEXT
+#define OUR_V2_MAXPKT 0x4000UL
+#define OUR_V2_WINSIZE (OUR_V2_MAXPKT * 4)
+#else
 #define OUR_V2_WINSIZE 16384
 #define OUR_V2_MAXPKT 0x4000UL
+#endif
 
 const static struct ssh_signkey *hostkey_algs[] = { &ssh_rsa, &ssh_dss };
 
@@ -477,6 +482,8 @@ struct ssh_channel {
     Ssh ssh;			       /* pointer back to main context */
     unsigned remoteid, localid;
     int type;
+    /* True if we opened this channel but server hasn't confirmed. */
+    int halfopen;
     /*
      * In SSH1, this value contains four bits:
      * 
@@ -3616,13 +3623,13 @@ void sshfwd_close(struct ssh_channel *c)
 
     if (c && !c->closes) {
 	/*
-	 * If the channel's remoteid is -1, we have sent
+	 * If halfopen is true, we have sent
 	 * CHANNEL_OPEN for this channel, but it hasn't even been
 	 * acknowledged by the server. So we must set a close flag
 	 * on it now, and then when the server acks the channel
 	 * open, we can close it then.
 	 */
-	if (((int)c->remoteid) != -1) {
+	if (!c->halfopen) {
 	    if (ssh->version == 1) {
 		send_packet(ssh, SSH1_MSG_CHANNEL_CLOSE, PKT_INT, c->remoteid,
 			    PKT_END);
@@ -4144,6 +4151,7 @@ static void ssh1_smsg_x11_open(Ssh ssh, struct Packet *pktin)
 	    logevent
 		("Opening X11 forward connection succeeded");
 	    c->remoteid = remoteid;
+	    c->halfopen = FALSE;
 	    c->localid = alloc_channel_id(ssh);
 	    c->closes = 0;
 	    c->v.v1.throttling = 0;
@@ -4172,6 +4180,7 @@ static void ssh1_smsg_agent_open(Ssh ssh, struct Packet *pktin)
 	c = snew(struct ssh_channel);
 	c->ssh = ssh;
 	c->remoteid = remoteid;
+	c->halfopen = FALSE;
 	c->localid = alloc_channel_id(ssh);
 	c->closes = 0;
 	c->v.v1.throttling = 0;
@@ -4229,6 +4238,7 @@ static void ssh1_msg_port_open(Ssh ssh, struct Packet *pktin)
 			PKT_INT, remoteid, PKT_END);
 	} else {
 	    c->remoteid = remoteid;
+	    c->halfopen = FALSE;
 	    c->localid = alloc_channel_id(ssh);
 	    c->closes = 0;
 	    c->v.v1.throttling = 0;
@@ -4251,6 +4261,7 @@ static void ssh1_msg_channel_open_confirmation(Ssh ssh, struct Packet *pktin)
     c = find234(ssh->channels, &remoteid, ssh_channelfind);
     if (c && c->type == CHAN_SOCKDATA_DORMANT) {
 	c->remoteid = localid;
+	c->halfopen = FALSE;
 	c->type = CHAN_SOCKDATA;
 	c->v.v1.throttling = 0;
 	pfd_confirm(c->u.pfd.s);
@@ -4288,7 +4299,7 @@ static void ssh1_msg_channel_close(Ssh ssh, struct Packet *pktin)
     unsigned i = ssh_pkt_getuint32(pktin);
     struct ssh_channel *c;
     c = find234(ssh->channels, &i, ssh_channelfind);
-    if (c && ((int)c->remoteid) != -1) {
+    if (c && !c->halfopen) {
 	int closetype;
 	closetype =
 	    (pktin->type == SSH1_MSG_CHANNEL_CLOSE ? 1 : 2);
@@ -4627,7 +4638,7 @@ static void ssh1_msg_disconnect(Ssh ssh, struct Packet *pktin)
     bombout(("Server sent disconnect message:\n\"%.*s\"", msglen, msg));
 }
 
-void ssh_msg_ignore(Ssh ssh, struct Packet *pktin)
+static void ssh_msg_ignore(Ssh ssh, struct Packet *pktin)
 {
     /* Do nothing, because we're ignoring it! Duhh. */
 }
@@ -4702,6 +4713,28 @@ static int in_commasep_string(char *needle, char *haystack, int haylen)
 	haylen--, haystack++;	       /* skip over comma itself */
     }
 }
+
+/*
+ * Similar routine for checking whether we have the first string in a list.
+ */
+static int first_in_commasep_string(char *needle, char *haystack, int haylen)
+{
+    int needlen;
+    if (!needle || !haystack)	       /* protect against null pointers */
+	return 0;
+    needlen = strlen(needle);
+    /*
+     * Is it at the start of the string?
+     */
+    if (haylen >= needlen &&       /* haystack is long enough */
+	!memcmp(needle, haystack, needlen) &&	/* initial match */
+	(haylen == needlen || haystack[needlen] == ',')
+	/* either , or EOS follows */
+	)
+	return 1;
+    return 0;
+}
+
 
 /*
  * SSH2 key creation method.
@@ -4971,7 +5004,7 @@ static int do_ssh2_transport(Ssh ssh, void *vin, int inlen,
      */
     {
 	char *str;
-	int i, j, len;
+	int i, j, len, guessok;
 
 	if (pktin->type != SSH2_MSG_KEXINIT) {
 	    bombout(("expected key exchange packet from server"));
@@ -5010,6 +5043,13 @@ static int do_ssh2_transport(Ssh ssh, void *vin, int inlen,
 		     str ? str : "(null)"));
 	    crStop(0);
 	}
+	/*
+	 * Note that the server's guess is considered wrong if it doesn't match
+	 * the first algorithm in our list, even if it's still the algorithm
+	 * we end up using.
+	 */
+	guessok =
+	    first_in_commasep_string(s->preferred_kex[0]->name, str, len);
 	ssh_pkt_getstring(pktin, &str, &len);    /* host key algorithms */
 	for (i = 0; i < lenof(hostkey_algs); i++) {
 	    if (in_commasep_string(hostkey_algs[i]->name, str, len)) {
@@ -5017,6 +5057,8 @@ static int do_ssh2_transport(Ssh ssh, void *vin, int inlen,
 		break;
 	    }
 	}
+	guessok = guessok &&
+	    first_in_commasep_string(hostkey_algs[0]->name, str, len);
 	ssh_pkt_getstring(pktin, &str, &len);    /* client->server cipher */
 	s->warn = 0;
 	for (i = 0; i < s->n_preferred_ciphers; i++) {
@@ -5109,6 +5151,10 @@ static int do_ssh2_transport(Ssh ssh, void *vin, int inlen,
 		break;
 	    }
 	}
+	ssh_pkt_getstring(pktin, &str, &len);  /* client->server language */
+	ssh_pkt_getstring(pktin, &str, &len);  /* server->client language */
+	if (ssh2_pkt_getbool(pktin) && !guessok) /* first_kex_packet_follows */
+	    crWaitUntil(pktin);                /* Ignore packet */
     }
 
     /*
@@ -5639,7 +5685,7 @@ static void ssh2_msg_channel_close(Ssh ssh, struct Packet *pktin)
     struct Packet *pktout;
 
     c = find234(ssh->channels, &i, ssh_channelfind);
-    if (!c || ((int)c->remoteid) == -1) {
+    if (!c || c->halfopen) {
 	bombout(("Received CHANNEL_CLOSE for %s channel %d\n",
 		 c ? "half-open" : "nonexistent", i));
 	return;
@@ -5715,6 +5761,7 @@ static void ssh2_msg_channel_open_confirmation(Ssh ssh, struct Packet *pktin)
     if (c->type != CHAN_SOCKDATA_DORMANT)
 	return;			       /* dunno why they're confirming this */
     c->remoteid = ssh_pkt_getuint32(pktin);
+    c->halfopen = FALSE;
     c->type = CHAN_SOCKDATA;
     c->v.v2.remwindow = ssh_pkt_getuint32(pktin);
     c->v.v2.remmaxpkt = ssh_pkt_getuint32(pktin);
@@ -6022,6 +6069,7 @@ static void ssh2_msg_channel_open(Ssh ssh, struct Packet *pktin)
     }
 
     c->remoteid = remid;
+    c->halfopen = FALSE;
     if (error) {
 	pktout = ssh2_pkt_init(SSH2_MSG_CHANNEL_OPEN_FAILURE);
 	ssh2_pkt_adduint32(pktout, c->remoteid);
@@ -7520,6 +7568,7 @@ auth_begin:
 	    crStopV;
 	}
 	ssh->mainchan->remoteid = ssh_pkt_getuint32(pktin);
+	ssh->mainchan->halfopen = FALSE;
 	ssh->mainchan->type = CHAN_MAINSESSION;
 	ssh->mainchan->closes = 0;
 	ssh->mainchan->v.v2.remwindow = ssh_pkt_getuint32(pktin);
@@ -7857,7 +7906,7 @@ auth_begin:
 /*
  * Handlers for SSH2 messages that might arrive at any moment.
  */
-void ssh2_msg_disconnect(Ssh ssh, struct Packet *pktin)
+static void ssh2_msg_disconnect(Ssh ssh, struct Packet *pktin)
 {
     /* log reason code in disconnect message */
     char *buf, *msg;
@@ -7886,7 +7935,7 @@ void ssh2_msg_disconnect(Ssh ssh, struct Packet *pktin)
     sfree(buf);
 }
 
-void ssh2_msg_debug(Ssh ssh, struct Packet *pktin)
+static void ssh2_msg_debug(Ssh ssh, struct Packet *pktin)
 {
     /* log the debug message */
     char *buf, *msg;
@@ -7902,7 +7951,7 @@ void ssh2_msg_debug(Ssh ssh, struct Packet *pktin)
     sfree(buf);
 }
 
-void ssh2_msg_something_unimplemented(Ssh ssh, struct Packet *pktin)
+static void ssh2_msg_something_unimplemented(Ssh ssh, struct Packet *pktin)
 {
     struct Packet *pktout;
     pktout = ssh2_pkt_init(SSH2_MSG_UNIMPLEMENTED);
@@ -8539,7 +8588,7 @@ void *new_sock_channel(void *handle, Socket s)
     c->ssh = ssh;
 
     if (c) {
-	c->remoteid = -1;	       /* to be set when open confirmed */
+	c->halfopen = TRUE;
 	c->localid = alloc_channel_id(ssh);
 	c->closes = 0;
 	c->type = CHAN_SOCKDATA_DORMANT;/* identify channel type */

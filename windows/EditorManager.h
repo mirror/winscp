@@ -62,12 +62,12 @@ private:
     HANDLE Process;
     TObject * Token;
     int Timestamp;
-    int ErrorTimestamp;
     TEditedFileData Data;
     bool Closed;
     HANDLE UploadCompleteEvent;
     bool * CloseFlag;
     TDateTime Opened;
+    bool Reupload;
   };
 
   std::vector<TFileData> FFiles;

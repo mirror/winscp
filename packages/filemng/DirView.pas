@@ -165,10 +165,12 @@ type
     procedure DoFetchData;
     procedure DoUpdateIcon;
     procedure Execute; override;
-    procedure Terminate;
 
     property Index: Integer read FIndex write SetIndex;
     property MaxIndex: Integer read FMaxIndex write SetMaxIndex;
+
+  public  
+    procedure Terminate; override;
   end;
 {$ENDIF}
 

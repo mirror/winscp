@@ -44,6 +44,8 @@ struct RandPool {
 
     unsigned char incomingb[HASHINPUT];
     int incomingpos;
+
+    int stir_pending;
 };
 
 static struct RandPool pool;
@@ -55,6 +57,14 @@ static void random_stir(void)
     word32 block[HASHINPUT / sizeof(word32)];
     word32 digest[HASHSIZE / sizeof(word32)];
     int i, j, k;
+
+    /*
+     * noise_get_light will call random_add_noise, which may call
+     * back to here. Prevent recursive stirs.
+     */
+    if (pool.stir_pending)
+	return;
+    pool.stir_pending = TRUE;
 
     noise_get_light(random_add_noise);
 
@@ -119,6 +129,8 @@ static void random_stir(void)
     memcpy(pool.incoming, digest, sizeof(digest));
 
     pool.poolpos = sizeof(pool.incoming);
+
+    pool.stir_pending = FALSE;
 }
 
 void random_add_noise(void *noise, int length)

@@ -80,6 +80,30 @@ __fastcall TTerminal::~TTerminal()
   delete FAdditionalInfo;
 }
 //---------------------------------------------------------------------------
+void __fastcall TTerminal::Idle()
+{
+  TSecureShell::Idle();
+
+  if (CommandSessionOpened)
+  {
+    try
+    {
+      FCommandSession->Idle();
+    }
+    catch(Exception & E)
+    {
+      // If the secondary session is dropped, ignore the error and let
+      // it be reconnected when needed.
+      // BTW, non-fatal error can hardly happen here, that's why
+      // it is displayed, because it can be useful to know.
+      if (FCommandSession->Active)
+      {
+        FCommandSession->DoShowExtendedException(&E);
+      }
+    }
+  }
+}
+//---------------------------------------------------------------------------
 void __fastcall TTerminal::KeepAlive()
 {
   if (SessionData->PingType == ptDummyCommand)
@@ -106,11 +130,6 @@ void __fastcall TTerminal::KeepAlive()
   else
   {
     TSecureShell::KeepAlive();
-  }
-
-  if (CommandSessionOpened)
-  {
-    FCommandSession->KeepAlive();
   }
 }
 //---------------------------------------------------------------------------

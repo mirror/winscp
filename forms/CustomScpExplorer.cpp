@@ -1869,6 +1869,12 @@ void __fastcall TCustomScpExplorerForm::Idle(bool AppIdle)
   if (Terminal && Terminal->Active)
   {
     Terminal->Idle();
+
+    // queue may be still NULL if idle() occures while terminal is being set
+    if (FQueue != NULL)
+    {
+      FQueue->Idle();
+    }
   }
 
   if (AppIdle)

@@ -1551,24 +1551,7 @@ unsigned long __fastcall TSFTPFileSystem::UploadBlockSize(const AnsiString & Han
 unsigned long __fastcall TSFTPFileSystem::DownloadBlockSize(
   TFileOperationProgressType * OperationProgress)
 {
-  // data size
-  const unsigned long DownloadPacketOverhead = sizeof(unsigned long);
-  return TransferBlockSize(DownloadPacketOverhead, OperationProgress);
-}
-//---------------------------------------------------------------------------
-unsigned long __fastcall TSFTPFileSystem::MaxTransferBlockSize(unsigned long Overhead)
-{
-  unsigned long MaxPacketSize = FTerminal->MaxPacketSize();
-  unsigned long Result = TFileOperationProgressType::StaticBlockSize();
-  if (MaxPacketSize > 0)
-  {
-    MaxPacketSize -= 4 + 1 + Overhead;
-    if (Result > MaxPacketSize)
-    {
-      Result = MaxPacketSize;
-    }
-  }
-  return Result;
+  return TransferBlockSize(sizeof(unsigned long), OperationProgress);
 }
 //---------------------------------------------------------------------------
 void __fastcall TSFTPFileSystem::SendPacket(const TSFTPPacket * Packet)

@@ -187,7 +187,6 @@ void __fastcall TEditorManager::AddFileInternal(const AnsiString FileName,
   FileData.CloseFlag = CloseFlag;
   FileData.Data = Data;
   FileData.Monitor = INVALID_HANDLE_VALUE;
-  FileData.Opened = Now();
 
   AddFile(FileData);
 }
@@ -205,7 +204,6 @@ void __fastcall TEditorManager::AddFileExternal(const AnsiString FileName,
   FileData.Monitor = FindFirstChangeNotification(
     ExtractFilePath(FileData.FileName).c_str(), false,
     FILE_NOTIFY_CHANGE_LAST_WRITE);
-  FileData.Opened = Now();
   if (FileData.Monitor == INVALID_HANDLE_VALUE)
   {
     throw Exception(FMTLOAD(FILE_WATCH_ERROR, (FileData.FileName)));
@@ -329,10 +327,11 @@ void __fastcall TEditorManager::FileClosed(TObject * Token)
 void __fastcall TEditorManager::AddFile(TFileData & FileData)
 {
   FileData.Timestamp = FileAge(FileData.FileName);
-  FileData.ErrorTimestamp = 0;
   FileData.LocalDirectory = ExtractFilePath(FileData.FileName);
   FileData.Closed = false;
   FileData.UploadCompleteEvent = INVALID_HANDLE_VALUE;
+  FileData.Opened = Now();
+  FileData.Reupload = false;
 
   FFiles.push_back(FileData);
 }
@@ -351,6 +350,11 @@ void __fastcall TEditorManager::UploadComplete(int Index)
   if (FileData->Closed)
   {
     CloseFile(Index, false);
+  }
+  else if (FileData->Reupload)
+  {
+    FileData->Reupload = false;
+    CheckFileChange(Index, true);
   }
 }
 //---------------------------------------------------------------------------
@@ -421,24 +425,13 @@ void __fastcall TEditorManager::CheckFileChange(int Index, bool Force)
   {
     if (FileData->UploadCompleteEvent != INVALID_HANDLE_VALUE)
     {
-      if (FileData->ErrorTimestamp == NewTimestamp)
-      {
-        // we have shown error for this change already
-        // (= duplicate change notification)
-        Abort();
-      }
-      else
-      {
-        FileData->ErrorTimestamp = NewTimestamp;
-        throw Exception(FMTLOAD(EDITED_FILE_BEING_UPLOADED,
-          (ExtractFileName(FileData->FileName))));
-      }
+      FileData->Reupload = true;
+      Abort();
     }
     FileData->UploadCompleteEvent = CreateEvent(NULL, false, false, NULL);
     FUploadCompleteEvents.push_back(FileData->UploadCompleteEvent);
 
     FileData->Timestamp = NewTimestamp;
-    FileData->ErrorTimestamp = 0;
 
     try
     {

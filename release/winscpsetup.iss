@@ -167,7 +167,7 @@ Name: "{group}\{cm:RSAKeyTools}\{cm:PageantManual}"; \
   Filename: "winhlp32.exe"; Parameters: "-ipageant.general {app}\PuTTY\putty.hlp"; \
   Components: pageant
 Name: "{group}\{cm:RSAKeyTools}\{cm:KeysManual}"; \
-  Filename: "winhlp32.exe"; Parameters: "-it00000115 {app}\PuTTY\putty.hlp"; \
+  Filename: "winhlp32.exe"; Parameters: "-it00000117 {app}\PuTTY\putty.hlp"; \
   Components: pageant puttygen
 Name: "{group}\{cm:RSAKeyTools}\{cm:PuttyWebSite}"; \
   Filename: "{app}\PuTTY\PuTTY.url"; Components: pageant puttygen

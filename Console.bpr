@@ -79,6 +79,6 @@ Comments=
 
 [Compiler]
 ShowInfoMsgs=0
-LinkDebugVcl=1
+LinkDebugVcl=0
   </IDEOPTIONS>
 </PROJECT>

@@ -239,6 +239,7 @@ public:
   virtual void __fastcall Close();
   virtual void __fastcall DirectoryModified(const AnsiString Path, bool SubDirs);
   virtual void __fastcall DirectoryLoaded(TRemoteFileList * FileList);
+  virtual void __fastcall Idle();
   bool __fastcall AllowedAnyCommand(const AnsiString Command);
   void __fastcall AnyCommand(const AnsiString Command);
   void __fastcall CloseOnCompletion(const AnsiString Message = "");

@@ -202,7 +202,7 @@ public:
   void __fastcall AddStdError(AnsiString Str);
   void __fastcall AddStdErrorLine(const AnsiString Str);
   void __fastcall ClearStdError();
-  void __fastcall Idle();
+  virtual void __fastcall Idle();
   void __fastcall SendEOF();
   void __fastcall SendLine(AnsiString Line);
   void __fastcall FatalError(Exception * E, AnsiString Msg);

@@ -278,9 +278,11 @@ protected:
 	void __fastcall DoFetchData(void);
 	void __fastcall DoUpdateIcon(void);
 	virtual void __fastcall Execute(void);
-	HIDESBASE void __fastcall Terminate(void);
 	__property int Index = {read=FIndex, write=SetIndex, nodefault};
 	__property int MaxIndex = {read=FMaxIndex, write=SetMaxIndex, nodefault};
+	
+public:
+	virtual void __fastcall Terminate(void);
 public:
 	#pragma option push -w-inl
 	/* TCompThread.Destroy */ inline __fastcall virtual ~TIconUpdateThread(void) { }

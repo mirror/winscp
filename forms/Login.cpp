@@ -382,10 +382,10 @@ void __fastcall TLoginDialog::SaveSession(TSessionData * aSessionData)
 {
   aSessionData->Name = FCurrentSessionName;
   // Basic tab
-  aSessionData->UserName = UserNameEdit->Text;
+  aSessionData->UserName = UserNameEdit->Text.Trim();
   aSessionData->PortNumber = PortNumberEdit->AsInteger;
   // must be loaded after UserName, because HostName may be in format user@host
-  aSessionData->HostName = HostNameEdit->Text;
+  aSessionData->HostName = HostNameEdit->Text.Trim();
   aSessionData->Password = PasswordEdit->Text;
   aSessionData->PublicKeyFile = PrivateKeyEdit->Text;
 
