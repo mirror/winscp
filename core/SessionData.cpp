@@ -81,6 +81,7 @@ void __fastcall TSessionData::Default()
   PreserveDirectoryChanges = true;
   LockInHome = false;
   ResolveSymlinks = true;
+  ConsiderDST = false;
 
   // SCP
   ReturnVar = "";
@@ -112,8 +113,6 @@ void __fastcall TSessionData::Default()
 void __fastcall TSessionData::NonPersistant()
 {
   UpdateDirectories = false;
-  CacheDirectories = false;
-  CacheDirectoryChanges = false;
   PreserveDirectoryChanges = false;
 }
 //---------------------------------------------------------------------
@@ -147,6 +146,7 @@ void __fastcall TSessionData::Assign(TPersistent * Source)
     DUPL(PreserveDirectoryChanges);
 
     DUPL(ResolveSymlinks);
+    DUPL(ConsiderDST);
     DUPL(LockInHome);
     DUPL(Special);
     DUPL(Selected);
@@ -345,6 +345,7 @@ void __fastcall TSessionData::Load(THierarchicalStorage * Storage)
     PreserveDirectoryChanges = Storage->ReadBool("PreserveDirectoryChanges", PreserveDirectoryChanges);
 
     ResolveSymlinks = Storage->ReadBool("ResolveSymlinks", ResolveSymlinks);
+    ConsiderDST = Storage->ReadBool("ConsiderDST", ConsiderDST);
     LockInHome = Storage->ReadBool("LockInHome", LockInHome);
     Special = Storage->ReadBool("Special", Special);
     Shell = Storage->ReadString("Shell", Shell);
@@ -464,6 +465,7 @@ void __fastcall TSessionData::Save(THierarchicalStorage * Storage, bool PuttyExp
       Storage->WriteBool("PreserveDirectoryChanges", PreserveDirectoryChanges);
 
       Storage->WriteBool("ResolveSymlinks", ResolveSymlinks);
+      Storage->WriteBool("ConsiderDST", ConsiderDST);
       Storage->WriteBool("LockInHome", LockInHome);
       // Special is never stored (if it would, login dialog must be modified not to
       // duplicate Special parameter when Special session is loaded and then stored
@@ -853,7 +855,11 @@ AnsiString __fastcall TSessionData::GetCipherList()
 //---------------------------------------------------------------------
 void __fastcall TSessionData::SetPublicKeyFile(AnsiString value)
 {
-  SET_SESSION_PROPERTY(PublicKeyFile);
+  if (FPublicKeyFile != value)
+  {
+    FPublicKeyFile = StripPathQuotes(value);
+    FModified = true;
+  }
 }
 //---------------------------------------------------------------------
 AnsiString __fastcall TSessionData::GetDefaultLogFileName()
@@ -1020,6 +1026,11 @@ void __fastcall TSessionData::SetPreserveDirectoryChanges(bool value)
 void __fastcall TSessionData::SetResolveSymlinks(bool value)
 {
   SET_SESSION_PROPERTY(ResolveSymlinks);
+}
+//---------------------------------------------------------------------------
+void __fastcall TSessionData::SetConsiderDST(bool value)
+{
+  SET_SESSION_PROPERTY(ConsiderDST);
 }
 //---------------------------------------------------------------------
 void __fastcall TSessionData::SetLockInHome(bool value)

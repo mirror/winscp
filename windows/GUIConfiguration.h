@@ -20,6 +20,8 @@ private:
   AnsiString FPuttySession;
   int FSynchronizeParams;
   TDateTime FIgnoreCancelBeforeFinish;
+  bool FQueueAutoPopup;
+  int FQueueTransfersLimit;
 
 protected:
   LCID FLocale;
@@ -46,6 +48,8 @@ public:
   __property bool ErrorDialogExpanded = { read = FErrorDialogExpanded, write = FErrorDialogExpanded };
   __property bool ContinueOnError = { read = FContinueOnError, write = FContinueOnError };
   __property int SynchronizeParams = { read = FSynchronizeParams, write = FSynchronizeParams };
+  __property int QueueTransfersLimit = { read = FQueueTransfersLimit, write = FQueueTransfersLimit };
+  __property bool QueueAutoPopup = { read = FQueueAutoPopup, write = FQueueAutoPopup };
   __property LCID Locale = { read = GetLocale, write = SetLocale };
   __property LCID LocaleSafe = { read = GetLocale, write = SetLocaleSafe };
   __property TStrings * Locales = { read = GetLocales };

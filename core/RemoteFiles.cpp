@@ -33,6 +33,11 @@ AnsiString __fastcall UnixExcludeTrailingBackslash(const AnsiString Path)
     else return Path;
 }
 //---------------------------------------------------------------------------
+Boolean __fastcall ComparePaths(const AnsiString Path1, const AnsiString Path2)
+{
+  return AnsiSameText(IncludeTrailingBackslash(Path1), IncludeTrailingBackslash(Path2));
+}
+//---------------------------------------------------------------------------
 Boolean __fastcall UnixComparePaths(const AnsiString Path1, const AnsiString Path2)
 {
   return (UnixIncludeTrailingBackslash(Path1) == UnixIncludeTrailingBackslash(Path2));
@@ -109,9 +114,71 @@ void __fastcall SkipPathComponent(const AnsiString & Text,
       P = 0;
     }
   }
-  
+
   SelStart = P;
   SelLength = 0;
+}
+//---------------------------------------------------------------------------
+bool __fastcall ExtractCommonPath(TStrings * Files, AnsiString & Path)
+{
+  assert(Files->Count > 0);
+
+  Path = ExtractFilePath(Files->Strings[0]);
+  bool Result = !Path.IsEmpty();
+  if (Result)
+  {
+    for (int Index = 1; Index < Files->Count; Index++)
+    {
+      while (Path.IsEmpty() &&
+        (Files->Strings[Index].SubString(1, Path.Length()) != Path))
+      {
+        int PrevLen = Path.Length();
+        Path = ExtractFilePath(ExcludeTrailingBackslash(Path));
+        if (Path.Length() == PrevLen)
+        {
+          Path = "";
+        }
+      }
+    }
+  }
+
+  return Result;
+}
+//---------------------------------------------------------------------------
+bool __fastcall UnixExtractCommonPath(TStrings * Files, AnsiString & Path)
+{
+  assert(Files->Count > 0);
+
+  Path = UnixExtractFilePath(Files->Strings[0]);
+  bool Result = !Path.IsEmpty();
+  if (Result)
+  {
+    for (int Index = 1; Index < Files->Count; Index++)
+    {
+      while (Path.IsEmpty() &&
+        (Files->Strings[Index].SubString(1, Path.Length()) != Path))
+      {
+        int PrevLen = Path.Length();
+        Path = UnixExtractFilePath(UnixExcludeTrailingBackslash(Path));
+        if (Path.Length() == PrevLen)
+        {
+          Path = "";
+        }
+      }
+    }
+  }
+
+  return Result;
+}
+//---------------------------------------------------------------------------
+AnsiString __fastcall FromUnixPath(const AnsiString Path)
+{
+  return StringReplace(Path, "/", "\\", TReplaceFlags() << rfReplaceAll);
+}
+//---------------------------------------------------------------------------
+AnsiString __fastcall ToUnixPath(const AnsiString Path)
+{
+  return StringReplace(Path, "\\", "/", TReplaceFlags() << rfReplaceAll);
 }
 //- TRemoteFiles ------------------------------------------------------------
 __fastcall TRemoteFile::TRemoteFile(TRemoteFile * ALinkedByFile):
@@ -293,13 +360,15 @@ void __fastcall TRemoteFile::SetModification(const TDateTime & value)
 //---------------------------------------------------------------------------
 AnsiString __fastcall TRemoteFile::GetUserModificationStr()
 {
-  if (FModificationFmt == mfFull)
+  switch (FModificationFmt)
   {
-    return FormatDateTime("ddddd tt", Modification);
-  }
-  else
-  {
-    return FormatDateTime("ddddd t", Modification);
+    case mfMDY:
+      return FormatDateTime("ddddd", Modification);
+    case mfMDHM:
+      return FormatDateTime("ddddd t", Modification);
+    case mfFull:
+    default:
+      return FormatDateTime("ddddd tt", Modification);
   }
 }
 //---------------------------------------------------------------------------
@@ -444,8 +513,16 @@ void __fastcall TRemoteFile::SetListingStr(AnsiString value)
         FModificationFmt = mfMDY;
       }
 
-      FModification = AdjustDateTimeFromUnix(
-        EncodeDate(Year, Month, Day) + EncodeTime(Hour, Min, 0, 0));
+      FModification = EncodeDate(Year, Month, Day) + EncodeTime(Hour, Min, 0, 0);
+      // adjust only when time is known,
+      // adjusting default "midnight" time makes no sense
+      if (FModificationFmt == mfMDHM)
+      {
+        assert(Terminal != NULL);
+        FModification = AdjustDateTimeFromUnix(FModification,
+          Terminal->SessionData->ConsiderDST);
+      }
+
       if (double(FLastAccess) == 0)
       {
         FLastAccess = FModification;
@@ -602,6 +679,7 @@ __fastcall TRemoteParentDirectory::TRemoteParentDirectory() : TRemoteFile()
 __fastcall TRemoteFileList::TRemoteFileList():
   TObjectList()
 {
+  FTimestamp = Now();
 }
 //---------------------------------------------------------------------------
 void __fastcall TRemoteFileList::AddFile(TRemoteFile * File)
@@ -619,10 +697,12 @@ void __fastcall TRemoteFileList::DuplicateTo(TRemoteFileList * Copy)
     Copy->AddFile(File->Duplicate());
   }
   Copy->FDirectory = Directory;
+  Copy->FTimestamp = FTimestamp;
 }
 //---------------------------------------------------------------------------
 void __fastcall TRemoteFileList::Clear()
 {
+  FTimestamp = Now();
   TObjectList::Clear();
 }
 //---------------------------------------------------------------------------
@@ -789,6 +869,7 @@ void __fastcall TRemoteDirectory::SetIncludeThisDirectory(Boolean value)
 //===========================================================================
 __fastcall TRemoteDirectoryCache::TRemoteDirectoryCache(): TStringList()
 {
+  FSection = new TCriticalSection();
   Sorted = true;
   Duplicates = dupError;
   CaseSensitive = true;
@@ -797,10 +878,13 @@ __fastcall TRemoteDirectoryCache::TRemoteDirectoryCache(): TStringList()
 __fastcall TRemoteDirectoryCache::~TRemoteDirectoryCache()
 {
   Clear();
+  delete FSection;
 }
 //---------------------------------------------------------------------------
 void __fastcall TRemoteDirectoryCache::Clear()
 {
+  TGuard Guard(FSection);
+
   try
   {
     for (int Index = 0; Index < Count; Index++)
@@ -817,25 +901,72 @@ void __fastcall TRemoteDirectoryCache::Clear()
 //---------------------------------------------------------------------------
 bool __fastcall TRemoteDirectoryCache::GetIsEmpty() const
 {
+  TGuard Guard(FSection);
+
   return (const_cast<TRemoteDirectoryCache*>(this)->Count == 0);
 }
 //---------------------------------------------------------------------------
-TRemoteFileList * __fastcall TRemoteDirectoryCache::GetFileList(const AnsiString Directory)
+bool __fastcall TRemoteDirectoryCache::HasFileList(const AnsiString Directory)
 {
+  TGuard Guard(FSection);
+
   int Index = IndexOf(UnixExcludeTrailingBackslash(Directory));
-  return (Index >= 0 ? (TRemoteFileList *)Objects[Index] : NULL);
+  return (Index >= 0);
+}
+//---------------------------------------------------------------------------
+bool __fastcall TRemoteDirectoryCache::HasNewerFileList(const AnsiString Directory,
+  TDateTime Timestamp)
+{
+  TGuard Guard(FSection);
+
+  int Index = IndexOf(UnixExcludeTrailingBackslash(Directory));
+  if (Index >= 0)
+  {
+    TRemoteFileList * FileList = dynamic_cast<TRemoteFileList *>(Objects[Index]);
+    if (FileList->Timestamp <= Timestamp)
+    {
+      Index = -1;
+    }
+  }
+  return (Index >= 0);
+}
+//---------------------------------------------------------------------------
+bool __fastcall TRemoteDirectoryCache::GetFileList(const AnsiString Directory,
+  TRemoteFileList * FileList)
+{
+  TGuard Guard(FSection);
+
+  int Index = IndexOf(UnixExcludeTrailingBackslash(Directory));
+  bool Result = (Index >= 0);
+  if (Result)
+  {
+    assert(Objects[Index] != NULL);
+    dynamic_cast<TRemoteFileList *>(Objects[Index])->DuplicateTo(FileList);
+  }
+  return Result;
 }
 //---------------------------------------------------------------------------
 void __fastcall TRemoteDirectoryCache::AddFileList(TRemoteFileList * FileList)
 {
+  // file list cannot be cached already with only one thread, but it can be
+  // when directory is loaded by secondary terminal   
+  ClearFileList(FileList->Directory, false);
+  
   assert(FileList);
   TRemoteFileList * Copy = new TRemoteFileList();
   FileList->DuplicateTo(Copy);
-  AddObject(Copy->Directory, Copy);
+
+  {
+    TGuard Guard(FSection);
+
+    AddObject(Copy->Directory, Copy);
+  }
 }
 //---------------------------------------------------------------------------
 void __fastcall TRemoteDirectoryCache::ClearFileList(AnsiString Directory, bool SubDirs)
 {
+  TGuard Guard(FSection);
+
   Directory = UnixExcludeTrailingBackslash(Directory);
   int Index = IndexOf(Directory);
   if (Index >= 0)
@@ -1199,10 +1330,12 @@ AnsiString __fastcall TRights::GetText() const
 
     int Flag = 00001;
     int ExtendedFlag = 01000;
+    bool ExtendedPos = true;
     char Symbol;
-    for (int i = TextLen; i >= 1; i--)
+    int i = TextLen;
+    while (i >= 1)
     {
-      if (((i % 3) == 0) &&
+      if (ExtendedPos &&
           ((FSet & (Flag | ExtendedFlag)) == (Flag | ExtendedFlag)))
       {
         Symbol = CombinedSymbols[i - 1];
@@ -1211,11 +1344,12 @@ AnsiString __fastcall TRights::GetText() const
       {
         Symbol = BasicSymbols[i - 1];
       }
-      else if (((i % 3) == 0) && ((FSet & ExtendedFlag) != 0))
+      else if (ExtendedPos && ((FSet & ExtendedFlag) != 0))
       {
         Symbol = ExtendedSymbols[i - 1];
       }
-      else if ((FUnset & (Flag | ExtendedFlag)) == (Flag | ExtendedFlag))
+      else if ((!ExtendedPos && ((FUnset & Flag) == Flag)) ||
+        (ExtendedPos && ((FUnset & (Flag | ExtendedFlag)) == (Flag | ExtendedFlag))))
       {
         Symbol = UnsetSymbol;
       }
@@ -1227,7 +1361,9 @@ AnsiString __fastcall TRights::GetText() const
       Result[i] = Symbol;
 
       Flag <<= 1;
-      if ((i % 3) == 1)
+      i--;
+      ExtendedPos = ((i % 3) == 0);
+      if (ExtendedPos)
       {
         ExtendedFlag <<= 1;
       }

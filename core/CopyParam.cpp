@@ -22,7 +22,7 @@ void __fastcall TCopyParamType::Default()
   PreserveTime = true;
   Rights.Number = TRights::rfDefault;
   PreserveRights = false; // Was True until #106
-  AsciiFileMask.Masks = "*.*htm*; *.txt; *.php*; *.cgi; *.c; *.cpp; *.h; *.pas; "
+  AsciiFileMask.Masks = "*.*html; *.htm; *.txt; *.php*; *.cgi; *.c; *.cpp; *.h; *.pas; "
     "*.bas; *.tex; *.pl; .htaccess; *.xtml; *.css; *.cfg; *.ini; *.sh; *.xml";
   TransferMode = tmAutomatic;
   AddXToDirectories = true;

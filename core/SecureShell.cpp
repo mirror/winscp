@@ -453,8 +453,11 @@ void __fastcall TSecureShell::ClearStdError()
   // Flush std error cache
   if (!FStdErrorTemp.IsEmpty())
   {
-    FAuthenticationLog +=
-      (FAuthenticationLog.IsEmpty() ? "" : "\n") + FStdErrorTemp;
+    if (Status == sshAuthenticate)
+    {
+      FAuthenticationLog +=
+        (FAuthenticationLog.IsEmpty() ? "" : "\n") + FStdErrorTemp;
+    }
     Log->Add(llStdError, FStdErrorTemp);
     FStdErrorTemp = "";
   }
@@ -501,10 +504,6 @@ void __fastcall TSecureShell::SetSessionData(TSessionData * value)
 {
   assert(!FActive);
   FSessionData->Assign(value);
-  if (FLog)
-  {
-    FLog->Data = FSessionData;
-  }
 }
 //---------------------------------------------------------------------------
 void __fastcall TSecureShell::SetActive(bool value)
@@ -636,7 +635,6 @@ void __fastcall TSecureShell::KeepAlive()
 void __fastcall TSecureShell::SetLog(TSessionLog * value)
 {
   FLog->Assign(value);
-  FLog->Data = SessionData;
 }
 //---------------------------------------------------------------------------
 void __fastcall TSecureShell::SetConfiguration(TConfiguration *value)
@@ -929,7 +927,6 @@ __fastcall TSessionLog::TSessionLog(TSecureShell * AOwner): TStringList()
   FEnabled = true;
   FOwner = AOwner;
   FFile = NULL;
-  FData = NULL;
   FLoggedLines = 0;
   FTopIndex = -1;
   FFileName = "";
@@ -938,6 +935,13 @@ __fastcall TSessionLog::TSessionLog(TSecureShell * AOwner): TStringList()
 __fastcall TSessionLog::~TSessionLog()
 {
   CloseLogFile();
+}
+//---------------------------------------------------------------------------
+AnsiString __fastcall TSessionLog::GetSessionName()
+{
+  assert(FOwner != NULL);
+  assert(FOwner->SessionData != NULL);
+  return FOwner->SessionData->SessionName;
 }
 //---------------------------------------------------------------------------
 void __fastcall TSessionLog::SetLine(Integer Index, AnsiString value)
@@ -971,7 +975,7 @@ TLogLineType __fastcall TSessionLog::GetType(Integer Index)
 //---------------------------------------------------------------------------
 void __fastcall TSessionLog::Add(TLogLineType aType, AnsiString aLine)
 {
-  assert(Configuration && Data);
+  assert(Configuration);
   if (IsLogging())
   {
     try
@@ -1035,16 +1039,6 @@ void __fastcall TSessionLog::AddException(Exception * E)
   if (E)
   {
     Add(llException, ExceptionLogString(E));
-  }
-}
-//---------------------------------------------------------------------------
-void TSessionLog::SetData(TSessionData * value)
-{
-  if (Data != value)
-  {
-    FData = value;
-    // In TSessionData there is no longer any settings that needs to be reflected
-    // ReflectSettings();
   }
 }
 //---------------------------------------------------------------------------
@@ -1166,6 +1160,9 @@ void __fastcall TSessionLog::DoAddLine(const AnsiString AddedLine)
 //---------------------------------------------------------------------------
 void __fastcall TSessionLog::AddStartupInfo()
 {
+  assert(FOwner != NULL);
+  TSessionData * Data = FOwner->SessionData;
+  assert(Data != NULL);
   assert(Configuration);
   if (Configuration->Logging || FOnAddLine)
   {

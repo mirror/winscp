@@ -24,6 +24,8 @@ typedef int __fastcall (__closure *TFileOperationEvent)
 typedef void __fastcall (__closure *TSynchronizeDirectory)
   (const AnsiString LocalDirectory, const AnsiString RemoteDirectory, bool & Continue);
 typedef void __fastcall (__closure *TDeleteLocalFileEvent)(const AnsiString FileName);
+typedef int __fastcall (__closure *TDirectoryModifiedEvent)
+  (TTerminal * Terminal, const AnsiString Directory, bool SubDirs);
 //---------------------------------------------------------------------------
 #define SUSPEND_OPERATION(Command)                            \
   {                                                           \
@@ -111,6 +113,7 @@ private:
   int FInTransaction;
   TNotifyEvent FOnChangeDirectory;
   TReadDirectoryEvent FOnReadDirectory;
+  TDirectoryModifiedEvent FOnDirectoryModified;
   TNotifyEvent FOnStartReadDirectory;
   TDeleteLocalFileEvent FOnDeleteLocalFile;
   bool FReadCurrentDirectoryPending;
@@ -141,11 +144,14 @@ private:
   void __fastcall ReactOnCommand(int /*TFSCommand*/ Cmd);
   AnsiString __fastcall GetUserName() const;
   bool __fastcall GetAreCachesEmpty() const;
+  void __fastcall ClearCachedFileList(const AnsiString Path, bool SubDirs);
+  void __fastcall AddCachedFileList(TRemoteFileList * FileList);
 
 protected:
   virtual void __fastcall KeepAlive();
   void __fastcall DoStartReadDirectory();
   void __fastcall DoReadDirectory(bool ReloadOnly);
+  void __fastcall DoDirectoryModified(const AnsiString Path, bool SubDirs);
   void __fastcall DoCreateDirectory(const AnsiString DirName,
     const TRemoteProperties * Properties);
   void __fastcall DoDeleteFile(const AnsiString FileName,
@@ -205,7 +211,9 @@ public:
   __fastcall ~TTerminal();
   virtual void __fastcall Open();
   virtual void __fastcall Close();
-  void __fastcall DirectoryModified(const AnsiString Path, bool SubDirs);
+  virtual void __fastcall DirectoryModified(const AnsiString Path, bool SubDirs);
+  virtual void __fastcall DirectoryLoaded(TRemoteFileList * FileList);
+  bool __fastcall AllowedAnyCommand(const AnsiString Command);
   void __fastcall AnyCommand(const AnsiString Command);
   void __fastcall CloseOnCompletion(const AnsiString Message = "");
   AnsiString __fastcall AbsolutePath(AnsiString Path);
@@ -239,6 +247,7 @@ public:
   void __fastcall TerminalError(AnsiString Msg);
   void __fastcall TerminalError(Exception * E, AnsiString Msg);
   void __fastcall ReloadDirectory();
+  void __fastcall RefreshDirectory();
   void __fastcall RenameFile(const AnsiString FileName, const AnsiString NewName);
   void __fastcall RenameFile(const TRemoteFile * File, const AnsiString NewName, bool CheckExistence);
   void __fastcall MoveFile(const AnsiString FileName, const TRemoteFile * File,
@@ -260,6 +269,7 @@ public:
   __property TRemoteDirectory * Files = { read = FFiles };
   __property TNotifyEvent OnChangeDirectory = { read = FOnChangeDirectory, write = FOnChangeDirectory };
   __property TReadDirectoryEvent OnReadDirectory = { read = FOnReadDirectory, write = FOnReadDirectory };
+  __property TDirectoryModifiedEvent OnDirectoryModified = { read = FOnDirectoryModified, write = FOnDirectoryModified };
   __property TNotifyEvent OnStartReadDirectory = { read = FOnStartReadDirectory, write = FOnStartReadDirectory };
   __property TDeleteLocalFileEvent OnDeleteLocalFile = { read = FOnDeleteLocalFile, write = FOnDeleteLocalFile };
   __property TUsersGroupsList * Groups = { read = GetGroups };

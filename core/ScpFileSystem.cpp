@@ -1192,7 +1192,8 @@ void __fastcall TSCPFileSystem::CopyToRemote(TStrings * FilesToCopy,
             FTerminal->OpenLocalFile(FileName, GENERIC_READ,
               NULL, NULL, NULL, &MTime, NULL,
               &FileParams.SourceSize);
-            FileParams.SourceTimestamp = UnixToDateTime(MTime);
+            FileParams.SourceTimestamp = UnixToDateTime(MTime,
+              FTerminal->SessionData->ConsiderDST);
             FileParams.DestSize = File->Size;
             FileParams.DestTimestamp = File->Modification;
 
@@ -1836,9 +1837,12 @@ void __fastcall TSCPFileSystem::SCPSink(const AnsiString TargetDir,
             unsigned long MTime, ATime;
             if (sscanf(Line.c_str(), "%ld %*d %ld %*d",  &MTime, &ATime) == 2)
             {
-              TIME_POSIX_TO_WIN(ATime, FileData.AcTime);
-              TIME_POSIX_TO_WIN(MTime, FileData.WrTime);
-              SourceTimestamp = UnixToDateTime(MTime);
+              FileData.AcTime = DateTimeToFileTime(UnixToDateTime(ATime,
+                FTerminal->SessionData->ConsiderDST), FTerminal->SessionData->ConsiderDST);
+              FileData.WrTime = DateTimeToFileTime(UnixToDateTime(MTime,
+                FTerminal->SessionData->ConsiderDST), FTerminal->SessionData->ConsiderDST);
+              SourceTimestamp = UnixToDateTime(MTime,
+                FTerminal->SessionData->ConsiderDST);
               FTerminal->SendNull();
               // File time is only valid until next pass
               FileData.SetTime = 2;
@@ -1952,7 +1956,8 @@ void __fastcall TSCPFileSystem::SCPSink(const AnsiString TargetDir,
                   FTerminal->OpenLocalFile(DestFileName, GENERIC_READ,
                     NULL, NULL, NULL, &MTime, NULL,
                     &FileParams.DestSize);
-                  FileParams.DestTimestamp = UnixToDateTime(MTime);
+                  FileParams.DestTimestamp = UnixToDateTime(MTime,
+                    FTerminal->SessionData->ConsiderDST);
                   
                   SUSPEND_OPERATION (
                     Answer = FTerminal->ConfirmFileOverwrite(

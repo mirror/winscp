@@ -45,6 +45,8 @@ void __fastcall TGUIConfiguration::Default()
   FErrorDialogExpanded = false;
   FContinueOnError = false;
   FSynchronizeParams = TTerminal::spDelete | TTerminal::spNoConfirmation; 
+  FQueueTransfersLimit = 2;
+  FQueueAutoPopup = true;
   AnsiString ProgramsFolder;
   SpecialFolderLocation(CSIDL_PROGRAM_FILES, ProgramsFolder);
   FPuttyPath = IncludeTrailingBackslash(ProgramsFolder) + "PuTTY\\putty.exe";
@@ -62,6 +64,8 @@ void __fastcall TGUIConfiguration::Default()
     KEY(Bool,     ErrorDialogExpanded); \
     KEY(Bool,     ContinueOnError); \
     KEY(Integer,  SynchronizeParams); \
+    KEY(Integer,  QueueTransfersLimit); \
+    KEY(Bool,     QueueAutoPopup); \
     KEY(String,   PuttySession); \
     KEY(String,   PuttyPath); \
     KEY(DateTime, IgnoreCancelBeforeFinish); \

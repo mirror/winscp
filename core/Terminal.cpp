@@ -292,6 +292,17 @@ void __fastcall TTerminal::ClearCaches()
   }
 }
 //---------------------------------------------------------------------------
+void __fastcall TTerminal::ClearCachedFileList(const AnsiString Path,
+  bool SubDirs)
+{
+  FDirectoryCache->ClearFileList(Path, SubDirs);
+}
+//---------------------------------------------------------------------------
+void __fastcall TTerminal::AddCachedFileList(TRemoteFileList * FileList)
+{
+  FDirectoryCache->AddFileList(FileList);
+}
+//---------------------------------------------------------------------------
 void __fastcall TTerminal::SetCurrentDirectory(AnsiString value)
 {
   assert(FFileSystem);
@@ -525,31 +536,44 @@ void __fastcall TTerminal::FileModified(const TRemoteFile * File,
       if (File->IsDirectory)
       {
         // do not use UnixIncludeTrailingBackslash(CurrentDirectory)
-        FDirectoryCache->ClearFileList(
+        DirectoryModified(
           File->Directory->FullDirectory + File->FileName, true);
       }
-      FDirectoryCache->ClearFileList(File->Directory->Directory, false);
+      DirectoryModified(File->Directory->Directory, false);
     }
     else if (!FileName.IsEmpty())
     {
       AnsiString Directory = UnixExtractFilePath(FileName);
-      FDirectoryCache->ClearFileList(
+      DirectoryModified(
         !Directory.IsEmpty() ? Directory : CurrentDirectory, false);
     }
   }
 }
 //---------------------------------------------------------------------------
-void __fastcall TTerminal::DirectoryModified(const AnsiString UnlockedPath, bool SubDirs)
+void __fastcall TTerminal::DoDirectoryModified(const AnsiString Path, bool SubDirs)
 {
-  FDirectoryCache->ClearFileList(TranslateLockedPath(UnlockedPath, true),
-    SubDirs);
+  if (OnDirectoryModified != NULL)
+  {
+    OnDirectoryModified(this, Path, SubDirs);
+  }
+}
+//---------------------------------------------------------------------------
+void __fastcall TTerminal::DirectoryModified(const AnsiString Path, bool SubDirs)
+{
+  ClearCachedFileList(Path, SubDirs);
+  DoDirectoryModified(Path, SubDirs);
+}
+//---------------------------------------------------------------------------
+void __fastcall TTerminal::DirectoryLoaded(TRemoteFileList * FileList)
+{
+  AddCachedFileList(FileList);
 }
 //---------------------------------------------------------------------------
 void __fastcall TTerminal::ReloadDirectory()
 {
   if (SessionData->CacheDirectories)
   {
-    FDirectoryCache->ClearFileList(CurrentDirectory, false);
+    DirectoryModified(CurrentDirectory, false);
   }
   if (SessionData->CacheDirectoryChanges)
   {
@@ -559,8 +583,18 @@ void __fastcall TTerminal::ReloadDirectory()
 
   ReadCurrentDirectory();
   FReadCurrentDirectoryPending = false;
-  ReadDirectory(True);
+  ReadDirectory(true);
   FReadDirectoryPending = false;
+}
+//---------------------------------------------------------------------------
+void __fastcall TTerminal::RefreshDirectory()
+{
+  if (SessionData->CacheDirectories &&
+      FDirectoryCache->HasNewerFileList(CurrentDirectory, FFiles->Timestamp))
+  {
+    ReadDirectory(true);
+    FReadDirectoryPending = false;
+  }
 }
 //---------------------------------------------------------------------------
 void __fastcall TTerminal::EnsureNonExistence(const AnsiString FileName)
@@ -645,13 +679,9 @@ void __fastcall TTerminal::ReadCurrentDirectory()
 //---------------------------------------------------------------------------
 void __fastcall TTerminal::ReadDirectory(bool ReloadOnly)
 {
-  TRemoteFileList * CachedFileList = NULL;
-  if (SessionData->CacheDirectories)
-  {
-    CachedFileList = FDirectoryCache->GetFileList(CurrentDirectory);
-  }
+  bool LoadedFromCache = false;
 
-  if (CachedFileList)
+  if (SessionData->CacheDirectories && FDirectoryCache->HasFileList(CurrentDirectory))
   {
     if (ReloadOnly)
     {
@@ -662,16 +692,25 @@ void __fastcall TTerminal::ReadDirectory(bool ReloadOnly)
       DoStartReadDirectory();
       try
       {
-        CachedFileList->DuplicateTo(FFiles);
+        LoadedFromCache = FDirectoryCache->GetFileList(CurrentDirectory, FFiles);
       }
       __finally
       {
         DoReadDirectory(ReloadOnly);
       }
-      LogEvent("Directory content loaded from cache.");
+
+      if (LoadedFromCache)
+      {
+        LogEvent("Directory content loaded from cache.");
+      }
+      else
+      {
+        LogEvent("Cached Directory content has been removed.");
+      }
     }
   }
-  else
+
+  if (!LoadedFromCache)
   {
     DoStartReadDirectory();
     FFiles->Directory = CurrentDirectory;
@@ -692,7 +731,7 @@ void __fastcall TTerminal::ReadDirectory(bool ReloadOnly)
         {
           if (SessionData->CacheDirectories)
           {
-            FDirectoryCache->AddFileList(FFiles);
+            DirectoryLoaded(FFiles);
           }
         }
       }
@@ -872,7 +911,7 @@ bool __fastcall TTerminal::ProcessFiles(TStrings * FileList,
       {
         EndTransaction();
       }
-      
+
       if (Progress.Cancel == csContinue)
       {
         Result = true;
@@ -1202,7 +1241,7 @@ void __fastcall TTerminal::MoveFile(const AnsiString FileName,
     if (OperationProgress->Cancel != csContinue) Abort();
     OperationProgress->SetFile(FileName);
   }
-  
+
   assert(Param != NULL);
   const TMoveFileParams & Params = *static_cast<const TMoveFileParams*>(Param);
   AnsiString NewName = UnixIncludeTrailingBackslash(Params.Target) +
@@ -1260,7 +1299,7 @@ void __fastcall TTerminal::CreateLink(const AnsiString FileName,
   EnsureNonExistence(FileName);
   if (SessionData->CacheDirectories)
   {
-    FDirectoryCache->ClearFileList(CurrentDirectory, false);
+    DirectoryModified(CurrentDirectory, false);
   }
 
   LogEvent(FORMAT("Creating link \"%s\" to \"%s\" (symbolic: %s).",
@@ -1378,6 +1417,11 @@ void __fastcall TTerminal::LookupUsersGroups()
   }
 }
 //---------------------------------------------------------------------------
+bool __fastcall TTerminal::AllowedAnyCommand(const AnsiString Command)
+{
+  return !Command.Trim().IsEmpty();
+}
+//---------------------------------------------------------------------------
 void __fastcall TTerminal::AnyCommand(const AnsiString Command)
 {
   assert(FFileSystem);
@@ -1405,8 +1449,8 @@ bool __fastcall TTerminal::CreateLocalFile(const AnsiString FileName,
     bool Done;
     do
     {
-      *AHandle = CreateFile(FileName.c_str(), GENERIC_WRITE, 0, NULL,
-        CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+      *AHandle = CreateFile(FileName.c_str(), GENERIC_WRITE, FILE_SHARE_READ,
+        NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
       Done = (*AHandle != INVALID_HANDLE_VALUE);
       if (!Done)
       {
@@ -1457,7 +1501,7 @@ bool __fastcall TTerminal::CreateLocalFile(const AnsiString FileName,
     }
     while (!Done);
   );
-  
+
   return Result;
 }
 //---------------------------------------------------------------------------
@@ -1483,10 +1527,10 @@ void __fastcall TTerminal::OpenLocalFile(const AnsiString FileName,
       Access = GENERIC_READ;
       NoHandle = true;
     }
-    
+
     FILE_OPERATION_LOOP (FMTLOAD(OPENFILE_ERROR, (FileName)),
       Handle = CreateFile(FileName.c_str(), Access,
-        Access == GENERIC_READ ? FILE_SHARE_READ : 0,
+        Access == GENERIC_READ ? FILE_SHARE_READ | FILE_SHARE_WRITE : FILE_SHARE_READ,
         NULL, OPEN_EXISTING, 0, 0);
       if (Handle == INVALID_HANDLE_VALUE)
       {
@@ -1497,7 +1541,7 @@ void __fastcall TTerminal::OpenLocalFile(const AnsiString FileName,
 
     try
     {
-      if (AATime || AMTime)
+      if (AATime || AMTime || ACTime)
       {
         // Get last file access and modification time
         FILE_OPERATION_LOOP (FMTLOAD(CANT_GET_ATTRS, (FileName)),
@@ -1505,9 +1549,18 @@ void __fastcall TTerminal::OpenLocalFile(const AnsiString FileName,
           FILETIME MTime;
           FILETIME CTime;
           if (!GetFileTime(Handle, &CTime, &ATime, &MTime)) EXCEPTION;
-          if (ACTime) TIME_WIN_TO_POSIX(CTime, *ACTime);
-          if (AATime) TIME_WIN_TO_POSIX(ATime, *AATime);
-          if (AMTime) TIME_WIN_TO_POSIX(MTime, *AMTime);
+          if (ACTime)
+          {
+            *ACTime = ConvertTimestampToUnix(CTime, SessionData->ConsiderDST);
+          }
+          if (AATime)
+          {
+            *AATime = ConvertTimestampToUnix(ATime, SessionData->ConsiderDST);
+          }
+          if (AMTime)
+          {
+            *AMTime = ConvertTimestampToUnix(MTime, SessionData->ConsiderDST);
+          }
         );
       }
 
@@ -1549,7 +1602,7 @@ void __fastcall TTerminal::CalculateLocalFileSize(const AnsiString FileName,
       (static_cast<__int64>(Rec.FindData.nFileSizeHigh) << 32) +
       Rec.FindData.nFileSizeLow;
   }
-  
+
   if (OperationProgress && OperationProgress->Operation == foCalculateSize)
   {
     if (OperationProgress->Cancel != csContinue) Abort();
@@ -1770,7 +1823,7 @@ void __fastcall TTerminal::DoSynchronizeDirectory(const AnsiString LocalDirector
       }
       delete Data.LocalFileList;
     }
-    
+
     TStringList * FileList = Data.NewRemoteFileList;
     while (FileList != Data.ModifiedRemoteFileList)
     {
@@ -1842,7 +1895,7 @@ void __fastcall TTerminal::SynchronizeFile(const AnsiString FileName,
   if (New || Modified)
   {
     assert(!New || !Modified);
-    
+
     TStringList * FileList = New ? Data->NewRemoteFileList :
       Data->ModifiedRemoteFileList;
     FileList->AddObject(FileName,
@@ -1902,7 +1955,7 @@ bool __fastcall TTerminal::CopyToRemote(TStrings * FilesToCopy,
           EndTransaction();
         }
       }
-      
+
       if (OperationProgress.Cancel == csContinue)
       {
         Result = true;
@@ -1997,7 +2050,7 @@ bool __fastcall TTerminal::CopyToLocal(TStrings * FilesToCopy,
           CommandError(&E, LoadStr(TOLOCAL_COPY_ERROR));
           DisconnectWhenComplete = false;
         }
-        
+
         if (OperationProgress.Cancel == csContinue)
         {
           Result = true;

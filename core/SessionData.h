@@ -88,6 +88,7 @@ private:
   int FSFTPDownloadQueue;
   int FSFTPUploadQueue;
   int FSFTPListingQueue;
+  bool FConsiderDST;
 
   void __fastcall SetHostName(AnsiString value);
   void __fastcall SetPortNumber(int value);
@@ -163,6 +164,7 @@ private:
   void __fastcall SetSFTPUploadQueue(int value);
   void __fastcall SetSFTPListingQueue(int value);
   AnsiString __fastcall GetStorageKey();
+  void __fastcall SetConsiderDST(bool value);
 
 public:
   __fastcall TSessionData(AnsiString aName);
@@ -244,6 +246,7 @@ public:
   __property int SFTPDownloadQueue = { read = FSFTPDownloadQueue, write = SetSFTPDownloadQueue };
   __property int SFTPUploadQueue = { read = FSFTPUploadQueue, write = SetSFTPUploadQueue };
   __property int SFTPListingQueue = { read = FSFTPListingQueue, write = SetSFTPListingQueue };
+  __property bool ConsiderDST = { read = FConsiderDST, write = SetConsiderDST };
   __property AnsiString StorageKey = { read = GetStorageKey };
 };
 //---------------------------------------------------------------------------

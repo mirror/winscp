@@ -83,6 +83,7 @@ public:
   __property TDateTime Modification = { read = FModification, write = SetModification };
   __property AnsiString ModificationStr = { read = GetModificationStr };
   __property AnsiString UserModificationStr = { read = GetUserModificationStr };
+  __property TModificationFmt ModificationFmt = { read = FModificationFmt };
   __property TDateTime LastAccess = { read = FLastAccess, write = FLastAccess };
   __property bool IsSymLink = { read = FIsSymLink };
   __property bool IsDirectory = { read = GetIsDirectory };
@@ -114,6 +115,7 @@ friend class TSCPFileSystem;
 friend class TSFTPFileSystem;
 protected:
   AnsiString FDirectory;
+  TDateTime FTimestamp;
   TRemoteFile * __fastcall GetFiles(Integer Index);
   virtual void __fastcall SetDirectory(AnsiString value);
   AnsiString __fastcall GetFullDirectory();
@@ -134,6 +136,7 @@ public:
   __property Boolean IsRoot = { read = GetIsRoot };
   __property AnsiString ParentPath = { read = GetParentPath };
   __property __int64 TotalSize = { read = GetTotalSize };
+  __property TDateTime Timestamp = { read = FTimestamp };
 };
 //---------------------------------------------------------------------------
 class TRemoteDirectory : public TRemoteFileList
@@ -167,12 +170,16 @@ public:
   __property TRemoteFile * ThisDirectory = { read = FThisDirectory };
 };
 //---------------------------------------------------------------------------
+class TCriticalSection;
 class TRemoteDirectoryCache : private TStringList
 {
 public:
   __fastcall TRemoteDirectoryCache();
   virtual __fastcall ~TRemoteDirectoryCache();
-  TRemoteFileList * __fastcall GetFileList(const AnsiString Directory);
+  bool __fastcall HasFileList(const AnsiString Directory);
+  bool __fastcall HasNewerFileList(const AnsiString Directory, TDateTime Timestamp);
+  bool __fastcall GetFileList(const AnsiString Directory,
+    TRemoteFileList * FileList);
   void __fastcall AddFileList(TRemoteFileList * FileList);
   void __fastcall ClearFileList(AnsiString Directory, bool SubDirs);
   void __fastcall Clear();
@@ -181,6 +188,7 @@ public:
 protected:
   virtual void __fastcall Delete(int Index);
 private:
+  TCriticalSection * FSection;
   bool __fastcall GetIsEmpty() const;
 };
 //---------------------------------------------------------------------------
@@ -329,9 +337,14 @@ AnsiString __fastcall UnixExtractFileDir(const AnsiString Path);
 AnsiString __fastcall UnixExtractFilePath(const AnsiString Path);
 AnsiString __fastcall UnixExtractFileName(const AnsiString Path);
 AnsiString __fastcall UnixExtractFileExt(const AnsiString Path);
+Boolean __fastcall ComparePaths(const AnsiString Path1, const AnsiString Path2);
 Boolean __fastcall UnixComparePaths(const AnsiString Path1, const AnsiString Path2);
 void __fastcall SkipPathComponent(const AnsiString & Text,
   int & SelStart, int & SelLength, bool Left, bool Unix);
+bool __fastcall ExtractCommonPath(TStrings * Files, AnsiString & Path);
+bool __fastcall UnixExtractCommonPath(TStrings * Files, AnsiString & Path);
+AnsiString __fastcall FromUnixPath(const AnsiString Path);
+AnsiString __fastcall ToUnixPath(const AnsiString Path);
 //---------------------------------------------------------------------------
 #endif
 

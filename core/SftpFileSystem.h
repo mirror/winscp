@@ -6,6 +6,7 @@
 //---------------------------------------------------------------------------
 class TSFTPPacket;
 class TOverwriteFileParams;
+struct TSFTPSupport;
 //---------------------------------------------------------------------------
 enum TSFTPOverwriteMode { omOverwrite, omAppend, omResume };
 //---------------------------------------------------------------------------
@@ -68,6 +69,7 @@ protected:
   int FBusy;
   bool FAvoidBusy;
   TStrings * FExtensions;
+  TSFTPSupport * FSupport;
 
   void __fastcall CustomReadFile(const AnsiString FileName,
     TRemoteFile *& File, char Type, TRemoteFile * ALinkedByFile = NULL,
@@ -78,7 +80,7 @@ protected:
   bool __fastcall inline IsAbsolutePath(const AnsiString Path);
   bool __fastcall RemoteFileExists(const AnsiString FullPath, TRemoteFile ** File = NULL);
   TRemoteFile * __fastcall LoadFile(TSFTPPacket * Packet,
-    TRemoteFile * ALinkedByFile);
+    TRemoteFile * ALinkedByFile, const AnsiString FileName);
   AnsiString __fastcall LocalCanonify(const AnsiString & Path);
   AnsiString __fastcall Canonify(AnsiString Path);
   AnsiString __fastcall RealPath(const AnsiString Path);

@@ -1,4 +1,5 @@
-[WinSCP]
+[CustomMessages]
+; WinSCP
 FullInstallation=Full installation (recommended)
 FullInstallationLangs=Full installation with all languages
 CompactInstallation=Compact installation
@@ -27,7 +28,7 @@ PuttyWebSite=PuTTY Web Site
 SendToHook=WinSCP3 (upload using SFTP or SCP)
 Launch=Launch &WinSCP
 
-[WinSCP Runtime]
+; WinSCP Runtime
 UserSettingsTitle=Initial user settings
 UserSettingsPrompt=Please, select your preferred user interface options.
 UserInterfaceStyle=User interface style

@@ -45,7 +45,6 @@ private:
   TSecureShell * FOwner;
   TConfiguration * FConfiguration;
   bool FEnabled;
-  TSessionData * FData;
   void * FFile;
   AnsiString FFileName;
   Integer FLoggedLines;
@@ -55,7 +54,6 @@ private:
   AnsiString __fastcall GetLine(Integer Index);
   void __fastcall SetType(Integer Index, TLogLineType value);
   TLogLineType __fastcall GetType(Integer Index);
-  void SetData(TSessionData * value);
   void DeleteUnnecessary();
   void OpenLogFile();
   TColor __fastcall GetColor(Integer Index);
@@ -67,6 +65,7 @@ private:
   Boolean __fastcall GetLogToFile();
   void __fastcall SetEnabled(bool value);
   void __fastcall SetConfiguration(TConfiguration * value);
+  AnsiString __fastcall GetSessionName();
 
 public:
   __fastcall TSessionLog(TSecureShell * AOwner);
@@ -83,7 +82,6 @@ public:
   }
 
   __property Integer BottomIndex = { read = GetBottomIndex };
-  __property TSessionData * Data  = { read=FData, write=SetData };
   __property AnsiString Line[Integer Index]  = { read=GetLine, write=SetLine };
   __property TLogLineType Type[Integer Index]  = { read=GetType, write=SetType };
   __property TColor Color[Integer Index]  = { read=GetColor };
@@ -96,6 +94,7 @@ public:
   __property Boolean LoggingToFile = { read = GetLoggingToFile };
   __property TLogAddLineEvent OnAddLine = { read = FOnAddLine, write = FOnAddLine };
   __property Integer TopIndex = { read = FTopIndex };
+  __property AnsiString SessionName = { read = GetSessionName };
 protected:
   void __fastcall CloseLogFile();
   __property Boolean LogToFile = { read = GetLogToFile };
