@@ -15,8 +15,15 @@
 //---------------------------------------------------------------------------
 AnsiString __fastcall UnixIncludeTrailingBackslash(const AnsiString Path)
 {
-  if (!Path.IsDelimiter("/", Path.Length())) return Path + "/";
-    else return Path;
+  // it used to return "/" when input path was empty
+  if (!Path.IsEmpty() && !Path.IsDelimiter("/", Path.Length()))
+  {
+    return Path + "/";
+  }
+  else
+  {
+    return Path;
+  }
 }
 //---------------------------------------------------------------------------
 AnsiString __fastcall UnixExcludeTrailingBackslash(const AnsiString Path)
@@ -64,6 +71,47 @@ AnsiString __fastcall UnixExtractFileExt(const AnsiString Path)
   AnsiString FileName = UnixExtractFileName(Path);
   int Pos = FileName.LastDelimiter(".");
   return (Pos > 0) ? Path.SubString(Pos, Path.Length() - Pos + 1) : AnsiString();
+}
+//---------------------------------------------------------------------------
+void __fastcall SkipPathComponent(const AnsiString & Text,
+  int & SelStart, int & SelLength, bool Left, bool Unix)
+{
+  AnsiString Delimiter = Unix ? "/" : "\\";
+
+  int P;
+  bool WholeSelected = (SelLength >= Text.Length());
+  if (!Left)
+  {
+    int ASelStart = WholeSelected ? 0 : SelStart;
+    int P2;
+    P = Text.SubString(ASelStart + 1, Text.Length()).Pos(Delimiter);
+    P2 = Text.SubString(ASelStart + 1, Text.Length()).Pos(" ");
+    if ((P2 >= 1) && ((P2 < P) || (P < 1)))
+    {
+      P = P2;
+    }
+
+    if (P < 1)
+    {
+      P = Text.Length();
+    }
+    else
+    {
+      P += ASelStart;
+    }
+  }
+  else
+  {
+    int ASelStart = WholeSelected ? Text.Length() : SelStart;
+    P = Text.SubString(1, ASelStart - 1).LastDelimiter(Delimiter + " ");
+    if (P < 1)
+    {
+      P = 0;
+    }
+  }
+  
+  SelStart = P;
+  SelLength = 0;
 }
 //- TRemoteFiles ------------------------------------------------------------
 __fastcall TRemoteFile::TRemoteFile(TRemoteFile * ALinkedByFile):
@@ -173,10 +221,10 @@ Boolean __fastcall TRemoteFile::GetIsInaccesibleDirectory()
   {
     assert(Terminal);
     Result = !
-       (((Rights->RightUndef[rfOtherExec] != rsNo)) ||
-        ((Rights->Right[rfGroupExec] != rsNo) &&
-         (Terminal->UserGroups->IndexOf(Group) >= 0)) ||
-        ((Rights->Right[rfUserExec] != rsNo) &&
+       (((Rights->RightUndef[TRights::rrOtherExec] != TRights::rsNo)) ||
+        ((Rights->Right[TRights::rrGroupExec] != TRights::rsNo) &&
+         (Terminal->Groups->IndexOf(Group) >= 0)) ||
+        ((Rights->Right[TRights::rrUserExec] != TRights::rsNo) &&
          (AnsiCompareText(Terminal->UserName, Owner) == 0)));
   }
     else Result = False;
@@ -434,8 +482,11 @@ void __fastcall TRemoteFile::SetListingStr(AnsiString value)
   {
     throw ETerminal(&E, FmtLoadStr(LIST_LINE_ERROR, ARRAYOFCONST((value))));
   }
-
-  assert(Terminal);
+}
+//---------------------------------------------------------------------------
+void __fastcall TRemoteFile::Complete()
+{
+  assert(Terminal != NULL);
   if (IsSymLink && Terminal->SessionData->ResolveSymlinks &&
       Terminal->IsCapable[fcResolveSymlink])
   {
@@ -496,7 +547,7 @@ void __fastcall TRemoteFile::FindLinkedFile()
     catch (Exception &E)
     {
       if (E.InheritsFrom(__classid(EFatal))) throw;
-        else HandleExtendedException(&E, this);
+        else Terminal->DoHandleExtendedException(&E);
     }
   }
 }
@@ -512,6 +563,7 @@ AnsiString __fastcall TRemoteFile::GetListingStr()
 AnsiString __fastcall TRemoteFile::GetFullFileName()
 {
   assert(Terminal);
+  assert(Directory != NULL);
   AnsiString Path;
   if (IsParentDirectory) Path = Directory->ParentPath;
     else
@@ -896,7 +948,7 @@ void __fastcall TRemoteDirectoryChangesCache::Deserialize(const AnsiString Data)
   }
   else
   {
-    Text = Data.c_str() + 1; 
+    Text = Data.c_str() + 1;
   }
 }
 //---------------------------------------------------------------------------
@@ -916,18 +968,25 @@ bool __fastcall TRemoteDirectoryChangesCache::DirectoryChangeKey(
   return Result;
 }
 //=== TRights ---------------------------------------------------------------
+const char TRights::BasicSymbols[] = "rwxrwxrwx";
+const char TRights::CombinedSymbols[] = "--s--s--t";
+const char TRights::ExtendedSymbols[] = "--S--S--T";
+const char TRights::ModeGroups[] = "ugo";
+//---------------------------------------------------------------------------
 __fastcall TRights::TRights()
 {
-  FAllowUndef = False;
-  FText.SetLength(RightsFlagCount);
+  FAllowUndef = false;
+  FSet = 0;
+  FUnset = 0;
   Number = 0;
 }
 //---------------------------------------------------------------------------
-__fastcall TRights::TRights(Word aNumber)
+__fastcall TRights::TRights(unsigned short ANumber)
 {
-  FAllowUndef = False;
-  FText.SetLength(RightsFlagCount);
-  Number = aNumber;
+  FAllowUndef = false;
+  FSet = 0;
+  FUnset = 0;
+  Number = ANumber;
 }
 //---------------------------------------------------------------------------
 __fastcall TRights::TRights(const TRights & Source)
@@ -937,159 +996,51 @@ __fastcall TRights::TRights(const TRights & Source)
 //---------------------------------------------------------------------------
 void __fastcall TRights::Assign(const TRights * Source)
 {
-  AllowUndef = Source->AllowUndef;
-  Text = Source->Text;
+  FAllowUndef = Source->AllowUndef;
+  FSet = Source->FSet;
+  FUnset = Source->FUnset;
+  FText = Source->FText;
 }
 //---------------------------------------------------------------------------
-void __fastcall TRights::SetText(AnsiString value)
+TRights::TFlag __fastcall TRights::RightToFlag(TRights::TRight Right)
 {
-  if (value != FText)
-  {
-    if ((value.Length() != RightsFlagCount) ||
-        (!AllowUndef && value.Pos(UNDEFRIGHT)) ||
-        value.Pos(" "))
-          throw Exception(FmtLoadStr(RIGHTS_ERROR, ARRAYOFCONST((value))));
-    FText = value;
-  }
+  return static_cast<TFlag>(1 << (rrLast - Right));
 }
 //---------------------------------------------------------------------------
-void __fastcall TRights::SetOctal(AnsiString value)
+bool __fastcall TRights::operator ==(const TRights & rhr) const
 {
-  bool Correct = (value.Length() == 3);
-  if (Correct)
+  if (AllowUndef || rhr.AllowUndef)
   {
-    for (int i = 1; i <= value.Length() && Correct; i++)
+    for (int Right = rrFirst; Right <= rrLast; Right++)
     {
-      Correct = value[i] >= '0' && value[i] <= '7';
+      if (RightUndef[static_cast<TRight>(Right)] !=
+            rhr.RightUndef[static_cast<TRight>(Right)])
+      {
+        return false;
+      }
     }
+    return true;
   }
-  if (!Correct)
+  else
   {
-    throw Exception(FMTLOAD(INVALID_OCTAL_PERMISSIONS, (value)));
-  }
-  #pragma option push -w-sig
-  Number =
-    ((value[1] - '0') << 6) +
-    ((value[2] - '0') << 3) +
-    ((value[3] - '0') << 0);
-  #pragma option pop
-}
-//---------------------------------------------------------------------------
-void __fastcall TRights::SetNumber(Word value)
-{
-  for (int Index = 0; Index < RightsFlagCount; Index++)
-  {
-    Right[(TRightsFlag)Index] = (Boolean)((value & (1 << (RightsFlagCount - 1 - Index))) != 0);
+    return (Number == rhr.Number);
   }
 }
 //---------------------------------------------------------------------------
-AnsiString __fastcall TRights::GetOctal() const
+bool __fastcall TRights::operator ==(unsigned short rhr) const
 {
-  AnsiString Result;
-  Word N = NumberSet; // used to be "Number"
-  Result += (char)('0' + ((N & 0700) >> 6));
-  Result += (char)('0' + ((N & 0070) >> 3));
-  Result += (char)('0' + ((N & 0007) >> 0));
-
-  return Result;
+  return (Number == rhr);
 }
 //---------------------------------------------------------------------------
-Word __fastcall TRights::CalcNumber(TRightState State, Boolean
-#ifdef _DEBUG
-  AllowUndef
-#endif
-) const
+bool __fastcall TRights::operator !=(const TRights & rhr) const
 {
-  Word Result = 0;
-  for (int Index = 0; Index < RightsFlagCount; Index++)
-  {
-    TRightState AState = RightUndef[(TRightsFlag)Index];
-    assert(AllowUndef || (AState != rsUndef));
-    if (AState == State) Result |= (Word)(1 << (RightsFlagCount - 1 - Index));
-  }
-  return Result;
+  return !(*this == rhr);
 }
 //---------------------------------------------------------------------------
-Word __fastcall TRights::GetNumber() const
+TRights & __fastcall TRights::operator =(unsigned short rhr)
 {
-  return CalcNumber(rsYes, False);
-}
-//---------------------------------------------------------------------------
-Word __fastcall TRights::GetNumberSet() const
-{
-  return CalcNumber(rsYes, True);
-}
-//---------------------------------------------------------------------------
-Word __fastcall TRights::GetNumberUnset() const
-{
-  return CalcNumber(rsNo, True);
-}
-//---------------------------------------------------------------------------
-AnsiString __fastcall TRights::GetText() const
-{
-  return FText;
-}
-//---------------------------------------------------------------------------
-void __fastcall TRights::SetAllowUndef(Boolean value)
-{
-  if (FAllowUndef != value)
-  {
-    assert(!value || !FText.Pos(UNDEFRIGHT));
-    FAllowUndef = value;
-  }
-}
-//---------------------------------------------------------------------------
-AnsiString __fastcall TRights::GetFullRights() const
-{
-  return FULLRIGHTS;
-}
-//---------------------------------------------------------------------------
-void __fastcall TRights::SetRight(TRightsFlag Flag, Boolean value)
-{
-  RightUndef[Flag] = (value ? rsYes : rsNo);
-}
-//---------------------------------------------------------------------------
-Boolean __fastcall TRights::GetRight(TRightsFlag Flag) const
-{
-  TRightState State = RightUndef[Flag];
-  assert(State != rsUndef);
-  return (State == rsYes);
-}
-//---------------------------------------------------------------------------
-void __fastcall TRights::SetRightUndef(TRightsFlag Flag, TRightState value)
-{
-  if (value != RightUndef[Flag])
-  {
-    assert((value != rsUndef) || AllowUndef);
-    switch (value) {
-      case rsUndef: FText[Flag+1] = UNDEFRIGHT; break;
-      case rsNo: FText[Flag+1] = NORIGHT; break;
-      default: FText[Flag+1] = FullRights[Flag+1];
-    }
-  }
-}
-//---------------------------------------------------------------------------
-TRightState __fastcall TRights::GetRightUndef(TRightsFlag Flag) const
-{
-  Char FlagChar = Text[Flag+1];
-  if (FlagChar == NORIGHT) return rsNo;
-    else
-  if (FlagChar == FULLRIGHTS[Flag]) return rsYes;
-    else return rsUndef;
-}
-//---------------------------------------------------------------------------
-TRights __fastcall TRights::operator |(const TRights & rhr) const
-{
-  TRights Result = *this;
-  Result |= rhr;
-  return Result;
-}
-//---------------------------------------------------------------------------
-TRights __fastcall TRights::operator |(Integer rhr) const
-{
-  TRights Result = *this;
-  Result |= rhr;
-  return Result;
+  Number = rhr;
+  return *this;
 }
 //---------------------------------------------------------------------------
 TRights & __fastcall TRights::operator =(const TRights & rhr)
@@ -1098,10 +1049,64 @@ TRights & __fastcall TRights::operator =(const TRights & rhr)
   return *this;
 }
 //---------------------------------------------------------------------------
-TRights & __fastcall TRights::operator =(Integer rhr)
+TRights __fastcall TRights::operator ~() const
 {
-  Number = (Word)rhr;
+  TRights Result(static_cast<unsigned short>(~Number));
+  return Result;
+}
+//---------------------------------------------------------------------------
+TRights __fastcall TRights::operator &(const TRights & rhr) const
+{
+  TRights Result(*this);
+  Result &= rhr;
+  return Result;
+}
+//---------------------------------------------------------------------------
+TRights __fastcall TRights::operator &(unsigned short rhr) const
+{
+  TRights Result(*this);
+  Result &= rhr;
+  return Result;
+}
+//---------------------------------------------------------------------------
+TRights & __fastcall TRights::operator &=(const TRights & rhr)
+{
+  if (AllowUndef || rhr.AllowUndef)
+  {
+    for (int Right = rrFirst; Right <= rrLast; Right++)
+    {
+      if (RightUndef[static_cast<TRight>(Right)] !=
+            rhr.RightUndef[static_cast<TRight>(Right)])
+      {
+        RightUndef[static_cast<TRight>(Right)] = rsUndef;
+      }
+    }
+  }
+  else
+  {
+    Number &= rhr.Number;
+  }
   return *this;
+}
+//---------------------------------------------------------------------------
+TRights & __fastcall TRights::operator &=(unsigned short rhr)
+{
+  Number &= rhr;
+  return *this;
+}
+//---------------------------------------------------------------------------
+TRights __fastcall TRights::operator |(const TRights & rhr) const
+{
+  TRights Result(*this);
+  Result |= rhr;
+  return Result;
+}
+//---------------------------------------------------------------------------
+TRights __fastcall TRights::operator |(unsigned short rhr) const
+{
+  TRights Result(*this);
+  Result |= rhr;
+  return Result;
 }
 //---------------------------------------------------------------------------
 TRights & __fastcall TRights::operator |=(const TRights & rhr)
@@ -1110,83 +1115,261 @@ TRights & __fastcall TRights::operator |=(const TRights & rhr)
   return *this;
 }
 //---------------------------------------------------------------------------
-TRights & __fastcall TRights::operator |=(Integer rhr)
+TRights & __fastcall TRights::operator |=(unsigned short rhr)
 {
-  Number |= (Word)rhr;
+  Number |= rhr;
   return *this;
 }
 //---------------------------------------------------------------------------
-TRights __fastcall TRights::operator &(Integer rhr) const
+void __fastcall TRights::SetAllowUndef(bool value)
 {
-  TRights Result = *this;
-  Result &= rhr;
-  return Result;
-}
-//---------------------------------------------------------------------------
-TRights __fastcall TRights::operator &(const TRights & rhr) const
-{
-  TRights Result = *this;
-  Result &= rhr;
-  return Result;
-}
-//---------------------------------------------------------------------------
-TRights & __fastcall TRights::operator &=(Integer rhr)
-{
-  Number &= (Word)rhr;
-  return *this;
-}
-//---------------------------------------------------------------------------
-TRights & __fastcall TRights::operator &=(const TRights & rhr)
-{
-  if (AllowUndef)
+  if (FAllowUndef != value)
   {
-    for (int Index = 0; Index < RightsFlagCount; Index++)
-      if (RightUndef[(TRightsFlag)Index] != rhr.RightUndef[(TRightsFlag)Index])
-        RightUndef[(TRightsFlag)Index] = rsUndef;
+    assert(!value || ((FSet | FUnset) == rfAllSpecials));
+    FAllowUndef = value;
   }
-    else Number &= rhr.Number;
-  return *this;
 }
 //---------------------------------------------------------------------------
-TRights __fastcall TRights::operator ~() const
+void __fastcall TRights::SetText(const AnsiString & value)
 {
-  TRights Result;
-  Result.Number = (Word)~Number;
+  if (value != Text)
+  {
+    if ((value.Length() != TextLen) ||
+        (!AllowUndef && (value.Pos(UndefSymbol) > 0)) ||
+        (value.Pos(" ") > 0))
+    {
+      throw Exception(FMTLOAD(RIGHTS_ERROR, (value)));
+    }
+
+    FSet = 0;
+    FUnset = 0;
+    int Flag = 00001;
+    int ExtendedFlag = 01000;
+    bool KeepText = false;
+    for (int i = TextLen; i >= 1; i--)
+    {
+      if (value[i] == UnsetSymbol)
+      {
+        FUnset |= static_cast<unsigned short>(Flag | ExtendedFlag);
+      }
+      else if (value[i] == UndefSymbol)
+      {
+        // do nothing
+      }
+      else if (value[i] == CombinedSymbols[i - 1])
+      {
+        FSet |= static_cast<unsigned short>(Flag | ExtendedFlag);
+      }
+      else if (value[i] == ExtendedSymbols[i - 1])
+      {
+        FSet |= static_cast<unsigned short>(ExtendedFlag);
+        FUnset |= static_cast<unsigned short>(Flag);
+      }
+      else
+      {
+        if (value[i] != BasicSymbols[i - 1])
+        {
+          KeepText = true;
+        }
+        FSet |= static_cast<unsigned short>(Flag);
+        FUnset |= static_cast<unsigned short>(ExtendedFlag);
+      }
+
+      Flag <<= 1;
+      if (i % 3 == 1)
+      {
+        ExtendedFlag <<= 1;
+      }
+    }
+
+    FText = KeepText ? value : AnsiString();
+  }
+}
+//---------------------------------------------------------------------------
+AnsiString __fastcall TRights::GetText() const
+{
+  if (!FText.IsEmpty())
+  {
+    return FText;
+  }
+  else
+  {
+    AnsiString Result;
+    Result.SetLength(TextLen);
+
+    int Flag = 00001;
+    int ExtendedFlag = 01000;
+    char Symbol;
+    for (int i = TextLen; i >= 1; i--)
+    {
+      if (((i % 3) == 0) &&
+          ((FSet & (Flag | ExtendedFlag)) == (Flag | ExtendedFlag)))
+      {
+        Symbol = CombinedSymbols[i - 1];
+      }
+      else if ((FSet & Flag) != 0)
+      {
+        Symbol = BasicSymbols[i - 1];
+      }
+      else if (((i % 3) == 0) && ((FSet & ExtendedFlag) != 0))
+      {
+        Symbol = ExtendedSymbols[i - 1];
+      }
+      else if ((FUnset & (Flag | ExtendedFlag)) == (Flag | ExtendedFlag))
+      {
+        Symbol = UnsetSymbol;
+      }
+      else
+      {
+        Symbol = UndefSymbol;
+      }
+
+      Result[i] = Symbol;
+
+      Flag <<= 1;
+      if ((i % 3) == 1)
+      {
+        ExtendedFlag <<= 1;
+      }
+    }
+    return Result;
+  }
+}
+//---------------------------------------------------------------------------
+void __fastcall TRights::SetOctal(AnsiString value)
+{
+  AnsiString AValue(value);
+  if (AValue.Length() == 3)
+  {
+    AValue = "0" + AValue;
+  }
+
+  if (Octal != AValue)
+  {
+    bool Correct = (AValue.Length() == 4);
+    if (Correct)
+    {
+      for (int i = 1; (i <= AValue.Length()) && Correct; i++)
+      {
+        Correct = (AValue[i] >= '0') && (AValue[i] <= '7');
+      }
+    }
+
+    if (!Correct)
+    {
+      throw Exception(FMTLOAD(INVALID_OCTAL_PERMISSIONS, (value)));
+    }
+
+    Number = static_cast<unsigned short>(
+      ((AValue[1] - '0') << 9) +
+      ((AValue[2] - '0') << 6) +
+      ((AValue[3] - '0') << 3) +
+      ((AValue[4] - '0') << 0));
+  }
+}
+//---------------------------------------------------------------------------
+AnsiString __fastcall TRights::GetOctal() const
+{
+  AnsiString Result;
+  unsigned short N = NumberSet; // used to be "Number"
+  Result.SetLength(4);
+  Result[1] = static_cast<char>('0' + ((N & 07000) >> 9));
+  Result[2] = static_cast<char>('0' + ((N & 00700) >> 6));
+  Result[3] = static_cast<char>('0' + ((N & 00070) >> 3));
+  Result[4] = static_cast<char>('0' + ((N & 00007) >> 0));
+
   return Result;
 }
 //---------------------------------------------------------------------------
-bool __fastcall TRights::operator ==(const TRights & rhr) const
+void __fastcall TRights::SetNumber(unsigned short value)
 {
-  if (AllowUndef || rhr.AllowUndef)
+  if ((FSet != value) || ((FSet | FUnset) != rfAllSpecials))
   {
-    for (int Index = 0; Index < RightsFlagCount; Index++)
-      if (RightUndef[(TRightsFlag)Index] != rhr.RightUndef[(TRightsFlag)Index])
-        return False;
-    return True;
+    FSet = value;
+    FUnset = static_cast<unsigned short>(rfAllSpecials & ~FSet);
+    FText = "";
   }
-    else return (bool)(Number == rhr.Number);
 }
 //---------------------------------------------------------------------------
-bool __fastcall TRights::operator ==(Integer rhr) const
+unsigned short __fastcall TRights::GetNumber() const
 {
-  return (bool)(Number == rhr);
+  assert(!IsUndef);
+  return FSet;
 }
 //---------------------------------------------------------------------------
-bool __fastcall TRights::operator !=(const TRights & rhr) const
+void __fastcall TRights::SetRight(TRight Right, bool value)
 {
-  return !(*this == rhr);
+  RightUndef[Right] = (value ? rsYes : rsNo);
 }
 //---------------------------------------------------------------------------
-void __fastcall TRights::SetReadOnly(Boolean value)
+bool __fastcall TRights::GetRight(TRight Right) const
 {
-  Right[rfUserWrite] = !value;
-  Right[rfGroupWrite] = !value;
-  Right[rfOtherWrite] = !value;
+  TState State = RightUndef[Right];
+  assert(State != rsUndef);
+  return (State == rsYes);
 }
 //---------------------------------------------------------------------------
-Boolean __fastcall TRights::GetReadOnly()
+void __fastcall TRights::SetRightUndef(TRight Right, TState value)
 {
-  return (Boolean)((NumberUnset & raWrite) == raWrite);
+  if (value != RightUndef[Right])
+  {
+    assert((value != rsUndef) || AllowUndef);
+
+    TFlag Flag = RightToFlag(Right);
+
+    switch (value)
+    {
+      case rsYes:
+        FSet |= Flag;
+        FUnset &= ~Flag;
+        break;
+
+      case rsNo:
+        FSet &= ~Flag;
+        FUnset |= Flag;
+        break;
+
+      case rsUndef:
+      default:
+        FSet &= ~Flag;
+        FUnset &= ~Flag;
+        break;
+    }
+
+    FText = "";
+  }
+}
+//---------------------------------------------------------------------------
+TRights::TState __fastcall TRights::GetRightUndef(TRight Right) const
+{
+  TFlag Flag = RightToFlag(Right);
+  TState Result;
+
+  if ((FSet & Flag) != 0)
+  {
+    Result = rsYes;
+  }
+  else if ((FUnset & Flag) != 0)
+  {
+    Result = rsNo;
+  }
+  else
+  {
+    Result = rsUndef;
+  }
+  return Result;
+}
+//---------------------------------------------------------------------------
+void __fastcall TRights::SetReadOnly(bool value)
+{
+  Right[rrUserWrite] = !value;
+  Right[rrGroupWrite] = !value;
+  Right[rrOtherWrite] = !value;
+}
+//---------------------------------------------------------------------------
+bool  __fastcall TRights::GetReadOnly()
+{
+  return Right[rrUserWrite] && Right[rrGroupWrite] && Right[rrOtherWrite];
 }
 //---------------------------------------------------------------------------
 AnsiString __fastcall TRights::GetSimplestStr() const
@@ -1196,27 +1379,59 @@ AnsiString __fastcall TRights::GetSimplestStr() const
 //---------------------------------------------------------------------------
 AnsiString __fastcall TRights::GetModeStr() const
 {
-  AnsiString Result = "";
+  AnsiString Result;
   AnsiString SetModeStr, UnsetModeStr;
-  TRightsFlag Flag;
-  for (Integer Group = 0; Group < 3; Group++)
+  TRight Right;
+  int Index;
+
+  for (int Group = 0; Group < 3; Group++)
   {
     SetModeStr = "";
     UnsetModeStr = "";
-    for (Integer Mode = 0; Mode < 3; Mode++)
+    for (int Mode = 0; Mode < 3; Mode++)
     {
-      Flag = (TRightsFlag)((Group * 3) + Mode);
-      switch (RightUndef[Flag]) {
-        case rsYes: SetModeStr += FULLRIGHTS[(int)Flag]; break;
-        case rsNo: UnsetModeStr += FULLRIGHTS[(int)Flag]; break;
+      Index = (Group * 3) + Mode;
+      Right = static_cast<TRight>(rrUserRead + Index);
+      switch (RightUndef[Right])
+      {
+        case rsYes:
+          SetModeStr += BasicSymbols[Index];
+          break;
+
+        case rsNo:
+          UnsetModeStr += BasicSymbols[Index];
+          break;
       }
     }
+
+    Right = static_cast<TRight>(rrUserIDExec + Group);
+    Index = (Group * 3) + 2;
+    switch (RightUndef[Right])
+    {
+      case rsYes:
+        SetModeStr += CombinedSymbols[Index];
+        break;
+
+      case rsNo:
+        UnsetModeStr += CombinedSymbols[Index];
+        break;
+    }
+
     if (!SetModeStr.IsEmpty() || !UnsetModeStr.IsEmpty())
     {
-      if (!Result.IsEmpty()) Result += ',';
-      Result += MODEGROUPS[Group];
-      if (!SetModeStr.IsEmpty()) Result += "+" + SetModeStr;
-      if (!UnsetModeStr.IsEmpty()) Result += "-" + UnsetModeStr;
+      if (!Result.IsEmpty())
+      {
+        Result += ',';
+      }
+      Result += ModeGroups[Group];
+      if (!SetModeStr.IsEmpty())
+      {
+        Result += "+" + SetModeStr;
+      }
+      if (!UnsetModeStr.IsEmpty())
+      {
+        Result += "-" + UnsetModeStr;
+      }
     }
   }
   return Result;
@@ -1224,29 +1439,29 @@ AnsiString __fastcall TRights::GetModeStr() const
 //---------------------------------------------------------------------------
 void __fastcall TRights::AddExecute()
 {
-  for (int Index = 0; Index < 3; Index++)
+  for (int Group = 0; Group < 3; Group++)
   {
-    if (NumberSet & (0700 >> (Index * 3)))
+    if ((RightUndef[static_cast<TRight>(rrUserRead + (Group * 3))] == rsYes) ||
+        (RightUndef[static_cast<TRight>(rrUserWrite + (Group * 3))] == rsYes))
     {
-      Right[(TRightsFlag)(rfUserExec + (Index * 3))] = true;
+      Right[static_cast<TRight>(rrUserExec + (Group * 3))] = true;
     }
   }
 }
 //---------------------------------------------------------------------------
 void __fastcall TRights::AllUndef()
 {
-  for (int Index = 0; Index < RightsFlagCount; Index++)
+  if ((FSet != 0) || (FUnset != 0))
   {
-    RightUndef[(TRightsFlag)Index] = rsUndef;
+    FSet = 0;
+    FUnset = 0;
+    FText = "";
   }
 }
 //---------------------------------------------------------------------------
-Boolean __fastcall TRights::GetIsUndef() const
+bool __fastcall TRights::GetIsUndef() const
 {
-  for (int Index = 0; Index < RightsFlagCount; Index++)
-    if (RightUndef[(TRightsFlag)Index] == rsUndef)
-      return True;
-  return False;
+  return ((FSet | FUnset) != rfAllSpecials);
 }
 //---------------------------------------------------------------------------
 __fastcall TRights::operator unsigned short() const
@@ -1269,25 +1484,6 @@ __fastcall TRemoteProperties::TRemoteProperties()
   Owner = "";
   Recursive = false;
 };
-/*//---------------------------------------------------------------------------
-__fastcall TRemoteProperties::TRemoteProperties(const TRemoteProperties & Source)
-{
-  *this = Source;
-}
-//---------------------------------------------------------------------------
-void __fastcall TRemoteProperties::Clear()
-{
-};
-//---------------------------------------------------------------------------
-void __fastcall TRemoteProperties::operator =(const TRemoteProperties &rhp)
-{
-  Valid = rhp.Valid;
-  Recursive = rhp.Recursive;
-  Rights = rhp.Rights;
-  AddXToDirectories = rhp.AddXToDirectories;
-  Group = rhp.Group;
-  Owner = rhp.Owner;
-}  */
 //---------------------------------------------------------------------------
 bool __fastcall TRemoteProperties::operator ==(const TRemoteProperties & rhp) const
 {

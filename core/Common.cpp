@@ -5,10 +5,48 @@
 #include "Common.h"
 #include "Exceptions.h"
 #include "TextsCore.h"
+#include "Interface.h"
 #include <math.h>
 #include <shellapi.h>
 //---------------------------------------------------------------------------
 #pragma package(smart_init)
+//---------------------------------------------------------------------------
+// TCriticalSection
+//---------------------------------------------------------------------------
+__fastcall TCriticalSection::TCriticalSection()
+{
+  InitializeCriticalSection(&FSection);
+}
+//---------------------------------------------------------------------------
+__fastcall TCriticalSection::~TCriticalSection()
+{
+  DeleteCriticalSection(&FSection);
+}
+//---------------------------------------------------------------------------
+void __fastcall TCriticalSection::Enter()
+{
+  EnterCriticalSection(&FSection);
+}
+//---------------------------------------------------------------------------
+void __fastcall TCriticalSection::Leave()
+{
+  LeaveCriticalSection(&FSection);
+}
+//---------------------------------------------------------------------------
+// TGuard
+//---------------------------------------------------------------------------
+__fastcall TGuard::TGuard(TCriticalSection * ACriticalSection) :
+  FCriticalSection(ACriticalSection)
+{
+  assert(ACriticalSection != NULL);
+  FCriticalSection->Enter();
+}
+//---------------------------------------------------------------------------
+__fastcall TGuard::~TGuard()
+{
+  FCriticalSection->Leave();
+}
+//---------------------------------------------------------------------------
 //---------------------------------------------------------------------------
 const char EngShortMonthNames[12][4] =
   {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -457,3 +495,31 @@ bool __fastcall RecursiveDeleteFile(const AnsiString FileName, bool ToRecycleBin
   int Result = SHFileOperation(&Data);
   return (Result == 0);
 }
+//---------------------------------------------------------------------------
+int __fastcall CancelAnswer(int Answers)
+{
+  int Result;
+  if ((Answers & qaCancel) != 0)
+  {
+    Result = qaCancel;
+  }
+  else if ((Answers & qaAbort) != 0)
+  {
+    Result = qaAbort;
+  }
+  else if ((Answers & qaNo) != 0)
+  {
+    Result = qaNo;
+  }
+  else if ((Answers & qaOK) != 0)
+  {
+    Result = qaOK;
+  }
+  else
+  {
+    assert(false);
+    Result = qaOK;
+  }
+  return Result;
+}
+

@@ -40,6 +40,7 @@ void __fastcall TGUIConfiguration::Default()
 {
   TConfiguration::Default();
 
+  FIgnoreCancelBeforeFinish = TDateTime(0, 0, 3, 0);
   FCopyParamDialogExpanded = false;
   FErrorDialogExpanded = false;
   FContinueOnError = false;
@@ -63,6 +64,7 @@ void __fastcall TGUIConfiguration::Default()
     KEY(Integer,  SynchronizeParams); \
     KEY(String,   PuttySession); \
     KEY(String,   PuttyPath); \
+    KEY(DateTime, IgnoreCancelBeforeFinish); \
   );
 //---------------------------------------------------------------------------
 void __fastcall TGUIConfiguration::SaveSpecial(THierarchicalStorage * Storage)

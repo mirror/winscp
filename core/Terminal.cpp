@@ -43,8 +43,9 @@ __fastcall TTerminal::TTerminal(): TSecureShell()
   FInTransaction = 0;
   FReadCurrentDirectoryPending = false;
   FReadDirectoryPending = false;
-  FUserGroupsLookedup = False;
-  FUserGroups = new TUserGroupsList();
+  FUsersGroupsLookedup = False;
+  FGroups = new TUsersGroupsList();
+  FUsers = new TUsersGroupsList();
   FOnProgress = NULL;
   FOnFinished = NULL;
   FOnDeleteLocalFile = NULL;
@@ -67,7 +68,8 @@ __fastcall TTerminal::~TTerminal()
 
   SAFE_DESTROY(FFileSystem);
   delete FFiles;
-  delete FUserGroups;
+  delete FGroups;
+  delete FUsers;
   delete FDirectoryCache;
   delete FDirectoryChangesCache;
   delete FAdditionalInfo;
@@ -88,7 +90,7 @@ void __fastcall TTerminal::KeepAlive()
     {
       if (Active)
       {
-        HandleExtendedException(&E, this);
+        DoHandleExtendedException(&E);
       }
       else
       {
@@ -324,15 +326,26 @@ AnsiString __fastcall TTerminal::PeekCurrentDirectory()
   return TranslateLockedPath(FCurrentDirectory, true);
 }
 //---------------------------------------------------------------------------
-TUserGroupsList * __fastcall TTerminal::GetUserGroups()
+TUsersGroupsList * __fastcall TTerminal::GetGroups()
 {
   assert(FFileSystem);
-  if (!FUserGroupsLookedup && SessionData->LookupUserGroups &&
+  if (!FUsersGroupsLookedup && SessionData->LookupUserGroups &&
       IsCapable[fcUserGroupListing])
   {
-    LookupUserGroups();
+    LookupUsersGroups();
   }
-  return FUserGroups;
+  return FGroups;
+}
+//---------------------------------------------------------------------------
+TUsersGroupsList * __fastcall TTerminal::GetUsers()
+{
+  assert(FFileSystem);
+  if (!FUsersGroupsLookedup && SessionData->LookupUserGroups &&
+      IsCapable[fcUserGroupListing])
+  {
+    LookupUsersGroups();
+  }
+  return FUsers;
 }
 //---------------------------------------------------------------------------
 AnsiString __fastcall TTerminal::GetUserName() const
@@ -450,7 +463,7 @@ int __fastcall TTerminal::CommandError(Exception * E, const AnsiString Msg,
     ECommand * ECmd = new ECommand(E, Msg);
     try
     {
-      ShowExtendedException(ECmd, this);
+      DoShowExtendedException(ECmd);
     }
     __finally
     {
@@ -472,7 +485,7 @@ bool __fastcall TTerminal::HandleException(Exception * E)
   }
   else
   {
-    HandleExtendedException(E, this);
+    DoHandleExtendedException(E);
     return true;
   }
 }
@@ -486,9 +499,11 @@ void __fastcall TTerminal::CloseOnCompletion(const AnsiString Message)
 }
 //---------------------------------------------------------------------------
 int __fastcall TTerminal::ConfirmFileOverwrite(const AnsiString FileName,
-  const TOverwriteFileParams * FileParams, int Answers, int Params)
+  const TOverwriteFileParams * FileParams, int Answers, int Params,
+  TOperationSide Side)
 {
-  AnsiString Message = FMTLOAD(FILE_OVERWRITE, (FileName));
+  AnsiString Message = FMTLOAD((Side == osLocal ? LOCAL_FILE_OVERWRITE :
+    REMOTE_FILE_OVERWRITE), (FileName));
   if (FileParams)
   {
     Message = FMTLOAD(FILE_OVERWRITE_DETAILS, (Message,
@@ -579,7 +594,7 @@ void __fastcall TTerminal::DoStartup()
 
     if (SessionData->LookupUserGroups && IsCapable[fcUserGroupListing])
     {
-      LookupUserGroups();
+      LookupUsersGroups();
     }
 
     UpdateStatus(sshOpenDirectory);
@@ -1316,24 +1331,44 @@ void __fastcall TTerminal::ChangeDirectory(const AnsiString Directory)
   }
 }
 //---------------------------------------------------------------------------
-void __fastcall TTerminal::LookupUserGroups()
+void __fastcall TTerminal::LookupUsersGroups()
 {
   assert(FFileSystem);
   assert(IsCapable[fcUserGroupListing]);
 
   try
   {
-    FUserGroupsLookedup = true;
-    LogEvent("Looking up current user groups.");
-    FFileSystem->LookupUserGroups();
-    ReactOnCommand(fsLookupUserGroups);
+    FUsersGroupsLookedup = true;
+    LogEvent("Looking up groups and users.");
+    FFileSystem->LookupUsersGroups();
+    ReactOnCommand(fsLookupUsersGroups);
 
     if (IsLogging())
     {
-      LogEvent("Following groups found:");
-      for (int Index = 0; Index < FUserGroups->Count; Index++)
+      if (FGroups->Count > 0)
       {
-        LogEvent(AnsiString("  ") + FUserGroups->Strings[Index]);
+        LogEvent("Following groups found:");
+        for (int Index = 0; Index < FGroups->Count; Index++)
+        {
+          LogEvent(AnsiString("  ") + FGroups->Strings[Index]);
+        }
+      }
+      else
+      {
+        LogEvent("No groups found.");
+      }
+
+      if (FUsers->Count > 0)
+      {
+        LogEvent("Following users found:");
+        for (int Index = 0; Index < FUsers->Count; Index++)
+        {
+          LogEvent(AnsiString("  ") + FUsers->Strings[Index]);
+        }
+      }
+      else
+      {
+        LogEvent("No users found.");
       }
     }
   }
@@ -1356,7 +1391,7 @@ void __fastcall TTerminal::AnyCommand(const AnsiString Command)
   catch (Exception &E)
   {
     if (ExceptionOnFail || (E.InheritsFrom(__classid(EFatal)))) throw;
-      else ShowExtendedException(&E, this);
+      else DoShowExtendedException(&E);
   }
 }
 //---------------------------------------------------------------------------

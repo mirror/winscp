@@ -1,50 +1,18 @@
 //---------------------------------------------------------------------------
 #ifndef RemoteFilesH
 #define RemoteFilesH
-
 //---------------------------------------------------------------------------
 enum TModificationFmt { mfMDHM, mfMDY, mfFull };
-enum TRightsFlag {rfUserRead, rfUserWrite, rfUserExec, rfGroupRead,
-  rfGroupWrite, rfGroupExec, rfOtherRead, rfOtherWrite, rfOtherExec};
-#define RightsFlagCount 9
-#define raUserRead 0400
-#define raUserWrite 0200
-#define raUserExec 0100
-#define raGroupRead 0040
-#define raGroupWrite 0020
-#define raGroupExec 0010
-#define raOtherRead 0004
-#define raOtherWrite 0002
-#define raOtherExec 0001
-#define raUser 0700
-#define raGroup 0070
-#define raOther 0007
-#define raRead 0444
-#define raWrite 0222
-#define raExecute 0111
-#define raAll 0777
-#define raNo 0000
-#define raDefault 0644
-
-#define raDirectory 0040000
- 
-enum TRightState {rsNo, rsYes, rsUndef};
 //---------------------------------------------------------------------------
 #define SYMLINKSTR " -> "
-#define UNDEFRIGHT '$'
-#define NORIGHT '-'
 #define PARENTDIRECTORY ".."
 #define THISDIRECTORY "."
-#define FULLRIGHTS "rwxrwxrwx"
 #define ROOTDIRECTORY "/"
-#define MODEGROUPS "ugo"
 #define FILETYPE_SYMLINK 'L'
 #define FILETYPE_DIRECTORY 'D'
 //---------------------------------------------------------------------------
-class TRemoteDirectory;
 class TTerminal;
 class TRights;
-class TRemoteProperties;
 class TRemoteFileList;
 //---------------------------------------------------------------------------
 class TRemoteFile : public TPersistent
@@ -101,6 +69,7 @@ public:
   TRemoteFile * __fastcall Duplicate();
 
   void __fastcall ShiftTime(const TDateTime & Difference);
+  void __fastcall Complete();
 
   __property int Attr = { read = GetAttr };
   __property bool BrokenLink = { read = GetBrokenLink };
@@ -238,67 +207,99 @@ private:
   bool __fastcall GetIsEmpty() const;
 };
 //---------------------------------------------------------------------------
-class TRights {
-private:
-  Boolean FAllowUndef;
-  AnsiString FText;
-  AnsiString __fastcall GetFullRights() const;
-  Boolean __fastcall GetIsUndef() const;
-  AnsiString __fastcall GetModeStr() const;
-  AnsiString __fastcall GetSimplestStr() const;
-  void __fastcall SetNumber(Word value);
-  AnsiString __fastcall GetText() const;
-  void __fastcall SetText(AnsiString value);
-  void __fastcall SetOctal(AnsiString value);
-  Word __fastcall GetNumber() const;
-  Word __fastcall GetNumberSet() const;
-  Word __fastcall GetNumberUnset() const;
-  AnsiString __fastcall GetOctal() const;
-  Boolean __fastcall GetReadOnly();
-  Boolean __fastcall GetRight(TRightsFlag Flag) const;
-  TRightState __fastcall GetRightUndef(TRightsFlag Flag) const;
-  void __fastcall SetAllowUndef(Boolean value);
-  void __fastcall SetReadOnly(Boolean value);
-  void __fastcall SetRight(TRightsFlag Flag, Boolean value);
-  void __fastcall SetRightUndef(TRightsFlag Flag, TRightState value);
-protected:
-  Word __fastcall CalcNumber(TRightState State, Boolean AllowUndef) const;
+class TRights
+{
 public:
-  TRights __fastcall operator &(Integer rhr) const;
-  TRights __fastcall operator &(const TRights & rhr) const;
-  TRights & __fastcall operator &=(Integer rhr);
-  TRights & __fastcall operator &=(const TRights & rhr);
-  TRights __fastcall operator |(Integer rhr) const;
-  TRights __fastcall operator |(const TRights & rhr) const;
-  TRights & __fastcall operator |=(Integer rhr);
-  TRights & __fastcall operator |=(const TRights & rhr);
-  TRights __fastcall operator ~() const;
-  TRights & __fastcall operator =(Integer rhr);
-  TRights & __fastcall operator =(const TRights & rhr);
-  bool __fastcall operator ==(Integer rhr) const;
-  bool __fastcall operator ==(const TRights & rhr) const;
-  bool __fastcall operator !=(const TRights & rhr) const;
-  __fastcall operator unsigned short() const;
-  __fastcall operator unsigned long() const;
+  static const int TextLen = 9;
+  static const char UndefSymbol = '$';
+  static const char UnsetSymbol = '-';
+  static const char BasicSymbols[];
+  static const char CombinedSymbols[];
+  static const char ExtendedSymbols[];
+  static const char ModeGroups[];
+  enum TRight {
+    rrUserIDExec, rrGroupIDExec, rrStickyBit,
+    rrUserRead, rrUserWrite, rrUserExec,
+    rrGroupRead, rrGroupWrite, rrGroupExec,
+    rrOtherRead, rrOtherWrite, rrOtherExec,
+    rrFirst = rrUserIDExec, rrLast = rrOtherExec };
+  enum TFlag {
+    rfSetUID =    04000, rfSetGID =      02000, rfStickyBit = 01000,
+    rfUserRead =  00400, rfUserWrite =   00200, rfUserExec =  00100,
+    rfGroupRead = 00040, rfGroupWrite =  00020, rfGroupExec = 00010,
+    rfOtherRead = 00004, rfOtherWrite =  00002, rfOtherExec = 00001,
+    rfRead =      00444, rfWrite =       00222, rfExec =      00111,
+    rfNo =        00000, rfDefault =     00644, rfAll =       00777,
+    rfSpecials =  07000, rfAllSpecials = 07777 };
+  enum TUnsupportedFlag {
+    rfDirectory  = 040000 };
+  enum TState { rsNo, rsYes, rsUndef };
+
+public:
+  static TFlag __fastcall RightToFlag(TRight Right);
+
+  __fastcall TRights();
+  __fastcall TRights(const TRights & Source);
+  __fastcall TRights(unsigned short Number);
+
+  void __fastcall Assign(const TRights * Source);
   void __fastcall AddExecute();
   void __fastcall AllUndef();
-  virtual void __fastcall Assign(const TRights * Source);
-  __fastcall TRights(const TRights & Source);
-  __fastcall TRights(Word aNumber);
-  __fastcall TRights();
-  __property Boolean AllowUndef = { read = FAllowUndef, write = SetAllowUndef };
-  __property AnsiString FullRights = { read = GetFullRights };
-  __property Boolean IsUndef = { read = GetIsUndef };
+
+  bool __fastcall operator ==(const TRights & rhr) const;
+  bool __fastcall operator ==(unsigned short rhr) const;
+  bool __fastcall operator !=(const TRights & rhr) const;
+  TRights & __fastcall operator =(const TRights & rhr);
+  TRights & __fastcall operator =(unsigned short rhr);
+  TRights __fastcall operator ~() const;
+  TRights __fastcall operator &(unsigned short rhr) const;
+  TRights __fastcall operator &(const TRights & rhr) const;
+  TRights & __fastcall operator &=(unsigned short rhr);
+  TRights & __fastcall operator &=(const TRights & rhr);
+  TRights __fastcall operator |(unsigned short rhr) const;
+  TRights __fastcall operator |(const TRights & rhr) const;
+  TRights & __fastcall operator |=(unsigned short rhr);
+  TRights & __fastcall operator |=(const TRights & rhr);
+  __fastcall operator unsigned short() const;
+  __fastcall operator unsigned long() const;
+
+  __property bool AllowUndef = { read = FAllowUndef, write = SetAllowUndef };
+  __property bool IsUndef = { read = GetIsUndef };
   __property AnsiString ModeStr = { read = GetModeStr };
   __property AnsiString SimplestStr = { read = GetSimplestStr };
   __property AnsiString Octal = { read = GetOctal, write = SetOctal };
-  __property Word Number = { read = GetNumber, write = SetNumber };
-  __property Word NumberSet = { read = GetNumberSet };
-  __property Word NumberUnset = { read = GetNumberUnset };
-  __property Boolean ReadOnly = { read = GetReadOnly, write = SetReadOnly };
-  __property Boolean Right[TRightsFlag Flag] = { read = GetRight, write = SetRight };
-  __property TRightState RightUndef[TRightsFlag Flag] = { read = GetRightUndef, write = SetRightUndef };
+  __property unsigned short Number = { read = GetNumber, write = SetNumber };
+  __property unsigned short NumberSet = { read = FSet };
+  __property unsigned short NumberUnset = { read = FUnset };
+  __property bool ReadOnly = { read = GetReadOnly, write = SetReadOnly };
+  __property bool Right[TRight Right] = { read = GetRight, write = SetRight };
+  __property TState RightUndef[TRight Right] = { read = GetRightUndef, write = SetRightUndef };
   __property AnsiString Text = { read = GetText, write = SetText };
+
+private:
+  bool FAllowUndef;
+  unsigned short FSet;
+  unsigned short FUnset;
+  AnsiString FText;
+
+  bool __fastcall GetIsUndef() const;
+  AnsiString __fastcall GetModeStr() const;
+  AnsiString __fastcall GetSimplestStr() const;
+  void __fastcall SetNumber(unsigned short value);
+  AnsiString __fastcall GetText() const;
+  void __fastcall SetText(const AnsiString & value);
+  void __fastcall SetOctal(AnsiString value);
+  unsigned short __fastcall GetNumber() const;
+  unsigned short __fastcall GetNumberSet() const;
+  unsigned short __fastcall GetNumberUnset() const;
+  AnsiString __fastcall GetOctal() const;
+  bool __fastcall GetReadOnly();
+  bool __fastcall GetRight(TRight Right) const;
+  TState __fastcall GetRightUndef(TRight Right) const;
+  void __fastcall SetAllowUndef(bool value);
+  void __fastcall SetReadOnly(bool value);
+  void __fastcall SetRight(TRight Right, bool value);
+  void __fastcall SetRightUndef(TRight Right, TState value);
 };
 //---------------------------------------------------------------------------
 enum TValidProperty { vpRights, vpGroup, vpOwner };
@@ -329,6 +330,8 @@ AnsiString __fastcall UnixExtractFilePath(const AnsiString Path);
 AnsiString __fastcall UnixExtractFileName(const AnsiString Path);
 AnsiString __fastcall UnixExtractFileExt(const AnsiString Path);
 Boolean __fastcall UnixComparePaths(const AnsiString Path1, const AnsiString Path2);
+void __fastcall SkipPathComponent(const AnsiString & Text,
+  int & SelStart, int & SelLength, bool Left, bool Unix);
 //---------------------------------------------------------------------------
 #endif
 

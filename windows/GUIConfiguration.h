@@ -19,6 +19,7 @@ private:
   AnsiString FPuttyPath;
   AnsiString FPuttySession;
   int FSynchronizeParams;
+  TDateTime FIgnoreCancelBeforeFinish;
 
 protected:
   LCID FLocale;
@@ -38,7 +39,7 @@ protected:
 
 public:
   __fastcall TGUIConfiguration();
-  __fastcall ~TGUIConfiguration();
+  virtual __fastcall ~TGUIConfiguration();
   virtual void __fastcall Default();
 
   __property bool CopyParamDialogExpanded = { read = FCopyParamDialogExpanded, write = FCopyParamDialogExpanded };
@@ -50,6 +51,7 @@ public:
   __property TStrings * Locales = { read = GetLocales };
   __property AnsiString PuttyPath = { read = FPuttyPath, write = FPuttyPath };
   __property AnsiString PuttySession = { read = FPuttySession, write = FPuttySession };
+  __property TDateTime IgnoreCancelBeforeFinish = { read = FIgnoreCancelBeforeFinish, write = FIgnoreCancelBeforeFinish };
 };
 //---------------------------------------------------------------------------
 #define GUIConfiguration (dynamic_cast<TGUIConfiguration *>(Configuration))

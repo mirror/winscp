@@ -42,6 +42,7 @@ void __fastcall TSessionData::Default()
   AgentFwd = false;
   AuthTIS = false;
   AuthKI = true;
+  AuthKIPassword = true;
   Compression = false;
   SshProt = ssh2;
   Ssh2DES = false;
@@ -108,6 +109,14 @@ void __fastcall TSessionData::Default()
   // add also to TSessionLog::AddStartupInfo()
 }
 //---------------------------------------------------------------------
+void __fastcall TSessionData::NonPersistant()
+{
+  UpdateDirectories = false;
+  CacheDirectories = false;
+  CacheDirectoryChanges = false;
+  PreserveDirectoryChanges = false;
+}
+//---------------------------------------------------------------------
 void __fastcall TSessionData::Assign(TPersistent * Source)
 {
   if (Source && Source->InheritsFrom(__classid(TSessionData)))
@@ -154,6 +163,7 @@ void __fastcall TSessionData::Assign(TPersistent * Source)
     // new in 53b
     DUPL(TcpNoDelay);
     DUPL(AuthKI);
+    DUPL(AuthKIPassword);
 
     DUPL(ProxyMethod);
     DUPL(ProxyHost);
@@ -319,6 +329,7 @@ void __fastcall TSessionData::Load(THierarchicalStorage * Storage)
     AgentFwd = Storage->ReadBool("AgentFwd", AgentFwd);
     AuthTIS = Storage->ReadBool("AuthTIS", AuthTIS);
     AuthKI = Storage->ReadBool("AuthKI", AuthKI);
+    AuthKIPassword = Storage->ReadBool("AuthKIPassword", AuthKIPassword);
     Compression = Storage->ReadBool("Compression", Compression);
     SshProt = (TSshProt)Storage->ReadInteger("SshProt", SshProt);
     Ssh2DES = Storage->ReadBool("Ssh2DES", Ssh2DES);
@@ -429,6 +440,7 @@ void __fastcall TSessionData::Save(THierarchicalStorage * Storage, bool PuttyExp
     Storage->WriteBool("AgentFwd", AgentFwd);
     Storage->WriteBool("AuthTIS", AuthTIS);
     Storage->WriteBool("AuthKI", AuthKI);
+    Storage->WriteBool("AuthKIPassword", AuthKIPassword);
     Storage->WriteBool("Compression", Compression);
     Storage->WriteInteger("SshProt", SshProt);
     Storage->WriteBool("Ssh2DES", Ssh2DES);
@@ -762,6 +774,11 @@ void __fastcall TSessionData::SetAuthTIS(bool value)
 void __fastcall TSessionData::SetAuthKI(bool value)
 {
   SET_SESSION_PROPERTY(AuthKI);
+}
+//---------------------------------------------------------------------
+void __fastcall TSessionData::SetAuthKIPassword(bool value)
+{
+  SET_SESSION_PROPERTY(AuthKIPassword);
 }
 //---------------------------------------------------------------------
 void __fastcall TSessionData::SetCompression(bool value)
@@ -1324,3 +1341,55 @@ void __fastcall TStoredSessionList::SetDefaultSettings(TSessionData * value)
     Save();
   }
 }
+//---------------------------------------------------------------------------
+void __fastcall TStoredSessionList::ImportHostKeys(const AnsiString TargetKey,
+  const AnsiString SourceKey, TStoredSessionList * Sessions,
+  bool OnlySelected)
+{
+  TRegistryStorage * SourceStorage = NULL;
+  TRegistryStorage * TargetStorage = NULL;
+  TStringList * KeyList = NULL;
+  try
+  {
+    SourceStorage = new TRegistryStorage(SourceKey);
+    TargetStorage = new TRegistryStorage(TargetKey);
+    TargetStorage->AccessMode = smReadWrite;
+    KeyList = new TStringList();
+
+    if (SourceStorage->OpenRootKey(false) &&
+        TargetStorage->OpenRootKey(true))
+    {
+      SourceStorage->GetValueNames(KeyList);
+
+      TSessionData * Session;
+      AnsiString HostKeyName;
+      assert(Sessions != NULL);
+      for (int Index = 0; Index < Sessions->Count; Index++)
+      {
+        Session = Sessions->Sessions[Index];
+        if (!OnlySelected || Session->Selected)
+        {
+          HostKeyName = MungeStr(FORMAT("@%d:%s", (Session->PortNumber, Session->HostName)));
+          AnsiString KeyName;
+          for (int KeyIndex = 0; KeyIndex < KeyList->Count; KeyIndex++)
+          {
+            KeyName = KeyList->Strings[KeyIndex];
+            int P = KeyName.Pos(HostKeyName);
+            if ((P > 0) && (P == KeyName.Length() - HostKeyName.Length() + 1))
+            {
+              TargetStorage->WriteStringRaw(KeyName,
+                SourceStorage->ReadStringRaw(KeyName, ""));
+            }
+          }
+        }
+      }
+    }
+  }
+  __finally
+  {
+    delete SourceStorage;
+    delete TargetStorage;
+    delete KeyList;
+  }
+}
+

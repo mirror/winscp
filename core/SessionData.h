@@ -44,6 +44,7 @@ private:
   bool FAliasGroupList;
   bool FAuthTIS;
   bool FAuthKI;
+  bool FAuthKIPassword;
   bool FCompression;
   TSshProt FSshProt;
   bool FSsh2DES;
@@ -97,6 +98,7 @@ private:
   void __fastcall SetAgentFwd(bool value);
   void __fastcall SetAuthTIS(bool value);
   void __fastcall SetAuthKI(bool value);
+  void __fastcall SetAuthKIPassword(bool value);
   void __fastcall SetCompression(bool value);
   void __fastcall SetSshProt(TSshProt value);
   void __fastcall SetSsh2DES(bool value);
@@ -165,6 +167,7 @@ private:
 public:
   __fastcall TSessionData(AnsiString aName);
   void __fastcall Default();
+  void __fastcall NonPersistant();
   virtual void __fastcall StoreToConfig(void * config);
   void __fastcall Load(THierarchicalStorage * Storage);
   void __fastcall Save(THierarchicalStorage * Storage, bool PuttyExport = false);
@@ -184,6 +187,7 @@ public:
   __property bool AliasGroupList = { read = FAliasGroupList, write = SetAliasGroupList };
   __property bool AuthTIS  = { read=FAuthTIS, write=SetAuthTIS };
   __property bool AuthKI  = { read=FAuthKI, write=SetAuthKI };
+  __property bool AuthKIPassword  = { read=FAuthKIPassword, write=SetAuthKIPassword };
   __property bool Compression  = { read=FCompression, write=SetCompression };
   __property TSshProt SshProt  = { read=FSshProt, write=SetSshProt };
   __property bool Ssh2DES  = { read=FSsh2DES, write=SetSsh2DES };
@@ -264,6 +268,10 @@ public:
   virtual __fastcall ~TStoredSessionList();
   __property TSessionData * Sessions[int Index]  = { read=AtSession };
   __property TSessionData * DefaultSettings  = { read=FDefaultSettings, write=SetDefaultSettings };
+
+  static void __fastcall ImportHostKeys(const AnsiString TargetKey,
+    const AnsiString SourceKey, TStoredSessionList * Sessions,
+    bool OnlySelected);
 
 private:
   TStorage LastStorage;

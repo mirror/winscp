@@ -15,7 +15,7 @@ class TRemoteFile;
 class TCustomFileSystem;
 struct TCalculateSizeParams;
 struct TOverwriteFileParams;
-typedef TStringList TUserGroupsList;
+typedef TStringList TUsersGroupsList;
 typedef void __fastcall (__closure *TReadDirectoryEvent)(System::TObject* Sender, Boolean ReloadOnly);
 typedef void __fastcall (__closure *TProcessFileEvent)
   (const AnsiString FileName, const TRemoteFile * File, void * Param);
@@ -57,7 +57,7 @@ typedef void __fastcall (__closure *TDeleteLocalFileEvent)(const AnsiString File
     }                                                                       \
     catch (Exception & E)                                                   \
     { \
-      HandleExtendedException(&E); \
+      TERMINAL->DoHandleExtendedException(&E); \
       int Answers = qaRetry | qaAbort | ((ALLOW_SKIP) ? qaSkip : 0); \
       int Answer; \
       int Params = qpAllowContinueOnError | (!(ALLOW_SKIP) ? qpFatalAbort : 0); \
@@ -115,8 +115,9 @@ private:
   TDeleteLocalFileEvent FOnDeleteLocalFile;
   bool FReadCurrentDirectoryPending;
   bool FReadDirectoryPending;
-  TUserGroupsList * FUserGroups;
-  bool FUserGroupsLookedup;
+  TUsersGroupsList * FGroups;
+  TUsersGroupsList * FUsers;
+  bool FUsersGroupsLookedup;
   TFileOperationProgressEvent FOnProgress;
   TFileOperationFinished FOnFinished;
   TFileOperationProgressType * FOperationProgress;
@@ -133,7 +134,8 @@ private:
   AnsiString __fastcall GetCurrentDirectory();
   bool __fastcall GetExceptionOnFail() const;
   AnsiString __fastcall GetProtocolName();
-  TUserGroupsList * __fastcall GetUserGroups();
+  TUsersGroupsList * __fastcall GetGroups();
+  TUsersGroupsList * __fastcall GetUsers();
   void __fastcall SetCurrentDirectory(AnsiString value);
   void __fastcall SetExceptionOnFail(bool value);
   void __fastcall ReactOnCommand(int /*TFSCommand*/ Cmd);
@@ -156,7 +158,7 @@ protected:
     const TRemoteFile * File, const TRemoteProperties * Properties);
   void __fastcall DoChangeDirectory();
   void __fastcall EnsureNonExistence(const AnsiString FileName);
-  void __fastcall LookupUserGroups();
+  void __fastcall LookupUsersGroups();
   void __fastcall FileModified(const TRemoteFile * File, const AnsiString FileName);
   int __fastcall FileOperationLoop(TFileOperationEvent CallBackFunc,
     TFileOperationProgressType * OperationProgress, bool AllowSkip,
@@ -186,7 +188,8 @@ protected:
   void __fastcall CalculateLocalFilesSize(TStrings * FileList, __int64 & Size);
   TStrings * __fastcall GetAdditionalInfo();
   int __fastcall ConfirmFileOverwrite(const AnsiString FileName,
-    const TOverwriteFileParams * FileParams, int Answers, int Params);
+    const TOverwriteFileParams * FileParams, int Answers, int Params,
+    TOperationSide Side);
   void __fastcall DoSynchronizeDirectory(const AnsiString LocalDirectory,
     const AnsiString RemoteDirectory, TSynchronizeMode Mode, int Params,
     TSynchronizeDirectory OnSynchronizeDirectory);
@@ -259,7 +262,8 @@ public:
   __property TReadDirectoryEvent OnReadDirectory = { read = FOnReadDirectory, write = FOnReadDirectory };
   __property TNotifyEvent OnStartReadDirectory = { read = FOnStartReadDirectory, write = FOnStartReadDirectory };
   __property TDeleteLocalFileEvent OnDeleteLocalFile = { read = FOnDeleteLocalFile, write = FOnDeleteLocalFile };
-  __property TUserGroupsList * UserGroups = { read = GetUserGroups };
+  __property TUsersGroupsList * Groups = { read = GetGroups };
+  __property TUsersGroupsList * Users = { read = GetUsers };
   __property TFileOperationProgressEvent OnProgress  = { read=FOnProgress, write=FOnProgress };
   __property TFileOperationFinished OnFinished  = { read=FOnFinished, write=FOnFinished };
   __property TCurrentFSProtocol FSProtocol = { read = FFSProtocol };
