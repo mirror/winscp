@@ -79,6 +79,7 @@ object CustomScpExplorerForm: TCustomScpExplorerForm
       Align = alClient
       FullDrag = True
       HideSelection = False
+      ParentFont = False
       PopupMenu = NonVisualDataModule.RemoteDirViewPopup
       TabOrder = 1
       ViewStyle = vsReport

@@ -1000,7 +1000,7 @@ object LoginDialog: TLoginDialog
             Height = 21
             Style = csDropDownList
             Anchors = [akLeft, akTop, akRight]
-            ItemHeight = 13
+            ItemHeight = 0
             TabOrder = 0
           end
           object SFTPBugUtfCombo: TComboBox
@@ -1010,7 +1010,7 @@ object LoginDialog: TLoginDialog
             Height = 21
             Style = csDropDownList
             Anchors = [akLeft, akTop, akRight]
-            ItemHeight = 13
+            ItemHeight = 0
             TabOrder = 1
           end
         end
@@ -1800,7 +1800,6 @@ object LoginDialog: TLoginDialog
             Height = 21
             Alignment = taRightJustify
             MaxValue = 1440
-            MinValue = 1
             MaxLength = 4
             TabOrder = 0
             OnChange = DataChange
