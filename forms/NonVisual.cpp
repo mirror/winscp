@@ -169,6 +169,7 @@ void __fastcall TNonVisualDataModule::ExplorerActionsUpdate(
   UPD(SelectAllAction, DirView(osCurrent)->FilesCount)
   UPD(InvertSelectionAction, DirView(osCurrent)->FilesCount)
   UPD(ClearSelectionAction, DirView(osCurrent)->SelCount)
+  UPD(PasteAction, DirView(osCurrent)->CanPasteFromClipBoard())
 
   //style
   UPDACT(CurrentCycleStyleAction,
@@ -221,6 +222,8 @@ void __fastcall TNonVisualDataModule::ExplorerActionsUpdate(
   UPDCOMP(LocalStatusBar)
   UPDCOMP(RemoteStatusBar)
   UPDCOMP(CommandLinePanel)
+  UPDCOMP(RemoteTree)
+  UPDCOMP(LocalTree)
   UPDCOMP(ExplorerMenuBand)
   UPDCOMP(ExplorerAddressBand)
   UPDCOMP(ExplorerToolbarBand)
@@ -241,6 +244,7 @@ void __fastcall TNonVisualDataModule::ExplorerActionsUpdate(
   UPDCOMP(CommanderRemoteNavigationBand)
 
   UPD(GoToCommandLineAction, true)
+  UPD(GoToTreeAction, true)
   UPDEX(ViewLogAction, Configuration->Logging,
     ViewLogAction->Checked = (WinConfiguration->LogView == lvWindow),
     ViewLogAction->Checked = false )
@@ -396,6 +400,7 @@ void __fastcall TNonVisualDataModule::ExplorerActionsExecute(
     EXE(SelectAllAction, DirView(osCurrent)->SelectAll(smAll))
     EXE(InvertSelectionAction, DirView(osCurrent)->SelectAll(smInvert))
     EXE(ClearSelectionAction, DirView(osCurrent)->SelectAll(smNone))
+    EXE(PasteAction, DirView(osCurrent)->PasteFromClipBoard())
 
     // style
     EXE(CurrentCycleStyleAction,
@@ -459,7 +464,10 @@ void __fastcall TNonVisualDataModule::ExplorerActionsExecute(
     EXECOMP(CommanderRemoteHistoryBand)
     EXECOMP(CommanderRemoteNavigationBand)
     EXECOMP(CommandLinePanel)
+    EXECOMP(RemoteTree)
+    EXECOMP(LocalTree)
     EXE(GoToCommandLineAction, ScpExplorer->GoToCommandLine())
+    EXE(GoToTreeAction, ScpExplorer->GoToTree())
 
     EXE(ViewLogAction, WinConfiguration->LogView =
       (WinConfiguration->LogView == lvNone ? lvWindow : lvNone) )
