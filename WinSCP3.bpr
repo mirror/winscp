@@ -5,8 +5,9 @@
     <VERSION value="BCB.06.00"/>
     <PROJECT value="WinSCP3.exe"/>
     <OBJFILES value="windows\WinSCP3.obj windows\CustomScpExplorer.obj windows\EventHandler.obj 
-      windows\NonVisual.obj windows\ProgParams.obj windows\ScpCommander.obj 
-      windows\ScpExplorer.obj windows\Tools.obj windows\UserInterface.obj 
+      windows\GUIConfiguration.obj windows\NonVisual.obj windows\ProgParams.obj 
+      windows\ScpCommander.obj windows\ScpExplorer.obj windows\Tools.obj 
+      windows\UserInterface.obj windows\WinConfiguration.obj 
       windows\WinInterface.obj windows\WinMain.obj"/>
     <RESFILES value="resource\TextsCore.res resource\TextsWin.res resource\DirImg.res 
       resource\Icons.res resource\Manifest.res WinSCP3.res"/>
@@ -56,12 +57,14 @@
       <FILE FILENAME="WinSCP3.cpp" FORMNAME="" UNITNAME="WinSCP3" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
       <FILE FILENAME="forms\CustomScpExplorer.cpp" FORMNAME="CustomScpExplorerForm" UNITNAME="CustomScpExplorer" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
       <FILE FILENAME="windows\EventHandler.cpp" FORMNAME="" UNITNAME="EventHandler.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="windows\GUIConfiguration.cpp" FORMNAME="" UNITNAME="GUIConfiguration" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
       <FILE FILENAME="forms\NonVisual.cpp" FORMNAME="NonVisualDataModule" UNITNAME="NonVisual" CONTAINERID="CCompiler" DESIGNCLASS="TDataModule" LOCALCOMMAND=""/>
       <FILE FILENAME="windows\ProgParams.cpp" FORMNAME="" UNITNAME="ProgParams" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
       <FILE FILENAME="forms\ScpCommander.cpp" FORMNAME="" UNITNAME="ScpCommander" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
       <FILE FILENAME="forms\ScpExplorer.cpp" FORMNAME="" UNITNAME="ScpExplorer" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
       <FILE FILENAME="windows\Tools.cpp" FORMNAME="" UNITNAME="Tools.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
       <FILE FILENAME="windows\UserInterface.cpp" FORMNAME="" UNITNAME="UserInterface" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="windows\WinConfiguration.cpp" FORMNAME="" UNITNAME="WinConfiguration" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
       <FILE FILENAME="windows\WinInterface.cpp" FORMNAME="" UNITNAME="WinInterface.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
       <FILE FILENAME="windows\WinMain.cpp" FORMNAME="" UNITNAME="WinMain.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
       <FILE FILENAME="lib\Putty53b.lib" FORMNAME="" UNITNAME="Putty.lib" CONTAINERID="LibTool" DESIGNCLASS="" LOCALCOMMAND=""/>

@@ -7,6 +7,7 @@
 #include <Common.h>
 #include <VCLCommon.h>
 #include <ScpMain.h>
+#include "WinConfiguration.h"
 //---------------------------------------------------------------------------
 #pragma package(smart_init)
 #pragma link "Rights"
@@ -143,13 +144,13 @@ void __fastcall TCopyParamsFrame::ControlChange(TObject * /*Sender*/)
 //---------------------------------------------------------------------------
 void __fastcall TCopyParamsFrame::BeforeExecute()
 {
-  AsciiFileMaskCombo->Items->Text = Configuration->MaskHistory;
+  AsciiFileMaskCombo->Items->Text = WinConfiguration->MaskHistory;
 }
 //---------------------------------------------------------------------------
 void __fastcall TCopyParamsFrame::AfterExecute()
 {
   AsciiFileMaskCombo->SaveToHistory();
-  Configuration->MaskHistory = AsciiFileMaskCombo->Items->Text;
+  WinConfiguration->MaskHistory = AsciiFileMaskCombo->Items->Text;
 }
 //---------------------------------------------------------------------------
 void __fastcall TCopyParamsFrame::SelectMask(Integer Start, Integer Length)

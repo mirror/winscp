@@ -6,6 +6,8 @@
 #include "Configuration.h"
 #include "SessionData.h"
 //---------------------------------------------------------------------------
+TConfiguration * __fastcall CreateConfiguration();
+
 void __fastcall ShowExtendedException(Exception* E, TObject* Sender = NULL);
 void __fastcall HandleExtendedException(Exception* E, TObject* Sender = NULL);
 

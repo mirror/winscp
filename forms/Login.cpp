@@ -10,6 +10,7 @@
 #include "Login.h"
 #include "WinInterface.h"
 #include "Tools.h"
+#include "WinConfiguration.h"
 //---------------------------------------------------------------------
 #pragma link "ComboEdit"
 #pragma link "LogSettings"
@@ -364,7 +365,7 @@ void __fastcall TLoginDialog::DataChange(TObject * /*Sender*/)
 void __fastcall TLoginDialog::PrepareNavigationTree(TTreeView * Tree)
 {
   Tree->FullExpand();
-  if (!Configuration->ExpertMode)
+  if (!WinConfiguration->ExpertMode)
   {
     int i = 0;
     while (i < Tree->Items->Count)
@@ -383,7 +384,7 @@ void __fastcall TLoginDialog::FormShow(TObject * /*Sender*/)
   PrepareNavigationTree(SimpleNavigationTree);
   PrepareNavigationTree(AdvancedNavigationTree);
 
-  if (!Configuration->ExpertMode)
+  if (!WinConfiguration->ExpertMode)
   {
     Label9->Visible = false;
     LocalDirectoryEdit->Visible = false;
@@ -624,13 +625,13 @@ Boolean __fastcall TLoginDialog::Execute()
 //---------------------------------------------------------------------------
 void __fastcall TLoginDialog::SaveConfiguration()
 {
-  Configuration->BeginUpdate();
+  WinConfiguration->BeginUpdate();
   try {
     LoggingFrame->SaveConfiguration();
     GeneralSettingsFrame->SaveConfiguration();
-    Configuration->ShowAdvancedLoginOptions = ShowAdvancedLoginOptionsCheck->Checked;
+    WinConfiguration->ShowAdvancedLoginOptions = ShowAdvancedLoginOptionsCheck->Checked;
   } __finally {
-    Configuration->EndUpdate();
+    WinConfiguration->EndUpdate();
   }
 }
 //---------------------------------------------------------------------------
@@ -638,7 +639,7 @@ void __fastcall TLoginDialog::LoadConfiguration()
 {
   LoggingFrame->LoadConfiguration();
   GeneralSettingsFrame->LoadConfiguration();
-  ShowAdvancedLoginOptionsCheck->Checked = Configuration->ShowAdvancedLoginOptions;
+  ShowAdvancedLoginOptionsCheck->Checked = WinConfiguration->ShowAdvancedLoginOptions;
   UpdateControls();
 }
 //---------------------------------------------------------------------------

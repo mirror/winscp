@@ -10,6 +10,7 @@
 #include <TextsWin.h>
 
 #include "EventHandler.h"
+#include "WinConfiguration.h"
 //---------------------------------------------------------------------------
 __fastcall TEventHandler::TEventHandler(): TObject()
 {
@@ -34,9 +35,10 @@ void __fastcall TEventHandler::ConfigurationChange(TObject * /*Sender*/)
 void __fastcall TEventHandler::DoConfigurationChange()
 {
   assert(Configuration);
+  assert(Configuration == WinConfiguration);
 
   if (!Application->Terminated && Configuration->Logging &&
-      (Configuration->LogView == lvWindow))
+      (WinConfiguration->LogView == lvWindow))
   {
     RequireLogForm(LogMemo);
   }

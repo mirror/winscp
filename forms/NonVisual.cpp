@@ -12,6 +12,7 @@
 #include <Preferences.h>
 #include <Interface.h>
 #include <UserInterface.h>
+#include "WinConfiguration.h"
 //---------------------------------------------------------------------------
 #pragma package(smart_init)
 #pragma resource "*.dfm"
@@ -77,13 +78,13 @@ __fastcall TNonVisualDataModule::TNonVisualDataModule(TComponent* Owner)
 void __fastcall TNonVisualDataModule::LogActionsUpdate(
       TBasicAction *Action, bool &Handled)
 {
-  Boolean ValidLogMemo = LogMemo && LogMemo->Parent;
+  bool ValidLogMemo = LogMemo && LogMemo->Parent;
   UPD(LogClearAction, ValidLogMemo && LogMemo->Lines->Count)
   UPD(LogSelectAllAction, ValidLogMemo && LogMemo->Lines->Count &&
     LogMemo->SelLength != LogMemo->Lines->Text.Length())
   UPD(LogCopyAction, ValidLogMemo && LogMemo->SelLength)
 
-  UPD(LogCloseAction, Configuration->Logging && (Configuration->LogView == lvWindow))
+  UPD(LogCloseAction, Configuration->Logging && (WinConfiguration->LogView == lvWindow))
   ;
 }
 //---------------------------------------------------------------------------
@@ -95,7 +96,7 @@ void __fastcall TNonVisualDataModule::LogActionsExecute(
   EXE(LogSelectAllAction, LogMemo->SelectAll())
   EXE(LogCopyAction, LogMemo->CopyToClipboard())
 
-  EXE(LogCloseAction, Configuration->LogView = lvNone)
+  EXE(LogCloseAction, WinConfiguration->LogView = lvNone)
   ;
 }
 //---------------------------------------------------------------------------
@@ -151,7 +152,7 @@ void __fastcall TNonVisualDataModule::ExplorerActionsUpdate(
     !DirView(osCurrent)->ItemIsDirectory(DirView(osCurrent)->ItemFocused))
   UPD(CurrentEditAlternativeAction, EnableFocusedOperation &&
     !DirView(osCurrent)->ItemIsDirectory(DirView(osCurrent)->ItemFocused) &&
-    (Configuration->Editor.Editor == edExternal || !Configuration->Editor.ExternalEditor.IsEmpty()))
+    (WinConfiguration->Editor.Editor == edExternal || !WinConfiguration->Editor.ExternalEditor.IsEmpty()))
   UPD(CurrentOpenAction, EnableFocusedOperation &&
     !DirView(osCurrent)->ItemIsDirectory(DirView(osCurrent)->ItemFocused))
   UPD(AddEditLinkAction, DirView(osCurrent) != DirView(osRemote) ||
@@ -238,7 +239,7 @@ void __fastcall TNonVisualDataModule::ExplorerActionsUpdate(
   UPDCOMP(CommanderRemoteNavigationBand)
 
   UPDEX(ViewLogAction, Configuration->Logging,
-    ViewLogAction->Checked = (Configuration->LogView == lvWindow),
+    ViewLogAction->Checked = (WinConfiguration->LogView == lvWindow),
     ViewLogAction->Checked = false )
   UPD(PreferencesAction, true)
 
@@ -399,10 +400,8 @@ void __fastcall TNonVisualDataModule::ExplorerActionsExecute(
   EXECOMP(CommanderRemoteHistoryBand)
   EXECOMP(CommanderRemoteNavigationBand)
 
-  EXE(ViewLogAction,
-    if (Configuration->LogView == lvNone) Configuration->LogView = lvWindow;
-      else Configuration->LogView = lvNone
-  )
+  EXE(ViewLogAction, WinConfiguration->LogView =
+    (WinConfiguration->LogView == lvNone ? lvWindow : lvNone) )
   EXE(PreferencesAction, DoPreferencesDialog(pmDefault) )
 
   #define COLVIEWPROPS ((TCustomDirViewColProperties*)(((TCustomDirView*)(((TListColumns*)(ListColumn->Collection))->Owner()))->ColProperties))

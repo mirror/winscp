@@ -12,11 +12,17 @@
 #include <Interface.h>
 
 #include "WinInterface.h"
+#include "WinConfiguration.h"
 
 #define mrResume (mrYesToAll    + 1)
 #define mrCustom (mrResume  + 1)
 //---------------------------------------------------------------------------
 #pragma package(smart_init)
+//---------------------------------------------------------------------------
+TConfiguration * __fastcall CreateConfiguration()
+{
+  return new TWinConfiguration();
+}
 //---------------------------------------------------------------------------
 void __fastcall FlashOnBackground()
 {
@@ -250,7 +256,7 @@ int ExecuteMessageDialog(TForm * Dialog, int Answers, int Params)
   if (MoreButton)
   {
     // store state even when user selects 'Cancel'?
-    Configuration->ErrorDialogExpanded = MoreButton->Expanded;
+    WinConfiguration->ErrorDialogExpanded = MoreButton->Expanded;
   }
 
   return Answer;
@@ -329,7 +335,7 @@ TForm * __fastcall CreateMoreMessageDialog(const AnsiString Message,
       MoreButton->BoundsRect = CustomButton->BoundsRect;
       MoreButton->Anchors = CustomButton->Anchors;
       MoreButton->Panel = MessageMemo;
-      MoreButton->Expanded = Configuration->ErrorDialogExpanded;
+      MoreButton->Expanded = WinConfiguration->ErrorDialogExpanded;
       MoreButton->Name = "MoreButton";
 
       MessageMemo->TabOrder = 20;

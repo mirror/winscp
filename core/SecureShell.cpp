@@ -37,10 +37,20 @@ __fastcall TSecureShell::TSecureShell()
 //---------------------------------------------------------------------------
 __fastcall TSecureShell::~TSecureShell()
 {
-  ClearStdError();
-  Active = False;
-  delete FSessionData;
-  delete FLog;
+  try
+  {
+    ClearStdError();
+    Active = false;
+    delete FSessionData;
+    delete FLog;
+  }
+  __finally
+  {
+    if (CurrentSSH == this)
+    {
+      CurrentSSH = NULL;
+    }
+  }
 }
 //---------------------------------------------------------------------------
 void __fastcall TSecureShell::Open()

@@ -8,8 +8,10 @@
 #include <TextsWin.h>
 #include <Interface.h>
 #include <ScpFileSystem.h>
+#include <ScpMain.h>
 
 #include <VCLCommon.h>
+#include "WinConfiguration.h"
 //---------------------------------------------------------------------
 #pragma link "HistoryComboBox"
 #pragma link "PathLabel"
@@ -18,10 +20,13 @@
 void __fastcall DoConsoleDialog(TTerminal * Terminal)
 {
   TConsoleDialog * Dialog = new TConsoleDialog(Application);
-  try {
+  try
+  {
     Dialog->Terminal = Terminal;
     Dialog->Execute();
-  } __finally {
+  }
+  __finally
+  {
     delete Dialog;
   }
 }
@@ -36,9 +41,13 @@ __fastcall TConsoleDialog::TConsoleDialog(TComponent* AOwner)
   OutputMemo->Color = clBlack;
   OutputMemo->Font->Color = (TColor)0x00BBBBBB; //clGray;
   UseSystemFont(this);
-  try {
+  try
+  {
     OutputMemo->Font->Name = "Courier New";
-  } catch(...) { }
+  }
+  catch(...)
+  {
+  }
 }
 //---------------------------------------------------------------------
 __fastcall TConsoleDialog::~TConsoleDialog()
@@ -81,24 +90,27 @@ void __fastcall TConsoleDialog::UpdateControls()
   EnableControl(ExecuteButton, !CommandEdit->Text.IsEmpty());
 }
 //---------------------------------------------------------------------
-Boolean __fastcall TConsoleDialog::Execute()
+bool __fastcall TConsoleDialog::Execute()
 {
-  try {
+  try
+  {
     // avoid reloading directory after each change of current directory from console
     if (FTerminal)
     {
       FTerminal->BeginTransaction();
-      if (FTerminal->Configuration->CommandsHistory->Count)
-        CommandEdit->Items = FTerminal->Configuration->CommandsHistory;
+      if (WinConfiguration->CommandsHistory->Count)
+        CommandEdit->Items = WinConfiguration->CommandsHistory;
       else
         CommandEdit->Items->Clear();
     }
     ShowModal();
-  } __finally {
+  }
+  __finally
+  {
     if (FTerminal)
     {
       FTerminal->EndTransaction();
-      FTerminal->Configuration->CommandsHistory = CommandEdit->Items;
+      WinConfiguration->CommandsHistory = CommandEdit->Items;
     }
   }
   return true;
@@ -113,19 +125,25 @@ void __fastcall TConsoleDialog::ExecuteCommand()
 {
   if (!FTerminal) return;
   CommandEdit->SelectAll();
-  try {
+  try
+  {
     FTerminal->ExceptionOnFail = true;
-    try {
+    try
+    {
       AnsiString Command = CommandEdit->Text;
       OutputMemo->Lines->Add(FORMAT("$ %s", ((Command))));
       FAddOutput = true;
       FTerminal->AnyCommand(Command);
-    } __finally {
+    }
+    __finally
+    {
       FAddOutput = false;
       FTerminal->ExceptionOnFail = false;
       if (FTerminal->Active) FTerminal->ReadCurrentDirectory();
     }
-  } catch(Exception & E) {
+  }
+  catch(Exception & E)
+  {
     ShowExtendedException(&E, this);
   }
 }

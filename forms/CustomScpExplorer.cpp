@@ -16,6 +16,7 @@
 
 #include "NonVisual.h"
 #include "Tools.h"
+#include "WinConfiguration.h"
 #include <Progress.h>
 #include <OperationStatus.h>
 //---------------------------------------------------------------------------
@@ -107,11 +108,11 @@ void __fastcall TCustomScpExplorerForm::TerminalChanged()
 void __fastcall TCustomScpExplorerForm::ConfigurationChanged()
 {
   assert(Configuration && RemoteDirView);
-  RemoteDirView->DDAllowMove = Configuration->DDAllowMove;
-  RemoteDirView->DimmHiddenFiles = Configuration->DimmHiddenFiles;
-  RemoteDirView->ShowHiddenFiles = Configuration->ShowHiddenFiles;
-  RemoteDirView->ShowInaccesibleDirectories = Configuration->ShowInaccesibleDirectories;
-  RemoteDirView->DDTemporaryDirectory = Configuration->DDTemporaryDirectory;
+  RemoteDirView->DDAllowMove = WinConfiguration->DDAllowMove;
+  RemoteDirView->DimmHiddenFiles = WinConfiguration->DimmHiddenFiles;
+  RemoteDirView->ShowHiddenFiles = WinConfiguration->ShowHiddenFiles;
+  RemoteDirView->ShowInaccesibleDirectories = WinConfiguration->ShowInaccesibleDirectories;
+  RemoteDirView->DDTemporaryDirectory = WinConfiguration->DDTemporaryDirectory;
 }
 //---------------------------------------------------------------------------
 void __fastcall TCustomScpExplorerForm::RemoteDirViewGetCopyParam(
@@ -120,7 +121,7 @@ void __fastcall TCustomScpExplorerForm::RemoteDirViewGetCopyParam(
       TCopyParamType &CopyParam)
 {
   if (!CopyParamDialog(Direction, Type, true, FileList,
-        TargetDirectory, CopyParam, Configuration->DDTransferConfirmation))
+        TargetDirectory, CopyParam, WinConfiguration->DDTransferConfirmation))
   {
     Abort();
   }
@@ -274,10 +275,10 @@ void __fastcall TCustomScpExplorerForm::RemoteDirViewContextPopup(
       TPoint(0, 0) : MousePos;
     ScreenPoint = RemoteDirView->ClientToScreen(ClientPoint);
 
-    NonVisualDataModule->CurrentOpenMenuItem->Default = !Configuration->CopyOnDoubleClick;
-    NonVisualDataModule->CurrentCopyMenuItem->Default = Configuration->CopyOnDoubleClick;
-    NonVisualDataModule->CurrentOpenMenuItem->Visible = Configuration->ExpertMode;
-    NonVisualDataModule->CurentEditMenuItem->Visible = Configuration->ExpertMode;
+    NonVisualDataModule->CurrentOpenMenuItem->Default = !WinConfiguration->CopyOnDoubleClick;
+    NonVisualDataModule->CurrentCopyMenuItem->Default = WinConfiguration->CopyOnDoubleClick;
+    NonVisualDataModule->CurrentOpenMenuItem->Visible = WinConfiguration->ExpertMode;
+    NonVisualDataModule->CurentEditMenuItem->Visible = WinConfiguration->ExpertMode;
     
     NonVisualDataModule->RemoteDirViewPopup->Popup(ScreenPoint.x, ScreenPoint.y);
   }
@@ -365,7 +366,7 @@ void __fastcall TCustomScpExplorerForm::ExecuteFileOperation(TFileOperation Oper
     else if (Operation == foDelete)
     {
       assert(FileList->Count);
-      bool Confirmed = !Configuration->ConfirmDeleting;
+      bool Confirmed = !WinConfiguration->ConfirmDeleting;
       if (!Confirmed)
       {
         AnsiString Query;
@@ -391,7 +392,7 @@ void __fastcall TCustomScpExplorerForm::ExecuteFileOperation(TFileOperation Oper
         if (Answer == qaNeverAskAgain)
         {
           Confirmed = true;
-          Configuration->ConfirmDeleting = false;
+          WinConfiguration->ConfirmDeleting = false;
         }
         else
         {
@@ -445,7 +446,7 @@ void __fastcall TCustomScpExplorerForm::ExecuteFile(TOperationSide Side,
       CopyParam.PreserveReadOnly = false;
       CopyParam.ResumeSupport = rsOff;
 
-      AnsiString TempDir = UniqTempDir(Configuration->DDTemporaryDirectory);
+      AnsiString TempDir = UniqTempDir(WinConfiguration->DDTemporaryDirectory);
       ForceDirectories(TempDir);
 
       FAutoOperation = true;
@@ -480,7 +481,7 @@ void __fastcall TCustomScpExplorerForm::ExecuteFile(TOperationSide Side,
       FExecutedFileTimestamp = FileAge(FExecutedFile);
       FFileExecutedBy = ExecuteFileBy;
 
-      if (Edit && ((Configuration->Editor.Editor == edInternal) !=
+      if (Edit && ((WinConfiguration->Editor.Editor == edInternal) !=
                     (ExecuteFileBy == efAlternativeEditor)))
       {
         TNotifyEvent OnFileChanged = NULL;
@@ -516,8 +517,8 @@ void __fastcall TCustomScpExplorerForm::ExecuteFile(TOperationSide Side,
             if (Edit)
             {
               AnsiString ExternalEditor, Program, Params, Dir;
-              ExternalEditor = Configuration->Editor.ExternalEditor;
-              TConfiguration::ReformatFileNameCommand(ExternalEditor);
+              ExternalEditor = WinConfiguration->Editor.ExternalEditor;
+              TWinConfiguration::ReformatFileNameCommand(ExternalEditor);
               SplitCommand(ExternalEditor, Program, Params, Dir);
               assert(Params.Pos(ShellCommandFileNamePattern) > 0);
               Params = StringReplace(Params, ShellCommandFileNamePattern,
@@ -692,7 +693,7 @@ void __fastcall TCustomScpExplorerForm::DeleteFiles(TOperationSide Side,
             ExtractFileName(Progress.FileName) : UnixExtractFileName(Progress.FileName));
           try
           {
-            if (!FileOperatorDelete(Progress.FileName, Configuration->DeleteToRecycleBin))
+            if (!FileOperatorDelete(Progress.FileName, WinConfiguration->DeleteToRecycleBin))
             {
               throw Exception(FMTLOAD(DELETE_LOCAL_FILE_ERROR, (Progress.FileName)));
             }
@@ -1041,7 +1042,7 @@ void __fastcall TCustomScpExplorerForm::SaveCurrentSession()
 void __fastcall TCustomScpExplorerForm::FormCloseQuery(TObject * /*Sender*/,
       bool &CanClose)
 {
-  if (Terminal->Active && Configuration->ConfirmClosingSession)
+  if (Terminal->Active && WinConfiguration->ConfirmClosingSession)
   {
     int Result;
     Result = MessageDialog(FMTLOAD(CLOSE_SESSION,
@@ -1050,7 +1051,7 @@ void __fastcall TCustomScpExplorerForm::FormCloseQuery(TObject * /*Sender*/,
       
     if (Result == qaNeverAskAgain)
     {
-      Configuration->ConfirmClosingSession = false;
+      WinConfiguration->ConfirmClosingSession = false;
     }
     CanClose = (Result == qaOK || Result == qaNeverAskAgain);
   }
@@ -1150,11 +1151,11 @@ void __fastcall TCustomScpExplorerForm::DoDirViewExecFile(TObject * Sender,
   {
     AllowExec = true;
   }
-  else if (Configuration->CopyOnDoubleClick && !FForceExecution)
+  else if (WinConfiguration->CopyOnDoubleClick && !FForceExecution)
   {
     ExecuteFileOperation(foCopy,
       (ADirView == DirView(osRemote) ? osRemote : osLocal),
-      true, !Configuration->CopyOnDoubleClickConfirmation);
+      true, !WinConfiguration->CopyOnDoubleClickConfirmation);
     AllowExec = false;
   }
   else if (ADirView == DirView(osRemote))
@@ -1212,7 +1213,7 @@ void __fastcall TCustomScpExplorerForm::RemoteDirViewWarnLackOfTempSpace(
       TUnixDirView * /*Sender*/, const AnsiString Path, __int64 RequiredSpace,
       bool &Continue)
 {
-  if (Configuration->DDWarnLackOfTempSpace)
+  if (WinConfiguration->DDWarnLackOfTempSpace)
   {
     AnsiString ADrive = ExtractFileDrive(ExpandFileName(Path));
     if (!ADrive.IsEmpty())
@@ -1222,7 +1223,7 @@ void __fastcall TCustomScpExplorerForm::RemoteDirViewWarnLackOfTempSpace(
       if (RequiredSpace >= 0)
       {
         __int64 RequiredWithReserve;
-        RequiredWithReserve = (__int64)(RequiredSpace * Configuration->DDWarnLackOfTempSpaceRatio);
+        RequiredWithReserve = (__int64)(RequiredSpace * WinConfiguration->DDWarnLackOfTempSpaceRatio);
         if (FreeSpace < RequiredWithReserve) MessageRes = DD_WARN_LACK_OF_TEMP_SPACE;
       }
       else
@@ -1239,7 +1240,7 @@ void __fastcall TCustomScpExplorerForm::RemoteDirViewWarnLackOfTempSpace(
 
         if (Result == qaNeverAskAgain)
         {
-          Configuration->DDWarnLackOfTempSpace = false;
+          WinConfiguration->DDWarnLackOfTempSpace = false;
         }
 
         Continue = (Result == qaYes || Result == qaNeverAskAgain);

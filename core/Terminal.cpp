@@ -68,8 +68,7 @@ void __fastcall TTerminal::Open()
   TSecureShell::Open();
   assert(!FFileSystem);
   if ((SessionData->FSProtocol == fsSCPonly) ||
-      (SessionData->FSProtocol == fsSFTP && SshFallbackCmd()) ||
-      (!Configuration->ExpertMode))
+      (SessionData->FSProtocol == fsSFTP && SshFallbackCmd()))
   {
     FFileSystem = new TSCPFileSystem(this);
     LogEvent("Using SCP protocol");

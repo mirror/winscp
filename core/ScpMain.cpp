@@ -63,7 +63,7 @@ void Initialize(const AnsiString IniFileName)
   CallExceptionClass = new TCallExceptionClass();
   Application->OnException = CallExceptionClass->ShowException;
 #endif
-  Configuration = new TConfiguration();
+  Configuration = CreateConfiguration();
   if (!IniFileName.IsEmpty()) Configuration->IniFileStorageName = IniFileName;
   CATCH( Configuration->Load(); );
   StoredSessions = new TStoredSessionList();

@@ -2,12 +2,14 @@
 #include <vcl.h>
 #pragma hdrstop
 
+#include <ScpMain.h>
 #include <Configuration.h>
 #include <RemoteFiles.h>
 #include <VCLCommon.h>
 #include <TextsWin.h>
 
 #include "OpenDirectory.h"
+#include "WinConfiguration.h"
 //---------------------------------------------------------------------
 #pragma link "XPGroupBox"
 #pragma resource "*.dfm"
@@ -110,7 +112,7 @@ bool __fastcall TOpenDirectoryDialog::Execute()
   if (Terminal)
   {
     TStrings * Bookmarks;
-    Bookmarks = Terminal->Configuration->Bookmarks[OperationSide][Terminal->SessionData->SessionKey];
+    Bookmarks = WinConfiguration->Bookmarks[OperationSide][Terminal->SessionData->SessionKey];
     if (Bookmarks) BookmarksList->Items = Bookmarks;
       else BookmarksList->Items->Clear();
     DirectoryEditChange(NULL);
@@ -118,7 +120,9 @@ bool __fastcall TOpenDirectoryDialog::Execute()
   }
   Result = (ShowModal() == mrOk);
   if (Terminal)
-    Terminal->Configuration->Bookmarks[OperationSide][Terminal->SessionData->SessionKey] = BookmarksList->Items;
+  {
+    WinConfiguration->Bookmarks[OperationSide][Terminal->SessionData->SessionKey] = BookmarksList->Items;
+  }
   return Result;
 }
 //---------------------------------------------------------------------------

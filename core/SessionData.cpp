@@ -194,7 +194,7 @@ void __fastcall TSessionData::StoreToConfig(void * config)
   }
 
   AnsiString SPublicKeyFile = PublicKeyFile;
-  if (SPublicKeyFile.IsEmpty()) SPublicKeyFile = Configuration->EmbeddedKeyFile;
+  if (SPublicKeyFile.IsEmpty()) SPublicKeyFile = Configuration->DefaultKeyFile;
   SPublicKeyFile = StripPathQuotes(SPublicKeyFile);
   ASCOPY(cfg->keyfile, SPublicKeyFile);
   cfg->sshprot = SshProt;

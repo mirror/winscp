@@ -11,6 +11,7 @@
 #include <WinInterface.h>
 
 #include "Progress.h"
+#include "WinConfiguration.h"
 //---------------------------------------------------------------------
 #pragma link "PathLabel"
 #pragma resource "*.dfm"
@@ -65,7 +66,7 @@ void __fastcall TProgressForm::UpdateControls()
       else
     if (!TransferOperation && TransferPanel->Visible) Delta += -TransferPanel->Height;
     TransferPanel->Visible = TransferOperation;
-    SpeedPanel->Visible = TransferOperation && Configuration->ExpertMode;
+    SpeedPanel->Visible = TransferOperation && WinConfiguration->ExpertMode;
 
     ClientHeight = ClientHeight + Delta;
     DisconnectWhenCompleteCheck->Top = DisconnectWhenCompleteCheck->Top + Delta;
@@ -80,7 +81,7 @@ void __fastcall TProgressForm::UpdateControls()
           break;
 
         case foDelete:
-          if ((FData.Side == osLocal) && Configuration->DeleteToRecycleBin)
+          if ((FData.Side == osLocal) && WinConfiguration->DeleteToRecycleBin)
             Animate->CommonAVI = aviRecycleFile;
           else
             Animate->CommonAVI = aviDeleteFile;

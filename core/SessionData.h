@@ -145,7 +145,7 @@ private:
 public:
   __fastcall TSessionData(AnsiString aName);
   void __fastcall Default();
-  void __fastcall StoreToConfig(void * config);
+  virtual void __fastcall StoreToConfig(void * config);
   void __fastcall Load(THierarchicalStorage * Storage);
   void __fastcall Save(THierarchicalStorage * Storage);
   void __fastcall Remove();

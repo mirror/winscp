@@ -20,6 +20,7 @@
 #include "NonVisual.h"
 #include "ProgParams.h"
 #include "Tools.h"
+#include "WinConfiguration.h"
 //---------------------------------------------------------------------------
 #pragma package(smart_init)
 //---------------------------------------------------------------------------
@@ -199,7 +200,8 @@ void __fastcall Execute(TProgramParams * Params)
   TEventHandler * EventHandler = NULL;
 
   NonVisualDataModule = NULL;
-  try {
+  try
+  {
     EventHandler = new TEventHandler();
     NonVisualDataModule = new TNonVisualDataModule(Application);
 
@@ -235,22 +237,22 @@ void __fastcall Execute(TProgramParams * Params)
           AutoStartSession = Params->Param[1];
         }
       }
-        else
-      if (Configuration->EmbeddedSessions && StoredSessions->Count)
+      else if (WinConfiguration->EmbeddedSessions && StoredSessions->Count)
       {
         AutoStartSession = StoredSessions->Sessions[0]->Name;
       }
-        else
+      else
       {
-        AutoStartSession = Configuration->AutoStartSession;
+        AutoStartSession = WinConfiguration->AutoStartSession;
       }
 
       Data = GetLoginData(AutoStartSession);
       if (Data)
       {
-        try {
+        try
+        {
           Configuration->OnChange = EventHandler->ConfigurationChange;
-          Boolean ShowLogPending = False;
+          bool ShowLogPending = false;
           Terminal = new TTerminal();
           CreateLogMemo();
 
@@ -258,25 +260,39 @@ void __fastcall Execute(TProgramParams * Params)
           Terminal->SessionData = Data;
           Terminal->OnQueryUser = EventHandler->TerminalQueryUser;
 
-          try {
-            if (Configuration->Logging && (Configuration->LogView == lvWindow))
+          try
+          {
+            if (Configuration->Logging && (WinConfiguration->LogView == lvWindow))
             {
-              if (Configuration->LogWindowOnStartup) RequireLogForm(LogMemo);
-                else ShowLogPending = True;
+              if (WinConfiguration->LogWindowOnStartup)
+              {
+                RequireLogForm(LogMemo);
+              }
+              else
+              {
+                ShowLogPending = true;
+              }
             }
 
-            try {
+            try
+            {
               Connect(Terminal);
 
-              Configuration->ClearTemporaryLoginData();
+              WinConfiguration->ClearTemporaryLoginData();
 
-              if (LogForm && (Configuration->LogView != lvWindow))
+              if (LogForm && (WinConfiguration->LogView != lvWindow))
+              {
                 FreeLogForm();
+              }
 
-              if (ShowLogPending) RequireLogForm(LogMemo);
+              if (ShowLogPending)
+              {
+                RequireLogForm(LogMemo);
+              }
 
               ScpExplorer = NULL;
-              try {
+              try
+              {
                 ScpExplorer = CreateScpExplorer();
                 assert(ScpExplorer);
                 ScpExplorer->Icon->Assign(Application->Icon);
@@ -311,18 +327,26 @@ void __fastcall Execute(TProgramParams * Params)
                   }
                 }
 
-              } __finally {
+              }
+              __finally
+              {
                 EventHandler->ScpExplorer = NULL;
                 SAFE_DESTROY(ScpExplorer);
               }
 
-            } __finally {
+            }
+            __finally
+            {
               FreeLogForm();
             }
-          } catch (Exception &E) {
+          }
+          catch (Exception &E)
+          {
             ShowExtendedException(&E, Application);
           }
-        } __finally {
+        }
+        __finally
+        {
           delete Data;
           Configuration->OnChange = NULL;
           SAFE_DESTROY(Terminal);
@@ -330,7 +354,9 @@ void __fastcall Execute(TProgramParams * Params)
         }
       }
     }
-  } __finally {
+  }
+  __finally
+  {
     delete EventHandler;
     EventHandler = NULL;
     delete NonVisualDataModule;
@@ -342,11 +368,12 @@ void __fastcall ReconnectTerminal()
 {
   assert(Terminal);
   AnsiString SessionName;
-  if (!Configuration->EmbeddedSessions)
+  if (!WinConfiguration->EmbeddedSessions)
   {
     SessionName = StoredSessions->HiddenPrefix+"reconnect";
     TSessionData * Data = new TSessionData("");
-    try {
+    try
+    {
       Data->Assign(Terminal->SessionData);
       if (ScpExplorer)
       {
@@ -354,7 +381,9 @@ void __fastcall ReconnectTerminal()
         ScpExplorer->StoreParams();
       }
       StoredSessions->NewSession(SessionName, Data);
-    } __finally {
+    }
+    __finally
+    {
       delete Data;
     }
   }
@@ -366,5 +395,7 @@ void __fastcall ReconnectTerminal()
   Configuration->Save();
   Configuration->DontSave = true;
   if (!ExecuteShell(Application->ExeName, SessionName))
+  {
     throw Exception(FORMAT(RECONNECT_ERROR, (AppName)));
+  }
 }
