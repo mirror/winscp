@@ -10,6 +10,7 @@ enum TModificationFmt { mfMDHM, mfMDY, mfFull };
 #define ROOTDIRECTORY "/"
 #define FILETYPE_SYMLINK 'L'
 #define FILETYPE_DIRECTORY 'D'
+#define PARTIAL_EXT ".filepart"
 //---------------------------------------------------------------------------
 class TTerminal;
 class TRights;

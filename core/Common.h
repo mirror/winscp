@@ -121,6 +121,9 @@ void __fastcall Trace(const AnsiString SourceFile, const AnsiString Func,
 #ifndef _DEBUG
 #undef assert
 #define assert(p)   ((void)0)
+#define CHECK(p) p
+#else
+#define CHECK(p) { bool __CHECK_RESULT__ = (p); assert(__CHECK_RESULT__); }
 #endif
 #define USEDPARAM(p) ((p) == (p))
 //---------------------------------------------------------------------------

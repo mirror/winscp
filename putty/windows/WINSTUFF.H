@@ -150,6 +150,8 @@ extern int (WINAPI *p_WSAGetLastError)(void);
 extern int (WINAPI *p_WSAEnumNetworkEvents)
     (SOCKET s, WSAEVENT hEventObject, LPWSANETWORKEVENTS lpNetworkEvents);
 
+extern int socket_writable(SOCKET skt);
+
 /*
  * Exports from winctrls.c.
  */
@@ -325,7 +327,7 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
  */
 void defuse_showwindow(void);
 int do_config(void);
-int do_reconfig(HWND);
+int do_reconfig(HWND, int);
 void showeventlog(HWND);
 void showabout(HWND);
 void force_normal(HWND hwnd);

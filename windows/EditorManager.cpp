@@ -13,6 +13,7 @@
 __fastcall TEditorManager::TEditorManager()
 {
   FOnFileChange = NULL;
+  FOnFileEarlyClosed = NULL;
 }
 //---------------------------------------------------------------------------
 __fastcall TEditorManager::~TEditorManager()
@@ -22,7 +23,7 @@ __fastcall TEditorManager::~TEditorManager()
     TFileData * FileData = &FFiles[i - 1];
     
     // pending should be only external editors and files being uploaded
-    assert(FileData->Closed || (FileData->Process != INVALID_HANDLE_VALUE));
+    assert(FileData->Closed || FileData->External);
     assert(FileData->CloseFlag == NULL);
 
     if (!FileData->Closed)
@@ -56,9 +57,62 @@ bool __fastcall TEditorManager::Empty(bool IgnoreClosed)
   return Result;
 }
 //---------------------------------------------------------------------------
-bool __fastcall TEditorManager::CanAddFile()
+bool __fastcall TEditorManager::CanAddFile(const AnsiString RemoteDirectory, 
+  const AnsiString OriginalFileName, TObject *& Token)
 {
-  return (FFiles.size() < MAXIMUM_WAIT_OBJECTS);
+  bool Result = true;
+
+  Token = NULL;
+  for (unsigned int i = 0; i < FFiles.size(); i++)
+  {
+    TFileData * FileData = &FFiles[i];
+
+    // include even "closed" (=being uploaded) files as it is nonsense
+    // to download file being uploaded
+    if ((FileData->Data.RemoteDirectory == RemoteDirectory) &&
+        (FileData->Data.OriginalFileName == OriginalFileName))
+    {
+      if (!FileData->External)
+      {
+        Result = false;
+        if (FileData->Token != NULL)
+        {
+          Token = FileData->Token;
+        }
+      }
+      else
+      {
+        if (FileData->Process == INVALID_HANDLE_VALUE)
+        {
+          // file is just being uploaded, do not allow new editor instance
+          if (FileData->Closed)
+          {
+            Result = false;
+          }
+          else
+          {
+            CloseFile(i, false);
+            Result = true;
+          }
+        }
+        else
+        {
+          Result = false;
+        }
+      }
+      break;
+    }
+  }
+
+  if (Result)
+  {
+    if (FFiles.size() >= WinConfiguration->Editor.MaxEditors)
+    {
+      throw Exception(LoadStr(TOO_MANY_EDITORS));
+    }
+  }
+    
+  return Result;
 }
 //---------------------------------------------------------------------------
 void __fastcall TEditorManager::ProcessFiles(TEditedFileProcessEvent Callback, void * Arg)
@@ -107,16 +161,33 @@ bool __fastcall TEditorManager::CloseInternalEditors(TNotifyEvent CloseCallback)
   return Result;
 }
 //---------------------------------------------------------------------------
+bool __fastcall TEditorManager::CloseExternalFilesWithoutProcess()
+{
+  for (unsigned int i = FFiles.size(); i > 0; i--)
+  {
+    TFileData * FileData = &FFiles[i - 1];
+
+    if (!FileData->Closed && FileData->External &&
+        (FileData->Process == INVALID_HANDLE_VALUE))
+    {
+      CloseFile(i - 1, true);
+    }
+  }
+  return true;
+}
+//---------------------------------------------------------------------------
 void __fastcall TEditorManager::AddFileInternal(const AnsiString FileName,
   const TEditedFileData & Data, bool * CloseFlag, TObject * Token)
 {
   TFileData FileData;
   FileData.FileName = FileName;
+  FileData.External = false;
   FileData.Process = INVALID_HANDLE_VALUE;
   FileData.Token = Token;
   FileData.CloseFlag = CloseFlag;
   FileData.Data = Data;
   FileData.Monitor = INVALID_HANDLE_VALUE;
+  FileData.Opened = Now();
 
   AddFile(FileData);
 }
@@ -126,6 +197,7 @@ void __fastcall TEditorManager::AddFileExternal(const AnsiString FileName,
 {
   TFileData FileData;
   FileData.FileName = FileName;
+  FileData.External = true;
   FileData.Process = Process;
   FileData.Token = NULL;
   FileData.CloseFlag = CloseFlag;
@@ -133,13 +205,17 @@ void __fastcall TEditorManager::AddFileExternal(const AnsiString FileName,
   FileData.Monitor = FindFirstChangeNotification(
     ExtractFilePath(FileData.FileName).c_str(), false,
     FILE_NOTIFY_CHANGE_LAST_WRITE);
+  FileData.Opened = Now();
   if (FileData.Monitor == INVALID_HANDLE_VALUE)
   {
     throw Exception(FMTLOAD(FILE_WATCH_ERROR, (FileData.FileName)));
   }
 
   FMonitors.push_back(FileData.Monitor);
-  FProcesses.push_back(Process);
+  if (Process != INVALID_HANDLE_VALUE)
+  {
+    FProcesses.push_back(Process);
+  }
   AddFile(FileData);
 }
 //---------------------------------------------------------------------------
@@ -162,7 +238,10 @@ void __fastcall TEditorManager::Check()
       }
     }
     while (Index >= 0);
+  }
 
+  if (FProcesses.size() > 0)
+  {
     do
     {
       Index = WaitFor(FProcesses.size(), &(FProcesses[0]), PROCESS);
@@ -175,9 +254,12 @@ void __fastcall TEditorManager::Check()
         }
         __finally
         {
-          // CheckFileChange may fail (file is already being uploaded),
-          // but we want to close handles anyway 
-          CloseFile(Index, false);
+          if (!EarlyClose(Index))
+          {
+            // CheckFileChange may fail (file is already being uploaded),
+            // but we want to close handles anyway
+            CloseFile(Index, false);
+          }
         }
       }
     }
@@ -200,12 +282,35 @@ void __fastcall TEditorManager::Check()
   }
 }
 //---------------------------------------------------------------------------
+bool __fastcall TEditorManager::EarlyClose(int Index)
+{
+  TFileData * FileData = &FFiles[Index];
+
+  bool Result = 
+    (FileData->Process != INVALID_HANDLE_VALUE) &&
+    (Now() - FileData->Opened <= 
+      TDateTime(0, 0, static_cast<unsigned short>(WinConfiguration->Editor.EarlyClose), 0)) &&
+    (FOnFileEarlyClosed != NULL);
+    
+  if (Result)
+  {
+    Result = false;
+    FOnFileEarlyClosed(FileData->Data.OriginalFileName, FileData->CloseFlag, Result);
+    if (Result)
+    {
+      // forget the associated process
+      CloseProcess(Index);
+    }
+  }
+  return Result;
+}
+//---------------------------------------------------------------------------
 void __fastcall TEditorManager::FileChanged(TObject * Token)
 {
   int Index = FindFile(Token);
 
   assert(Index >= 0);
-  assert(FFiles[Index].Process == INVALID_HANDLE_VALUE);
+  assert(!FFiles[Index].External);
 
   CheckFileChange(Index, true);
 }
@@ -215,7 +320,7 @@ void __fastcall TEditorManager::FileClosed(TObject * Token)
   int Index = FindFile(Token);
 
   assert(Index >= 0);
-  assert(FFiles[Index].Process == INVALID_HANDLE_VALUE);
+  assert(!FFiles[Index].External);
 
   CheckFileChange(Index, false);
   CloseFile(Index, false);
@@ -249,19 +354,27 @@ void __fastcall TEditorManager::UploadComplete(int Index)
   }
 }
 //---------------------------------------------------------------------------
+void __fastcall TEditorManager::CloseProcess(int Index)
+{
+  TFileData * FileData = &FFiles[Index];
+
+  FProcesses.erase(std::find(FProcesses.begin(), FProcesses.end(), FileData->Process));
+  CHECK(CloseHandle(FileData->Process));
+  FileData->Process = INVALID_HANDLE_VALUE;
+}
+//---------------------------------------------------------------------------
 void __fastcall TEditorManager::CloseFile(int Index, bool IgnoreErrors)
 {
   TFileData * FileData = &FFiles[Index];
 
   if (FileData->Process != INVALID_HANDLE_VALUE)
   {
-    FProcesses.erase(std::find(FProcesses.begin(), FProcesses.end(), FileData->Process));
-    FileData->Process = INVALID_HANDLE_VALUE;
+    CloseProcess(Index);
   }
 
   if (FileData->Monitor != INVALID_HANDLE_VALUE)
   {
-    FindCloseChangeNotification(FileData->Monitor);
+    CHECK(FindCloseChangeNotification(FileData->Monitor));
     FMonitors.erase(std::find(FMonitors.begin(), FMonitors.end(), FileData->Monitor));
     FileData->Monitor = INVALID_HANDLE_VALUE;
   }
@@ -360,49 +473,57 @@ int __fastcall TEditorManager::FindFile(const TObject * Token)
   return Index;
 }
 //---------------------------------------------------------------------------
-int __fastcall TEditorManager::WaitFor(unsigned int Count,	const HANDLE * Handles,
+int __fastcall TEditorManager::WaitFor(unsigned int Count, const HANDLE * Handles,
   TWaitHandle WaitFor)
 {
+  static const unsigned int Offset = MAXIMUM_WAIT_OBJECTS;
   int Result = -1;
-  unsigned int WaitResult = WaitForMultipleObjects(Count, Handles, false, 0);
-
-  if (WaitResult == WAIT_FAILED)
+  unsigned int Start = 0;
+  while ((Result < 0) && (Start < Count))
   {
-    throw Exception(LoadStr(WATCH_ERROR_GENERAL));
-  }
-  else if (WaitResult != WAIT_TIMEOUT)
-  {
-    // WAIT_OBJECT_0 is zero
-    assert(WaitResult < WAIT_OBJECT_0 + Count);
+    unsigned int C = (Count - Start > Offset ? Offset : Count - Start);
+    unsigned int WaitResult = WaitForMultipleObjects(C, Handles + Start, false, 0);
 
-    HANDLE Handle = Handles[WaitResult - WAIT_OBJECT_0];
-
-    for (unsigned int i = 0; i < FFiles.size(); i++)
+    if (WaitResult == WAIT_FAILED)
     {
-      TFileData * Data = &FFiles[i];
-      HANDLE FHandle;
-      switch (WaitFor)
-      {
-        case MONITOR:
-          FHandle = Data->Monitor;
-          break;
-
-        case PROCESS:
-          FHandle = Data->Process;
-          break;
-
-        case EVENT:
-          FHandle = Data->UploadCompleteEvent;
-          break;
-      };
-
-      if (FHandle == Handle)
-      {
-        Result = i;
-        break;
-      }
+      throw Exception(LoadStr(WATCH_ERROR_GENERAL));
     }
-    assert(Result >= 0);
+    else if (WaitResult != WAIT_TIMEOUT)
+    {
+      // WAIT_OBJECT_0 is zero
+      assert(WaitResult < WAIT_OBJECT_0 + Count);
+
+      HANDLE Handle = Handles[WaitResult - WAIT_OBJECT_0];
+
+      for (unsigned int i = 0; i < FFiles.size(); i++)
+      {
+        TFileData * Data = &FFiles[i];
+        HANDLE FHandle;
+        switch (WaitFor)
+        {
+          case MONITOR:
+            FHandle = Data->Monitor;
+            break;
+
+          case PROCESS:
+            FHandle = Data->Process;
+            break;
+
+          case EVENT:
+            FHandle = Data->UploadCompleteEvent;
+            break;
+        };
+
+        if (FHandle == Handle)
+        {
+          Result = Start + i;
+          break;
+        }
+      }
+      assert(Result >= 0);
+    }
+
+    Start += C;
   }
 
   return Result;

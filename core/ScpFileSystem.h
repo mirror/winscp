@@ -49,6 +49,7 @@ public:
     const AnsiString NewName);
   virtual void __fastcall CopyFile(const AnsiString FileName,
     const AnsiString NewName);
+  virtual AnsiString __fastcall FileUrl(const AnsiString FileName);
 
   static bool __fastcall RemoveLastLine(AnsiString & Line,
     int & ReturnCode, AnsiString LastLine = "");

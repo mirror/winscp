@@ -48,6 +48,7 @@ __fastcall TTerminal::TTerminal(): TSecureShell()
   FOnProgress = NULL;
   FOnFinished = NULL;
   FOnDeleteLocalFile = NULL;
+  FOnReadDirectoryProgress = NULL;
   FAdditionalInfo = NULL;
   FUseBusyCursor = True;
   FLockDirectory = "";
@@ -56,6 +57,7 @@ __fastcall TTerminal::TTerminal(): TSecureShell()
   FFSProtocol = cfsUnknown;
   FCommandSession = NULL;
   FAutoReadDirectory = true;
+  FReadingCurrentDirectory = false;
 }
 //---------------------------------------------------------------------------
 __fastcall TTerminal::~TTerminal()
@@ -479,6 +481,14 @@ void __fastcall TTerminal::DoStartReadDirectory()
   }
 }
 //---------------------------------------------------------------------------
+void __fastcall TTerminal::DoReadDirectoryProgress(int Progress)
+{
+  if (FReadingCurrentDirectory && (FOnReadDirectoryProgress != NULL))
+  {
+    FOnReadDirectoryProgress(this, Progress);
+  }
+}
+//---------------------------------------------------------------------------
 void __fastcall TTerminal::BeginTransaction()
 {
   if (!FInTransaction)
@@ -859,6 +869,8 @@ void __fastcall TTerminal::ReadDirectory(bool ReloadOnly, bool ForceCache)
   if (!LoadedFromCache)
   {
     DoStartReadDirectory();
+    FReadingCurrentDirectory = true;
+    DoReadDirectoryProgress(0);
     FFiles->Directory = CurrentDirectory;
 
     try
@@ -869,6 +881,8 @@ void __fastcall TTerminal::ReadDirectory(bool ReloadOnly, bool ForceCache)
       }
       __finally
       {
+        DoReadDirectoryProgress(-1);
+        FReadingCurrentDirectory = false;
         // this must be called before error is displayed, otherwise
         // TUnixDirView would be drawn with invalid data (it keeps reference
         // to already destoroyed old listing)
@@ -1039,7 +1053,11 @@ bool __fastcall TTerminal::ProcessFiles(TStrings * FileList,
     FOperationProgress = &Progress;
     try
     {
-      BeginTransaction();
+      if (Side == osRemote)
+      {
+        BeginTransaction();
+      }
+      
       try
       {
         int Index = 0;
@@ -1063,7 +1081,10 @@ bool __fastcall TTerminal::ProcessFiles(TStrings * FileList,
       }
       __finally
       {
-        EndTransaction();
+        if (Side == osRemote)
+        {
+          EndTransaction();
+        }
       }
 
       if (Progress.Cancel == csContinue)
@@ -1840,42 +1861,55 @@ bool __fastcall TTerminal::CreateLocalFile(const AnsiString FileName,
 
   FILE_OPERATION_LOOP (FMTLOAD(CREATE_FILE_ERROR, (FileName)),
     bool Done;
+    unsigned int CreateAttr = FILE_ATTRIBUTE_NORMAL;
     do
     {
       *AHandle = CreateFile(FileName.c_str(), GENERIC_WRITE, FILE_SHARE_READ,
-        NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+        NULL, CREATE_ALWAYS, CreateAttr, 0);
       Done = (*AHandle != INVALID_HANDLE_VALUE);
       if (!Done)
       {
         int FileAttr;
         if (FileExists(FileName) &&
-          (((FileAttr = FileGetAttr(FileName)) & faReadOnly) != 0))
+          (((FileAttr = FileGetAttr(FileName)) & (faReadOnly | faHidden)) != 0))
         {
-          if (OperationProgress->NoToAll)
+          if (FLAGSET(FileAttr, faReadOnly))
           {
-            Result = false;
-          }
-          else if (!OperationProgress->YesToAll)
-          {
-            int Answer;
-            SUSPEND_OPERATION
-            (
-              Answer = DoQueryUser(
-                FMTLOAD(READ_ONLY_OVERWRITE, (FileName)),
-                qaYes | qaNo | qaAbort | qaYesToAll | qaNoToAll, 0);
-            );
-            switch (Answer) {
-              case qaYesToAll: OperationProgress->YesToAll = true; break;
-              case qaAbort: OperationProgress->Cancel = csCancel; // continue on next case
-              case qaNoToAll: OperationProgress->NoToAll = true;
-              case qaNo: Result = false; break;
+            if (OperationProgress->NoToAll)
+            {
+              Result = false;
             }
+            else if (!OperationProgress->YesToAll)
+            {
+              int Answer;
+              SUSPEND_OPERATION
+              (
+                Answer = DoQueryUser(
+                  FMTLOAD(READ_ONLY_OVERWRITE, (FileName)),
+                  qaYes | qaNo | qaAbort | qaYesToAll | qaNoToAll, 0);
+              );
+              switch (Answer) {
+                case qaYesToAll: OperationProgress->YesToAll = true; break;
+                case qaAbort: OperationProgress->Cancel = csCancel; // continue on next case
+                case qaNoToAll: OperationProgress->NoToAll = true;
+                case qaNo: Result = false; break;
+              }
+            }
+          }
+          else
+          {
+            assert(FLAGSET(FileAttr, faHidden));
+            Result = true;
           }
 
           if (Result)
           {
+            CreateAttr |=
+              FLAGMASK(FLAGSET(FileAttr, faHidden), FILE_ATTRIBUTE_HIDDEN) |
+              FLAGMASK(FLAGSET(FileAttr, faReadOnly), FILE_ATTRIBUTE_READONLY);
+          
             FILE_OPERATION_LOOP (FMTLOAD(CANT_SET_ATTRS, (FileName)),
-              if (FileSetAttr(FileName, FileAttr & ~faReadOnly) != 0)
+              if (FileSetAttr(FileName, FileAttr & ~(faReadOnly | faHidden)) != 0)
               {
                 EXCEPTION;
               }
@@ -1986,6 +2020,11 @@ void __fastcall TTerminal::OpenLocalFile(const AnsiString FileName,
   if (AHandle) *AHandle = Handle;
 }
 //---------------------------------------------------------------------------
+AnsiString __fastcall TTerminal::FileUrl(const AnsiString FileName)
+{
+  return FFileSystem->FileUrl(FileName);
+}
+//---------------------------------------------------------------------------
 void __fastcall TTerminal::MakeLocalFileList(const AnsiString FileName,
   const TSearchRec Rec, void * Param)
 {
@@ -2034,6 +2073,7 @@ void __fastcall TTerminal::CalculateLocalFilesSize(TStrings * FileList,
   __int64 & Size, const TCopyParamType * CopyParam)
 {
   TFileOperationProgressType OperationProgress(FOnProgress, FOnFinished);
+  bool DisconnectWhenComplete = false;
   OperationProgress.Start(foCalculateSize, osLocal, FileList->Count);
   try
   {
@@ -2047,14 +2087,11 @@ void __fastcall TTerminal::CalculateLocalFilesSize(TStrings * FileList,
     TSearchRec Rec;
     for (int Index = 0; Index < FileList->Count; Index++)
     {
-      if (FileSearchRec(FileList->Strings[Index], Rec))
+      AnsiString FileName = FileList->Strings[Index];
+      if (FileSearchRec(FileName, Rec))
       {
-        if (Rec.Attr & faDirectory)
-        {
-          ProcessLocalDirectory(FileList->Strings[Index],
-            CalculateLocalFileSize, &Params);
-        }
-        CalculateLocalFileSize(FileList->Strings[Index], Rec, &Params);
+        CalculateLocalFileSize(FileName, Rec, &Params);
+        OperationProgress.Finish(FileName, true, DisconnectWhenComplete);
       }
     }
 
@@ -2064,6 +2101,11 @@ void __fastcall TTerminal::CalculateLocalFilesSize(TStrings * FileList,
   {
     FOperationProgress = NULL;
     OperationProgress.Stop();
+  }
+
+  if (DisconnectWhenComplete)
+  {
+    CloseOnCompletion();
   }
 }
 //---------------------------------------------------------------------------

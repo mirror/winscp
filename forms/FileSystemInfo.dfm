@@ -1,6 +1,9 @@
 object FileSystemInfoDialog: TFileSystemInfoDialog
   Left = 345
   Top = 178
+  HelpType = htKeyword
+  HelpKeyword = 'ui_fsinfo'
+  BorderIcons = [biSystemMenu, biMinimize, biMaximize, biHelp]
   BorderStyle = bsDialog
   Caption = 'Server and protocol information'
   ClientHeight = 430

@@ -59,6 +59,7 @@ private:
   TGUICopyParamType FCopyParam;
   bool FBeepOnFinish;
   TDateTime FBeepOnFinishAfter;
+  AnsiString FDefaultPuttyPath;
 
 protected:
   LCID FLocale;

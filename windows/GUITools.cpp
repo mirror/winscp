@@ -341,6 +341,19 @@ AnsiString __fastcall TranslateExceptionMessage(const Exception * E)
   }
 }
 //---------------------------------------------------------------------------
+AnsiString __fastcall FormatDateTimeSpan(const AnsiString TimeFormat, TDateTime DateTime)
+{
+  AnsiString Result;
+  if (int(DateTime) > 0)
+  {
+    Result = IntToStr(int(DateTime)) + ", ";
+  }
+  // days are decremented, because when there is to many of them,
+  // "integer overflow" error occures
+  Result += FormatDateTime(TimeFormat, DateTime - int(DateTime));
+  return Result;
+}
+//---------------------------------------------------------------------------
 TLocalCustomCommand::TLocalCustomCommand()
 {
 }

@@ -18,10 +18,13 @@
 //---------------------------------------------------------------------------
 const char * DefaultSessionName = "Default Settings";
 const char CipherNames[CIPHER_COUNT][10] = {"WARN", "3des", "blowfish", "aes", "des"};
+const char KexNames[KEX_COUNT][20] = {"WARN", "dh-group1-sha1", "dh-group14-sha1", "dh-gex-sha1" };
 const char SshProtList[][10] = {"1 only", "1", "2", "2 only"};
 const char ProxyMethodList[][10] = {"none", "SOCKS4", "SOCKS5", "HTTP", "Telnet", "Cmd" };
 const TCipher DefaultCipherList[CIPHER_COUNT] =
   { cipAES, cipBlowfish, cip3DES, cipWarn, cipDES };
+const TKex DefaultKexList[KEX_COUNT] =
+  { kexDHGEx, kexDHGroup14, kexDHGroup1, kexWarn };
 const char FSProtocolNames[FSPROTOCOL_COUNT][11] = { "SCP", "SFTP (SCP)", "SFTP" };
 //--- TSessionData ----------------------------------------------------
 __fastcall TSessionData::TSessionData(AnsiString aName):
@@ -45,12 +48,17 @@ void __fastcall TSessionData::Default()
   AuthKI = true;
   AuthKIPassword = true;
   AuthGSSAPI = false;
+  ChangeUsername = false;
   Compression = false;
   SshProt = ssh2;
   Ssh2DES = false;
   for (int Index = 0; Index < CIPHER_COUNT; Index++)
   {
     Cipher[Index] = DefaultCipherList[Index];
+  }
+  for (int Index = 0; Index < KEX_COUNT; Index++)
+  {
+    Kex[Index] = DefaultKexList[Index];
   }
   PublicKeyFile = "";
   FProtocol = ptSSH;
@@ -72,6 +80,9 @@ void __fastcall TSessionData::Default()
 
   Special = false;
   FSProtocol = fsSFTP;
+  AddressFamily = afAuto;
+  RekeyData = "1G";
+  RekeyTime = 60;
 
   // FS common
   LocalDirectory = "";
@@ -142,11 +153,16 @@ void __fastcall TSessionData::Assign(TPersistent * Source)
     DUPL(Timeout);
     DUPL(AgentFwd);
     DUPL(AuthTIS);
+    DUPL(ChangeUsername);
     DUPL(Compression);
     DUPL(SshProt);
     DUPL(Ssh2DES);
     DUPL(CipherList);
+    DUPL(KexList);
     DUPL(PublicKeyFile);
+    DUPL(AddressFamily);
+    DUPL(RekeyData);
+    DUPL(RekeyTime);
 
     DUPL(FSProtocol);
     DUPL(LocalDirectory);
@@ -230,10 +246,14 @@ void __fastcall TSessionData::StoreToConfig(void * config)
   ASCOPY(cfg->username, UserName);
   cfg->port = PortNumber;
   cfg->protocol = PROT_SSH;
-  // ping_interval is not used anyway
-  cfg->ping_interval = (PingType == ptNullPacket) ? PingInterval : 0;
+  // always set 0, as we will handle keepalives ourselves to avoid
+  // multi-threaded issues in putty timer list
+  cfg->ping_interval = 0;
   cfg->compression = Compression;
   cfg->agentfwd = AgentFwd;
+  cfg->addressfamily = AddressFamily;
+  ASCOPY(cfg->ssh_rekey_data, RekeyData);
+  cfg->ssh_rekey_time = RekeyTime;
 
   for (int c = 0; c < CIPHER_COUNT; c++)
   {
@@ -249,6 +269,19 @@ void __fastcall TSessionData::StoreToConfig(void * config)
     cfg->ssh_cipherlist[c] = pcipher;
   }
 
+  for (int k = 0; k < KEX_COUNT; k++)
+  {
+    int pkex;
+    switch (Kex[k]) {
+      case kexWarn: pkex = KEX_WARN; break;
+      case kexDHGroup1: pkex = KEX_DHGROUP1; break;
+      case kexDHGroup14: pkex = KEX_DHGROUP14; break;
+      case kexDHGEx: pkex = KEX_DHGEX; break;
+      default: assert(false);
+    }
+    cfg->ssh_kexlist[k] = pkex;
+  }
+
   AnsiString SPublicKeyFile = PublicKeyFile;
   if (SPublicKeyFile.IsEmpty()) SPublicKeyFile = Configuration->DefaultKeyFile;
   SPublicKeyFile = StripPathQuotes(SPublicKeyFile);
@@ -258,6 +291,7 @@ void __fastcall TSessionData::StoreToConfig(void * config)
   cfg->try_tis_auth = AuthTIS;
   cfg->try_ki_auth = AuthKI;
   cfg->try_gssapi_auth = AuthGSSAPI;
+  cfg->change_username = ChangeUsername;
 
   cfg->proxy_type = ProxyMethod;
   ASCOPY(cfg->proxy_host, ProxyHost);
@@ -277,7 +311,7 @@ void __fastcall TSessionData::StoreToConfig(void * config)
   cfg->sshbug_hmac2 = Bug[sbHMAC2];
   cfg->sshbug_derivekey2 = Bug[sbDeriveKey2];
   cfg->sshbug_rsapad2 = Bug[sbRSAPad2];
-  cfg->sshbug_dhgex2 = Bug[sbDHGEx2];
+  cfg->sshbug_rekey2 = Bug[sbRekey2];
   // new after 0.53b
   cfg->sshbug_pksessid2 = Bug[sbPKSessID2];
   #pragma option pop
@@ -367,11 +401,17 @@ void __fastcall TSessionData::Load(THierarchicalStorage * Storage)
     AuthKI = Storage->ReadBool("AuthKI", AuthKI);
     AuthKIPassword = Storage->ReadBool("AuthKIPassword", AuthKIPassword);
     AuthGSSAPI = Storage->ReadBool("AuthGSSAPI", AuthGSSAPI);
+    ChangeUsername = Storage->ReadBool("ChangeUsername", ChangeUsername);
     Compression = Storage->ReadBool("Compression", Compression);
     SshProt = (TSshProt)Storage->ReadInteger("SshProt", SshProt);
     Ssh2DES = Storage->ReadBool("Ssh2DES", Ssh2DES);
     CipherList = Storage->ReadString("Cipher", CipherList);
+    KexList = Storage->ReadString("KEX", KexList);
     PublicKeyFile = Storage->ReadString("PublicKeyFile", PublicKeyFile);
+    AddressFamily = static_cast<TAddressFamily>
+      (Storage->ReadInteger("AddressFamily", AddressFamily));
+    RekeyData = Storage->ReadString("RekeyBytes", RekeyData);
+    RekeyTime = Storage->ReadInteger("RekeyTime", RekeyTime);
 
     FSProtocol = (TFSProtocol)Storage->ReadInteger("FSProtocol", FSProtocol);
     LocalDirectory = Storage->ReadString("LocalDirectory", LocalDirectory);
@@ -443,7 +483,7 @@ void __fastcall TSessionData::Load(THierarchicalStorage * Storage)
     READ_BUG(HMAC2);
     READ_BUG(DeriveKey2);
     READ_BUG(RSAPad2);
-    READ_BUG(DHGEx2);
+    READ_BUG(Rekey2);
     READ_BUG(PKSessID2);
     #undef READ_BUG
 
@@ -510,10 +550,15 @@ void __fastcall TSessionData::Save(THierarchicalStorage * Storage,
     WRITE_DATA(Bool, AuthTIS);
     WRITE_DATA(Bool, AuthKI);
     WRITE_DATA(Bool, AuthKIPassword);
+    WRITE_DATA(Bool, ChangeUsername);
     WRITE_DATA(Bool, Compression);
     WRITE_DATA(Integer, SshProt);
     WRITE_DATA(Bool, Ssh2DES);
     WRITE_DATA_EX(String, "Cipher", CipherList, );
+    WRITE_DATA_EX(String, "KEX", KexList, );
+    WRITE_DATA(Integer, AddressFamily);
+    WRITE_DATA_EX(String, "RekeyBytes", RekeyData, );
+    WRITE_DATA(Integer, RekeyTime);
 
     WRITE_DATA(Bool, TcpNoDelay);
 
@@ -609,7 +654,7 @@ void __fastcall TSessionData::Save(THierarchicalStorage * Storage,
     WRITE_BUG(HMAC2);
     WRITE_BUG(DeriveKey2);
     WRITE_BUG(RSAPad2);
-    WRITE_BUG(DHGEx2);
+    WRITE_BUG(Rekey2);
     WRITE_BUG(PKSessID2);
     #undef WRITE_BUG
     #undef WRITE_DATA_CONV_FUNC
@@ -898,6 +943,11 @@ void __fastcall TSessionData::SetAuthGSSAPI(bool value)
   SET_SESSION_PROPERTY(AuthGSSAPI);
 }
 //---------------------------------------------------------------------
+void __fastcall TSessionData::SetChangeUsername(bool value)
+{
+  SET_SESSION_PROPERTY(ChangeUsername);
+}
+//---------------------------------------------------------------------
 void __fastcall TSessionData::SetCompression(bool value)
 {
   SET_SESSION_PROPERTY(Compression);
@@ -964,6 +1014,56 @@ AnsiString __fastcall TSessionData::GetCipherList() const
   for (int Index = 0; Index < CIPHER_COUNT; Index++)
   {
     Result += AnsiString(Index ? "," : "") + CipherNames[Cipher[Index]];
+  }
+  return Result;
+}
+//---------------------------------------------------------------------
+void __fastcall TSessionData::SetKex(int Index, TKex value)
+{
+  assert(Index >= 0 && Index < KEX_COUNT);
+  SET_SESSION_PROPERTY(Kex[Index]);
+}
+//---------------------------------------------------------------------
+TKex __fastcall TSessionData::GetKex(int Index) const
+{
+  assert(Index >= 0 && Index < KEX_COUNT);
+  return FKex[Index];
+}
+//---------------------------------------------------------------------
+void __fastcall TSessionData::SetKexList(AnsiString value)
+{
+  bool Used[KEX_COUNT];
+  for (int K = 0; K < KEX_COUNT; K++) Used[K] = false;
+
+  AnsiString KexStr;
+  int Index = 0;
+  while (!value.IsEmpty() && (Index < KEX_COUNT))
+  {
+    KexStr = CutToChar(value, ',', true);
+    for (int K = 0; K < KEX_COUNT; K++)
+    {
+      if (!KexStr.AnsiCompareIC(KexNames[K]))
+      {
+        Kex[Index] = (TKex)K;
+        Used[K] = true;
+        Index++;
+        break;
+      }
+    }
+  }
+
+  for (int K = 0; K < KEX_COUNT && Index < KEX_COUNT; K++)
+  {
+    if (!Used[DefaultKexList[K]]) Kex[Index++] = DefaultKexList[K];
+  }
+}
+//---------------------------------------------------------------------
+AnsiString __fastcall TSessionData::GetKexList() const
+{
+  AnsiString Result;
+  for (int Index = 0; Index < KEX_COUNT; Index++)
+  {
+    Result += AnsiString(Index ? "," : "") + KexNames[Kex[Index]];
   }
   return Result;
 }
@@ -1081,6 +1181,21 @@ TDateTime __fastcall TSessionData::GetPingIntervalDT()
 void __fastcall TSessionData::SetPingType(TPingType value)
 {
   SET_SESSION_PROPERTY(PingType);
+}
+//---------------------------------------------------------------------------
+void __fastcall TSessionData::SetAddressFamily(TAddressFamily value)
+{
+  SET_SESSION_PROPERTY(AddressFamily);
+}
+//---------------------------------------------------------------------------
+void __fastcall TSessionData::SetRekeyData(AnsiString value)
+{
+  SET_SESSION_PROPERTY(RekeyData);
+}
+//---------------------------------------------------------------------------
+void __fastcall TSessionData::SetRekeyTime(unsigned int value)
+{
+  SET_SESSION_PROPERTY(RekeyTime);
 }
 //---------------------------------------------------------------------
 AnsiString __fastcall TSessionData::GetSessionName()

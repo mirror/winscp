@@ -124,7 +124,8 @@ private:
   TExtendedExceptionEvent FOnShowExtendedException;
   Backend * FBackend;
   void * FBackendHandle;
-  unsigned long FMaxPacketSize;
+  const unsigned int * FMaxPacketSize;
+  int FBufSize;
   Config * FConfig;
   AnsiString FSshVersionString;
   AnsiString FPassword;
@@ -182,6 +183,7 @@ protected:
   bool __fastcall SshFallbackCmd() const;
   void __fastcall GotHostKey();
   unsigned long __fastcall MaxPacketSize();
+  int __fastcall RemainingSendBuffer();
   virtual void __fastcall KeepAlive();
   virtual void __fastcall SetSessionData(TSessionData * value);
 
@@ -211,7 +213,7 @@ public:
   void __fastcall FromBackend(bool IsStdErr, char * Data, int Length);
   void __fastcall VerifyHostKey(const AnsiString Host, int Port,
     const AnsiString KeyType, const AnsiString KeyStr, const AnsiString Fingerprint);
-  void __fastcall AskCipher(const AnsiString CipherName, int CipherType);
+  void __fastcall AskAlg(const AnsiString AlgType, const AnsiString AlgName);
   void __fastcall OldKeyfileWarning();
 
   virtual int __fastcall DoQueryUser(const AnsiString Query, TStrings * MoreMessages,

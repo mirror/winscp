@@ -132,6 +132,7 @@ __fastcall TCustomScpExplorerForm::TCustomScpExplorerForm(TComponent* Owner):
 
   FEditorManager = new TEditorManager();
   FEditorManager->OnFileChange = ExecutedFileChanged;
+  FEditorManager->OnFileEarlyClosed = ExecutedFileEarlyClosed;
 
   FQueueStatus = NULL;
   FQueueStatusSection = new TCriticalSection();
@@ -165,8 +166,6 @@ __fastcall TCustomScpExplorerForm::TCustomScpExplorerForm(TComponent* Owner):
   MenuToolBar->Font = Screen->MenuFont;
   assert(MenuToolBar->ControlCount);
   MenuToolBar->Height = MenuToolBar->Controls[0]->Height;
-
-  RemoteDirView->Font = Screen->IconFont;
 }
 //---------------------------------------------------------------------------
 __fastcall TCustomScpExplorerForm::~TCustomScpExplorerForm()
@@ -210,12 +209,35 @@ void __fastcall TCustomScpExplorerForm::SetTerminal(TTerminal * value)
 {
   if (FTerminal != value)
   {
-    if (FTerminal)
-    {
-      UpdateSessionData(Terminal->SessionData);
-    }
+    TerminalChanging();
     FTerminal = value;
     TerminalChanged();
+  }
+}
+//---------------------------------------------------------------------------
+void __fastcall TCustomScpExplorerForm::TerminalChanging()
+{
+  if (FTerminal != NULL)
+  {
+    UpdateSessionData(Terminal->SessionData);
+
+    if (WinConfiguration->PreservePanelState)
+    {
+      if (Terminal->UserObject == NULL)
+      {
+        Terminal->UserObject = new TExporerState;
+      }
+      TExporerState * ExplorerState = dynamic_cast<TExporerState *>(Terminal->UserObject);
+      assert(ExplorerState != NULL);
+
+      ExplorerState->Remote.SortStr = RemoteDirView->UnixColProperties->SortStr;
+      ExplorerState->Remote.FocusedItem = RemoteDirView->ItemFocused != NULL ? 
+        RemoteDirView->ItemFocused->Caption : AnsiString("");
+    }
+    else
+    {
+      Terminal->UserObject = NULL;
+    }
   }
 }
 //---------------------------------------------------------------------------
@@ -228,6 +250,23 @@ void __fastcall TCustomScpExplorerForm::TerminalChanged()
     if (Terminal->Active)
     {
       Terminal->RefreshDirectory();
+    }
+
+    if (WinConfiguration->PreservePanelState && (Terminal->UserObject != NULL))
+    {
+      TExporerState * ExplorerState = dynamic_cast<TExporerState *>(Terminal->UserObject);
+      assert(ExplorerState != NULL);
+      
+      RemoteDirView->UnixColProperties->SortStr = ExplorerState->Remote.SortStr;
+      if (!ExplorerState->Remote.FocusedItem.IsEmpty())
+      {
+        TListItem * ListItem = RemoteDirView->FindFileItem(ExplorerState->Remote.FocusedItem);
+        if (ListItem != NULL)
+        {
+          RemoteDirView->ItemFocused = ListItem;
+          ListItem->MakeVisible(false);
+        }
+      }
     }
 
     UpdateStatusBar();
@@ -605,11 +644,20 @@ void __fastcall TCustomScpExplorerForm::DoOperationFinished(
     if (PanelOperation(Side, DragDrop) &&
         Visible && (Operation != foCalculateSize))
     {
+      TCustomDirView * DView = DirView(Side);
       AnsiString FileNameOnly = (Side == osRemote) ?
         UnixExtractFileName(FileName) : ExtractFileName(FileName);
-      TListItem *Item = DirView(Side)->FindFileItem(FileNameOnly);
+      TListItem *Item = DView->FindFileItem(FileNameOnly);
       assert(Item);
       if (Success) Item->Selected = false;
+      if (DView->ViewStyle == vsReport)
+      {
+        TRect DisplayRect = Item->DisplayRect(drBounds);
+        if (DisplayRect.Bottom > DView->ClientHeight)
+        {
+          DView->Scroll(0, Item->Top - DView->TopItem->Top);
+        }
+      }
       Item->MakeVisible(false);
     }
   }
@@ -747,7 +795,7 @@ void __fastcall TCustomScpExplorerForm::CustomCommand(TStrings * FileList,
 
       AnsiString TempDir;
 
-      TemporarilyDownloadFiles(FileList, false, TempDir);
+      TemporarilyDownloadFiles(FileList, false, TempDir, false, false);
 
       try
       {
@@ -1156,6 +1204,7 @@ void __fastcall TCustomScpExplorerForm::EditNew(TOperationSide Side)
   AnsiString Name = LoadStr(NEW_FILE);
   if (InputDialog(LoadStr(NEW_FILE_CAPTION), LoadStr(NEW_FILE_PROMPT), Name))
   {
+    AnsiString TargetFileName;
     AnsiString LocalFileName;
     AnsiString TempDir;
     if (Side == osRemote)
@@ -1166,7 +1215,9 @@ void __fastcall TCustomScpExplorerForm::EditNew(TOperationSide Side)
         throw Exception(FMTLOAD(CREATE_TEMP_DIR_ERROR, (TempDir)));
       }
 
-      LocalFileName = TempDir + UnixExtractFileName(Name);
+      TargetFileName = UnixExtractFileName(Name);
+      LocalFileName = TempDir + 
+        GUIConfiguration->CopyParam.ChangeFileName(TargetFileName, osRemote, false);
     }
     else
     {
@@ -1178,6 +1229,8 @@ void __fastcall TCustomScpExplorerForm::EditNew(TOperationSide Side)
       {
         LocalFileName = ExpandFileName(Name);
       }
+
+      TargetFileName = ExtractFileName(Name);
     }
 
     if (!FileExists(LocalFileName))
@@ -1197,7 +1250,7 @@ void __fastcall TCustomScpExplorerForm::EditNew(TOperationSide Side)
       }
     }
 
-    CustomExecuteFile(Side, efEditor, LocalFileName);
+    CustomExecuteFile(Side, efEditor, LocalFileName, TargetFileName);
   }
 }
 //---------------------------------------------------------------------------
@@ -1215,7 +1268,7 @@ bool __fastcall TCustomScpExplorerForm::RemoteExecuteForceText(
 }
 //---------------------------------------------------------------------------
 void __fastcall TCustomScpExplorerForm::CustomExecuteFile(TOperationSide Side,
-  TExecuteFileBy ExecuteFileBy, AnsiString FileName)
+  TExecuteFileBy ExecuteFileBy, AnsiString FileName, AnsiString OriginalFileName)
 {
   assert(!WinConfiguration->DisableOpenEdit);
 
@@ -1234,6 +1287,7 @@ void __fastcall TCustomScpExplorerForm::CustomExecuteFile(TOperationSide Side,
     Data.ForceText = RemoteExecuteForceText(ExecuteFileBy);
     Data.RemoteDirectory = RemoteDirView->PathName;
     Data.SessionName = Terminal->SessionData->SessionName;
+    Data.OriginalFileName = OriginalFileName;
   }
 
   bool SingleEditor = WinConfiguration->Editor.SingleEditor;
@@ -1255,7 +1309,8 @@ void __fastcall TCustomScpExplorerForm::CustomExecuteFile(TOperationSide Side,
     {
       if (Side == osRemote)
       {
-        AnsiString Caption = RemoteDirView->Path + ExtractFileName(FileName);
+        AnsiString Caption = RemoteDirView->Path + OriginalFileName +
+          " - " + Terminal->SessionData->SessionName;
         TForm * Editor = ShowEditorForm(FileName, this, FEditorManager->FileChanged,
           FEditorManager->FileClosed, Caption, !SingleEditor);
 
@@ -1293,12 +1348,27 @@ void __fastcall TCustomScpExplorerForm::CustomExecuteFile(TOperationSide Side,
         }
       }
 
-      if (Side == osRemote)
+      if ((Side == osLocal) ||
+          (Edit && !SingleEditor && WinConfiguration->Editor.MDIExternalEditor))
+      {
+        // no need for handle
+        if (Process != NULL)
+        {
+          CHECK(CloseHandle(Process));
+          Process = NULL;
+        }
+        Process = INVALID_HANDLE_VALUE;
+      }
+      else
       {
         if (Process == NULL)
         {
           throw Exception(LoadStr(OPEN_FILE_NO_PROCESS));
         }
+      }
+      
+      if (Side == osRemote)
+      {
         FEditorManager->AddFileExternal(FileName, Data, PCloseFlag, Process);
       }
     }
@@ -1322,7 +1392,8 @@ void __fastcall TCustomScpExplorerForm::CustomExecuteFile(TOperationSide Side,
 }
 //---------------------------------------------------------------------------
 void __fastcall TCustomScpExplorerForm::TemporarilyDownloadFiles(
-  TStrings * FileList, bool ForceText, AnsiString & TempDir)
+  TStrings * FileList, bool ForceText, AnsiString & TempDir, bool AllFiles,
+  bool GetTargetNames)
 {
   TCopyParamType CopyParam = GUIConfiguration->CopyParam;
   if (ForceText)
@@ -1332,6 +1403,12 @@ void __fastcall TCustomScpExplorerForm::TemporarilyDownloadFiles(
   CopyParam.FileNameCase = ncNoChange;
   CopyParam.PreserveReadOnly = false;
   CopyParam.ResumeSupport = rsOff;
+  CopyParam.ReplaceInvalidChars = true;
+  CopyParam.FileMask = "";
+  if (AllFiles)
+  {
+    CopyParam.ExcludeFileMask = TFileMasks();
+  }
 
   TempDir = WinConfiguration->TemporaryDir();
   if (!ForceDirectories(TempDir))
@@ -1346,6 +1423,15 @@ void __fastcall TCustomScpExplorerForm::TemporarilyDownloadFiles(
     try
     {
       Terminal->CopyToLocal(FileList, TempDir, &CopyParam, cpTemporary);
+
+      if (GetTargetNames)
+      {
+        for (int i = 0; i < FileList->Count; i++)
+        {
+          FileList->Strings[i] = 
+            CopyParam.ChangeFileName(FileList->Strings[i], osRemote, false);
+        }
+      }
     }
     catch(...)
     {
@@ -1373,11 +1459,7 @@ void __fastcall TCustomScpExplorerForm::ExecuteFile(TOperationSide Side,
 
   Side = GetSide(Side);
 
-  if ((Side == osRemote) && !FEditorManager->CanAddFile())
-  {
-    throw Exception(LoadStr(TOO_MANY_EDITORS));
-  }
-
+  AnsiString OriginalFileName;
   AnsiString FileName;
 
   TStrings * FileList = DirView(Side)->CreateFocusedFileList(Side == osLocal);
@@ -1386,13 +1468,32 @@ void __fastcall TCustomScpExplorerForm::ExecuteFile(TOperationSide Side,
     assert(FileList->Count == 1);
     if (Side == osRemote)
     {
+      OriginalFileName = FileList->Strings[0];
+
+      TObject * Token = NULL;
+      if (!FEditorManager->CanAddFile(RemoteDirView->PathName, OriginalFileName, Token))
+      {
+        if (Token != NULL)
+        {
+          TForm * Form = dynamic_cast<TForm *>(Token);
+          Form->SetFocus();
+          Abort();
+        }
+        else
+        {
+          throw Exception(FMTLOAD(ALREADY_EDITED_EXTERNALLY, (OriginalFileName)));
+        }
+      }
+
       AnsiString TempDir;
       TemporarilyDownloadFiles(FileList,
-        RemoteExecuteForceText(ExecuteFileBy), TempDir);
+        RemoteExecuteForceText(ExecuteFileBy), TempDir, true, true);
       FileName = TempDir + FileList->Strings[0];
     }
     else
     {
+      // not used anyway
+      OriginalFileName = ExtractFileName(FileList->Strings[0]);
       FileName = FileList->Strings[0];
     }
   }
@@ -1401,7 +1502,7 @@ void __fastcall TCustomScpExplorerForm::ExecuteFile(TOperationSide Side,
     delete FileList;
   }
 
-  CustomExecuteFile(Side, ExecuteFileBy, FileName);
+  CustomExecuteFile(Side, ExecuteFileBy, FileName, OriginalFileName);
 }
 //---------------------------------------------------------------------------
 void __fastcall TCustomScpExplorerForm::ExecutedFileChanged(const AnsiString FileName,
@@ -1426,6 +1527,17 @@ void __fastcall TCustomScpExplorerForm::ExecutedFileChanged(const AnsiString Fil
     CopyParam.FileNameCase = ncNoChange;
     CopyParam.PreserveRights = false;
     CopyParam.ResumeSupport = rsOff;
+    // so i do not need to worry if masking algorithm works in all cases
+    // ("" means "copy file name", no masking is actually done)
+    if (ExtractFileName(FileName) == Data.OriginalFileName)
+    {
+      CopyParam.FileMask = "";
+    }
+    else
+    {
+      CopyParam.FileMask = DelimitFileNameMask(Data.OriginalFileName);
+    }
+    CopyParam.ReplaceInvalidChars = true; // not used for uploads anyway
 
     if (WinConfiguration->Editor.SingleEditor)
     {
@@ -1460,6 +1572,32 @@ void __fastcall TCustomScpExplorerForm::ExecutedFileChanged(const AnsiString Fil
   __finally
   {
     delete FileList;
+  }
+}
+//---------------------------------------------------------------------------
+void __fastcall TCustomScpExplorerForm::ExecutedFileEarlyClosed(
+  const AnsiString FileName, bool * CloseFlag, bool & KeepOpen)
+{
+  // Sanity check (MDIExternalEditor should be disabled if this happens).
+  // CloseFlag is set for single editors only.
+  if (!WinConfiguration->Editor.MDIExternalEditor &&
+      (CloseFlag == NULL) &&
+      WinConfiguration->Editor.DetectMDIExternalEditor)
+  {
+    TMessageParams Params(mpNeverAskAgainCheck);
+    int Answer = MessageDialog(FMTLOAD(EDITOR_EARLY_CLOSED, (FileName)), qtWarning,
+      qaYes | qaNo, 0, &Params);
+    switch (Answer)
+    {
+      case qaNeverAskAgain:
+        WinConfiguration->Editor.DetectMDIExternalEditor = false;
+        break;
+
+      case qaNo:
+        WinConfiguration->Editor.MDIExternalEditor = true;
+        KeepOpen = true;
+        break;
+    }
   }
 }
 //---------------------------------------------------------------------------
@@ -1684,7 +1822,7 @@ void __fastcall TCustomScpExplorerForm::UpdateStatusBar()
     SessionStatusBar->Panels->Items[Index + 1]->Text = FormatBytes(Terminal->BytesSent);
     SessionStatusBar->Panels->Items[Index + 5]->Text = Terminal->ProtocolName;
     SessionStatusBar->Panels->Items[Index + 6]->Text =
-      FormatDateTime(Configuration->TimeFormat, Terminal->Duration);
+      FormatDateTimeSpan(Configuration->TimeFormat, Terminal->Duration);
   }
 }
 //---------------------------------------------------------------------------
@@ -1960,6 +2098,7 @@ void __fastcall TCustomScpExplorerForm::FormCloseQuery(TObject * /*Sender*/,
   if (CanClose)
   {
     CanClose = FEditorManager->CloseInternalEditors(CloseInternalEditor) &&
+      FEditorManager->CloseExternalFilesWithoutProcess() &&
       (FEditorManager->Empty(true) ||
        (MessageDialog(LoadStr(PENDING_EDITORS), qtWarning, qaIgnore | qaCancel) == qaIgnore));
   }
@@ -2108,7 +2247,8 @@ void __fastcall TCustomScpExplorerForm::DoDirViewExecFile(TObject * Sender,
   assert(Sender && Item && Configuration);
   TCustomDirView * ADirView = (TCustomDirView *)Sender;
   if (ADirView->ItemIsDirectory(Item) ||
-      !Terminal->SessionData->ResolveSymlinks || !Terminal->IsCapable[fcResolveSymlink])
+      (!FForceExecution &&
+       (!Terminal->SessionData->ResolveSymlinks || !Terminal->IsCapable[fcResolveSymlink])))
   {
     AllowExec = true;
   }
@@ -2721,6 +2861,25 @@ void __fastcall TCustomScpExplorerForm::CMAppSysCommand(TMessage & Message)
   }
 }
 //---------------------------------------------------------------------------
+void __fastcall TCustomScpExplorerForm::WMSysCommand(TMessage & Message)
+{
+  // SC_RESTORE, SC_MAXIMIZE, SC_MINIMIZE - buttons on windows title
+  // SC_DEFAULT - double click on windows title (does not work, at least on WinXP)
+  // 61730 - restore thru double click - undocumented
+  // 61490 - maximize thru double click - undocumented
+  if ((Message.WParam == SC_RESTORE) || (Message.WParam == SC_MAXIMIZE) ||
+      (Message.WParam == SC_MINIMIZE) || (Message.WParam == SC_DEFAULT) ||
+      (Message.WParam == 61730) || (Message.WParam == 61490))
+  {
+    SysResizing(Message.WParam);
+  }
+  TForm::Dispatch(&Message);
+}
+//---------------------------------------------------------------------------
+void __fastcall TCustomScpExplorerForm::SysResizing(unsigned int /*Cmd*/)
+{
+}
+//---------------------------------------------------------------------------
 void __fastcall TCustomScpExplorerForm::DoShow()
 {
   FixControlsPlacement();
@@ -3137,22 +3296,41 @@ void __fastcall TCustomScpExplorerForm::PanelExport(TOperationSide Side,
   TStringList * ExportData = new TStringList();
   try
   {
-    if (Export == pePath)
+    switch (Export)
     {
-      ExportData->Add(DirView->PathName);
-    }
-    else
-    {
-      bool FullPath = (Export == peFullFileList);
-      DirView->CreateFileList(OnFocused, FullPath, ExportData);
-      AnsiString FileName;
-      for (int Index = 0; Index < ExportData->Count; Index++)
-      {
-        if (ExportData->Strings[Index].Pos(" ") > 0)
+      case pePath:
+        ExportData->Add(DirView->PathName);
+        break;
+
+      case peFileList:
+      case peFullFileList:
         {
-          ExportData->Strings[Index] = FORMAT("\"%s\"", (ExportData->Strings[Index]));
+          bool FullPath = (Export == peFullFileList);
+          DirView->CreateFileList(OnFocused, FullPath, ExportData);
+          AnsiString FileName;
+          for (int Index = 0; Index < ExportData->Count; Index++)
+          {
+            if (ExportData->Strings[Index].Pos(" ") > 0)
+            {
+              ExportData->Strings[Index] = FORMAT("\"%s\"", (ExportData->Strings[Index]));
+            }
+          }
         }
-      }
+
+      case peUrl:
+        {
+          assert(DirView == RemoteDirView);
+          DirView->CreateFileList(OnFocused, true, ExportData);
+          for (int Index = 0; Index < ExportData->Count; Index++)
+          {
+            ExportData->Strings[Index] = 
+              FTerminal->FileUrl(ExportData->Strings[Index]);
+          }
+        }
+        break;
+
+      default:
+        assert(false);
     }
 
     PanelExportStore(Side, Export, Destination, ExportData);
@@ -3480,4 +3658,44 @@ void __fastcall TCustomScpExplorerForm::DirViewMatchMask(
   Matches = M.Matches(FileName);
 }
 //---------------------------------------------------------------------------
+void __fastcall TCustomScpExplorerForm::RemoteDirViewGetOverlay(
+  TObject * Sender, TListItem * Item, WORD & Indexes)
+{
+  TCustomDirView * DirView = reinterpret_cast<TCustomDirView *>(Sender);
+  AnsiString Ext;
+  if (DirView == RemoteDirView)
+  {
+    Ext = UnixExtractFileExt(DirView->ItemFileName(Item));
+  }
+  else
+  {
+    Ext = ExtractFileExt(DirView->ItemFileName(Item));
+  }
 
+  if (SameText(Ext, Configuration->PartialExt))
+  {
+    Indexes |= oiPartial;
+  }
+}
+//---------------------------------------------------------------------------
+void __fastcall TCustomScpExplorerForm::SessionComboResizerMoved(
+  TObject * Sender)
+{
+  TControl * Control = dynamic_cast<TControl *>(Sender);
+  assert(Control != NULL);
+  TToolBar * ToolBar = dynamic_cast<TToolBar *>(Control->Parent);
+  assert(ToolBar != NULL);
+  TCoolBar * CoolBar = dynamic_cast<TCoolBar *>(ToolBar->Parent);
+  assert(CoolBar != NULL);
+  SetCoolBandsMinWidth(CoolBar);
+}
+//---------------------------------------------------------------------------
+void __fastcall TCustomScpExplorerForm::SessionComboResizerDblClick(TObject * /*Sender*/)
+{
+  TComboBox * SessionCombo = dynamic_cast<TComboBox *>(GetComponent(fcSessionCombo));
+  if (SessionCombo != NULL)
+  {
+    SessionCombo->Width = 114; // default
+  }
+}
+//---------------------------------------------------------------------------

@@ -18,6 +18,8 @@ struct TOverwriteFileParams;
 struct TSynchronizeData;
 typedef TStringList TUsersGroupsList;
 typedef void __fastcall (__closure *TReadDirectoryEvent)(System::TObject* Sender, Boolean ReloadOnly);
+typedef void __fastcall (__closure *TReadDirectoryProgressEvent)(
+  System::TObject* Sender, int Progress);
 typedef void __fastcall (__closure *TProcessFileEvent)
   (const AnsiString FileName, const TRemoteFile * File, void * Param);
 typedef int __fastcall (__closure *TFileOperationEvent)
@@ -125,6 +127,7 @@ private:
   TReadDirectoryEvent FOnReadDirectory;
   TDirectoryModifiedEvent FOnDirectoryModified;
   TNotifyEvent FOnStartReadDirectory;
+  TReadDirectoryProgressEvent FOnReadDirectoryProgress;
   TDeleteLocalFileEvent FOnDeleteLocalFile;
   TUsersGroupsList * FGroups;
   TUsersGroupsList * FUsers;
@@ -141,6 +144,8 @@ private:
   TCurrentFSProtocol FFSProtocol;
   TTerminal * FCommandSession;
   bool FAutoReadDirectory;
+  bool FReadingCurrentDirectory;
+  bool * FClosedOnCompletion;
   void __fastcall CommandError(Exception * E, const AnsiString Msg);
   int __fastcall CommandError(Exception * E, const AnsiString Msg, int Answers);
   AnsiString __fastcall PeekCurrentDirectory();
@@ -165,6 +170,7 @@ protected:
 
   virtual void __fastcall KeepAlive();
   void __fastcall DoStartReadDirectory();
+  void __fastcall DoReadDirectoryProgress(int Progress);
   void __fastcall DoReadDirectory(bool ReloadOnly);
   void __fastcall DoDirectoryModified(const AnsiString Path, bool SubDirs);
   void __fastcall DoCreateDirectory(const AnsiString DirName,
@@ -291,6 +297,7 @@ public:
     TRemoteFileList *& FileList, bool CanLoad);
   void __fastcall MakeLocalFileList(const AnsiString FileName, 
     const TSearchRec Rec, void * Param);
+  AnsiString __fastcall FileUrl(const AnsiString FileName);
 
   static bool __fastcall IsAbsolutePath(const AnsiString Path);
   static AnsiString __fastcall ExpandFileName(AnsiString Path,
@@ -303,6 +310,7 @@ public:
   __property TReadDirectoryEvent OnReadDirectory = { read = FOnReadDirectory, write = FOnReadDirectory };
   __property TDirectoryModifiedEvent OnDirectoryModified = { read = FOnDirectoryModified, write = FOnDirectoryModified };
   __property TNotifyEvent OnStartReadDirectory = { read = FOnStartReadDirectory, write = FOnStartReadDirectory };
+  __property TReadDirectoryProgressEvent OnReadDirectoryProgress = { read = FOnReadDirectoryProgress, write = FOnReadDirectoryProgress };
   __property TDeleteLocalFileEvent OnDeleteLocalFile = { read = FOnDeleteLocalFile, write = FOnDeleteLocalFile };
   __property TUsersGroupsList * Groups = { read = GetGroups };
   __property TUsersGroupsList * Users = { read = GetUsers };

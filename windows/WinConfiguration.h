@@ -19,10 +19,11 @@ struct TScpExplorerConfiguration {
   bool ShowFullAddress;
   bool DriveView;
   int DriveViewWidth;
+  int SessionComboWidth;
   bool __fastcall operator !=(TScpExplorerConfiguration & rhc)
     { return C(WindowParams) C(DirViewParams) C(CoolBarLayout) C(StatusBar)
         C(LastLocalTargetDirectory) C(ViewStyle) C(ShowFullAddress)
-        C(DriveView) C(DriveViewWidth) 0; };
+        C(DriveView) C(DriveViewWidth) C(SessionComboWidth) 0; };
 };
 //---------------------------------------------------------------------------
 struct TScpCommanderPanelConfiguration {
@@ -52,11 +53,13 @@ struct TScpCommanderConfiguration {
   bool CompareBySize;
   bool SynchronizeBrowsing;
   bool SwappedPanels;
+  int SessionComboWidth;
   bool __fastcall operator !=(TScpCommanderConfiguration & rhc)
     { return C(WindowParams) C(LocalPanelWidth) C(CoolBarLayout) C(StatusBar)
       C(LocalPanel) C(RemotePanel) C(CurrentPanel) C(ToolBar) C(CommandLine)
       C(ExplorerStyleSelection) C(PreserveLocalDirectory)
-      C(CompareBySize) C(CompareByTime) C(SynchronizeBrowsing) C(SwappedPanels) 0; };
+      C(CompareBySize) C(CompareByTime) C(SynchronizeBrowsing) C(SwappedPanels) 
+      C(SessionComboWidth) 0; };
 
   TCompareCriterias __fastcall CompareCriterias()
   {
@@ -87,10 +90,15 @@ struct TEditorConfiguration {
   bool FindMatchCase;
   bool FindWholeWord;
   bool SingleEditor;
+  bool MDIExternalEditor;
+  bool DetectMDIExternalEditor;
+  unsigned int MaxEditors;
+  unsigned int EarlyClose;
   bool __fastcall operator !=(TEditorConfiguration & rhc)
     { return C(Editor) C(ExternalEditor) C(ExternalEditorText) C(FontName) C(FontHeight)
       C(FontCharset) C(FontStyle) C(WordWrap) C(FindText) C(ReplaceText)
-      C(FindMatchCase) C(FindWholeWord) C(SingleEditor) 0; };
+      C(FindMatchCase) C(FindWholeWord) C(SingleEditor) C(MDIExternalEditor)
+      C(DetectMDIExternalEditor) C(MaxEditors) C(EarlyClose) 0; };
 };
 //---------------------------------------------------------------------------
 enum TQueueViewShow { qvShow, qvHideWhenEmpty, qvHide };
@@ -153,6 +161,10 @@ private:
   int FDDDeleteDelay;
   bool FTemporaryDirectoryCleanup;
   bool FConfirmTemporaryDirectoryCleanup;
+  AnsiString FDefaultTranslationFile;
+  bool FInvalidDefaultTranslation;
+  AnsiString FInvalidDefaultTranslationMessage;
+  bool FPreservePanelState;
 
   void __fastcall SetCopyOnDoubleClick(bool value);
   void __fastcall SetCopyOnDoubleClickConfirmation(bool value);
@@ -188,6 +200,7 @@ private:
   void __fastcall SetCustomCommands(TCustomCommands * value);
   void __fastcall SetTemporaryDirectoryCleanup(bool value);
   void __fastcall SetConfirmTemporaryDirectoryCleanup(bool value);
+  void __fastcall SetPreservePanelState(bool value);
 
   bool __fastcall GetDDExtInstalled();
 
@@ -225,6 +238,8 @@ public:
   AnsiString __fastcall TemporaryDir(bool Mask = false);
   TStrings * __fastcall FindTemporaryFolders();
   void __fastcall CleanupTemporaryFolders(TStrings * Folders = NULL);
+  void __fastcall CheckDefaultTranslation();
+  bool __fastcall ConfirmRemoveDefaultTranslation();
 
   __property TScpCommanderConfiguration ScpCommander = { read = FScpCommander, write = SetScpCommander };
   __property TScpExplorerConfiguration ScpExplorer = { read = FScpExplorer, write = SetScpExplorer };
@@ -264,6 +279,9 @@ public:
   __property int DDDeleteDelay = { read = FDDDeleteDelay };
   __property bool TemporaryDirectoryCleanup = { read = FTemporaryDirectoryCleanup, write = SetTemporaryDirectoryCleanup };
   __property bool ConfirmTemporaryDirectoryCleanup = { read = FConfirmTemporaryDirectoryCleanup, write = SetConfirmTemporaryDirectoryCleanup };
+  __property bool PreservePanelState = { read = FPreservePanelState, write = SetPreservePanelState };
+  __property bool InvalidDefaultTranslation = { read = FInvalidDefaultTranslation };
+  __property AnsiString DefaultTranslationFile = { read = FDefaultTranslationFile };
 };
 //---------------------------------------------------------------------------
 class TCustomCommands : public TStringList

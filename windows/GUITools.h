@@ -38,6 +38,7 @@ AnsiString __fastcall UniqTempDir(const AnsiString BaseDir,
   const AnsiString Identity, bool Mask = false);
 bool __fastcall DeleteDirectory(const AnsiString DirName);
 AnsiString __fastcall TranslateExceptionMessage(const Exception * E);
+AnsiString __fastcall FormatDateTimeSpan(const AnsiString TimeFormat, TDateTime DateTime);
 //---------------------------------------------------------------------------
 class TLocalCustomCommand : public TFileCustomCommand
 {
