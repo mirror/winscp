@@ -21,24 +21,6 @@
 //---------------------------------------------------------------------------
 #pragma package(smart_init)
 //---------------------------------------------------------------------------
-inline void __fastcall OemToAnsi(AnsiString & Str)
-{
-  if (!Str.IsEmpty())
-  {
-    Str.Unique();
-    OemToChar(Str.c_str(), Str.c_str());
-  }
-}
-//---------------------------------------------------------------------------
-inline void __fastcall AnsiToOem(AnsiString & Str)
-{
-  if (!Str.IsEmpty())
-  {
-    Str.Unique();
-    CharToOem(Str.c_str(), Str.c_str());
-  }
-}
-//---------------------------------------------------------------------------
 class TConsole
 {
 public:

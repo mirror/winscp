@@ -105,8 +105,12 @@ void __fastcall TSessionData::Default()
   SFTPDownloadQueue = 4;
   SFTPUploadQueue = 4;
   SFTPListingQueue = 2;
-  SFTPSymlinkBug = asAuto;
   SFTPMaxVersion = 5;
+
+  for (int Index = 0; Index < LENOF(FSFTPBugs); Index++)
+  {
+    SFTPBug[(TSftpBug)Index] = asAuto;
+  }
 
   CustomParam1 = "";
   CustomParam2 = "";
@@ -196,8 +200,12 @@ void __fastcall TSessionData::Assign(TPersistent * Source)
     DUPL(SFTPDownloadQueue);
     DUPL(SFTPUploadQueue);
     DUPL(SFTPListingQueue);
-    DUPL(SFTPSymlinkBug);
     DUPL(SFTPMaxVersion);
+
+    for (int Index = 0; Index < LENOF(FSFTPBugs); Index++)
+    {
+      DUPL(SFTPBug[(TSftpBug)Index]);
+    }
 
     DUPL(CustomParam1);
     DUPL(CustomParam2);
@@ -445,7 +453,12 @@ void __fastcall TSessionData::Load(THierarchicalStorage * Storage)
         Bug[sbHMAC2] = asOn;
     }
 
-    SFTPSymlinkBug = TAutoSwitch(Storage->ReadInteger("SFTPSymlinkBug", SFTPSymlinkBug));
+    #define READ_SFTP_BUG(BUG) \
+      SFTPBug[sb##BUG] = TAutoSwitch(Storage->ReadInteger("SFTP" #BUG "Bug", SFTPBug[sb##BUG]));
+    READ_SFTP_BUG(Symlink);
+    READ_SFTP_BUG(Utf);
+    #undef READ_SFTP_BUG
+
     SFTPMaxVersion = Storage->ReadInteger("SFTPMaxVersion", SFTPMaxVersion);
 
     // read only (used only on Import from Putty dialog)
@@ -610,7 +623,11 @@ void __fastcall TSessionData::Save(THierarchicalStorage * Storage,
 
     if (!PuttyExport)
     {
-      WRITE_DATA(Integer, SFTPSymlinkBug);
+      #define WRITE_SFTP_BUG(BUG) WRITE_DATA_EX(Integer, "SFTP" #BUG "Bug", SFTPBug[sb##BUG], );
+      WRITE_SFTP_BUG(Symlink);
+      WRITE_SFTP_BUG(Utf);
+      #undef WRITE_SFTP_BUG
+
       WRITE_DATA(Integer, SFTPMaxVersion);
 
       WRITE_DATA(String, CustomParam1);
@@ -1255,9 +1272,16 @@ void __fastcall TSessionData::SetSFTPMaxVersion(int value)
   SET_SESSION_PROPERTY(SFTPMaxVersion);
 }
 //---------------------------------------------------------------------
-void __fastcall TSessionData::SetSFTPSymlinkBug(TAutoSwitch value)
+void __fastcall TSessionData::SetSFTPBug(TSftpBug Bug, TAutoSwitch value)
 {
-  SET_SESSION_PROPERTY(SFTPSymlinkBug);
+  assert(Bug >= 0 && Bug < LENOF(FSFTPBugs));
+  SET_SESSION_PROPERTY(SFTPBugs[Bug]);
+}
+//---------------------------------------------------------------------
+TAutoSwitch __fastcall TSessionData::GetSFTPBug(TSftpBug Bug) const
+{
+  assert(Bug >= 0 && Bug < LENOF(FSFTPBugs));
+  return FSFTPBugs[Bug];
 }
 //---------------------------------------------------------------------
 void __fastcall TSessionData::SetSCPLsFullTime(TAutoSwitch value)

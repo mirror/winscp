@@ -20,6 +20,8 @@ enum TSshProt { ssh1only, ssh1, ssh2, ssh2only };
 enum TSshBug { sbIgnore1, sbPlainPW1, sbRSA1, sbHMAC2, sbDeriveKey2, sbRSAPad2,
   sbDHGEx2, sbPKSessID2 };
 #define BUG_COUNT (sbPKSessID2+1)
+enum TSftpBug { sbSymlink, sbUtf };
+#define SFTP_BUG_COUNT (sbUtf+1)
 enum TAutoSwitch { asOn, asOff, asAuto };
 enum TPingType { ptOff, ptNullPacket, ptDummyCommand };
 const puRequireUsername =     0x01;
@@ -93,7 +95,7 @@ private:
   int FSFTPListingQueue;
   int FSFTPMaxVersion;
   bool FConsiderDST;
-  TAutoSwitch FSFTPSymlinkBug;
+  TAutoSwitch FSFTPBugs[SFTP_BUG_COUNT];
   bool FDeleteToRecycleBin;
   bool FOverwrittenToRecycleBin;
   AnsiString FRecycleBinPath;
@@ -174,7 +176,8 @@ private:
   void __fastcall SetSFTPUploadQueue(int value);
   void __fastcall SetSFTPListingQueue(int value);
   void __fastcall SetSFTPMaxVersion(int value);
-  void __fastcall SetSFTPSymlinkBug(TAutoSwitch value);
+  void __fastcall SetSFTPBug(TSftpBug Bug, TAutoSwitch value);
+  TAutoSwitch __fastcall GetSFTPBug(TSftpBug Bug) const;
   void __fastcall SetSCPLsFullTime(TAutoSwitch value);
   AnsiString __fastcall GetStorageKey();
   void __fastcall SetConsiderDST(bool value);
@@ -266,7 +269,7 @@ public:
   __property int SFTPUploadQueue = { read = FSFTPUploadQueue, write = SetSFTPUploadQueue };
   __property int SFTPListingQueue = { read = FSFTPListingQueue, write = SetSFTPListingQueue };
   __property int SFTPMaxVersion = { read = FSFTPMaxVersion, write = SetSFTPMaxVersion };
-  __property TAutoSwitch SFTPSymlinkBug = { read = FSFTPSymlinkBug, write = SetSFTPSymlinkBug };
+  __property TAutoSwitch SFTPBug[TSftpBug Bug]  = { read=GetSFTPBug, write=SetSFTPBug };
   __property TAutoSwitch SCPLsFullTime = { read = FSCPLsFullTime, write = SetSCPLsFullTime };
   __property bool ConsiderDST = { read = FConsiderDST, write = SetConsiderDST };
   __property bool DeleteToRecycleBin = { read = FDeleteToRecycleBin, write = SetDeleteToRecycleBin };

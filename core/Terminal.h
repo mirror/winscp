@@ -172,7 +172,7 @@ protected:
   void __fastcall DoDeleteFile(const AnsiString FileName,
     const TRemoteFile * File, void * Param);
   void __fastcall DoCustomCommandOnFile(AnsiString FileName,
-    const TRemoteFile * File, AnsiString Command, int Params);
+    const TRemoteFile * File, AnsiString Command, int Params, TLogAddLineEvent OutputEvent);
   void __fastcall DoRenameFile(const AnsiString FileName,
     const AnsiString NewName, bool Move);
   void __fastcall DoCopyFile(const AnsiString FileName, const AnsiString NewName);
@@ -256,7 +256,8 @@ public:
   bool __fastcall DeleteLocalFiles(TStrings * FileList);
   void __fastcall CustomCommandOnFile(AnsiString FileName,
     const TRemoteFile * File, void * AParams);
-  void __fastcall CustomCommandOnFiles(AnsiString Command, int Params, TStrings * Files);
+  void __fastcall CustomCommandOnFiles(AnsiString Command, int Params, 
+    TStrings * Files, TLogAddLineEvent OutputEvent);
   void __fastcall ChangeDirectory(const AnsiString Directory);
   void __fastcall DoStartup();
   void __fastcall EndTransaction();
@@ -288,6 +289,8 @@ public:
     TSynchronizeDirectory OnSynchronizeDirectory);
   bool __fastcall DirectoryFileList(const AnsiString Path,
     TRemoteFileList *& FileList, bool CanLoad);
+  void __fastcall MakeLocalFileList(const AnsiString FileName, 
+    const TSearchRec Rec, void * Param);
 
   static bool __fastcall IsAbsolutePath(const AnsiString Path);
   static AnsiString __fastcall ExpandFileName(AnsiString Path,
@@ -358,6 +361,7 @@ struct TCustomCommandParams
 {
   AnsiString Command;
   int Params;
+  TLogAddLineEvent OutputEvent;
 };
 //---------------------------------------------------------------------------
 struct TCalculateSizeParams
@@ -373,6 +377,13 @@ struct TOverwriteFileParams
   __int64 DestSize;
   TDateTime SourceTimestamp;
   TDateTime DestTimestamp;
+};
+//---------------------------------------------------------------------------
+struct TMakeLocalFileListParams
+{
+  TStrings * FileList;
+  bool IncludeDirs;
+  bool Recursive;
 };
 //---------------------------------------------------------------------------
 #endif

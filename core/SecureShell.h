@@ -6,6 +6,7 @@
 #include "Configuration.h"
 #include "Exceptions.h"
 #include "SessionData.h"
+#include "FileSystems.h"
 #define SSH_ERROR(x) throw ESsh(NULL, x)
 #define SSH_FATAL_ERROR_EXT(E, x) throw ESshFatal(E, x)
 #define SSH_FATAL_ERROR(x) SSH_FATAL_ERROR_EXT(NULL, x)
@@ -37,7 +38,6 @@ typedef void __fastcall (__closure *TExtendedExceptionEvent)
 enum TLogLineType {llOutput, llInput, llStdError, llMessage, llException};
 typedef Set<TLogLineType, llOutput, llException> TLogLineTypes;
 extern const TColor LogLineColors[];
-typedef void __fastcall (__closure *TLogAddLineEvent)(System::TObject* Sender, const AnsiString AddedLine);
 //---------------------------------------------------------------------------
 class TSessionLog : public TStringList
 {
@@ -128,6 +128,7 @@ private:
   Config * FConfig;
   AnsiString FSshVersionString;
   AnsiString FPassword;
+  AnsiString FHostKeyFingerprint;
   TLogAddLineEvent FOnStdError;
 
   unsigned PendLen;
@@ -172,6 +173,7 @@ private:
   AnsiString __fastcall GetPassword();
   bool __fastcall Select(int Sec);
   void __fastcall PoolForData(unsigned int & Result);
+  TDateTime __fastcall GetIdleInterval();
 
 protected:
   AnsiString StdError;
@@ -250,6 +252,7 @@ public:
   __property int SshVersion = { read = GetSshVersion };
   __property AnsiString SshVersionString = { read = FSshVersionString };
   __property AnsiString SshImplementation = { read = GetSshImplementation };
+  __property AnsiString HostKeyFingerprint = { read = FHostKeyFingerprint };
   __property TQueryUserEvent OnQueryUser = { read = FOnQueryUser, write = FOnQueryUser };
   __property TPromptUserEvent OnPromptUser = { read = FOnPromptUser, write = FOnPromptUser };
   __property TExtendedExceptionEvent OnShowExtendedException = { read = FOnShowExtendedException, write = FOnShowExtendedException };
@@ -259,6 +262,7 @@ public:
   __property int Status = { read = GetStatus };
   __property TObject * UserObject = { read = FUserObject, write = SetUserObject };
   __property AnsiString Password = { read = GetPassword };
+  __property TDateTime IdleInterval = { read = GetIdleInterval };
 };
 //---------------------------------------------------------------------------
 #endif

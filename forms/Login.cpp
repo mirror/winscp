@@ -91,6 +91,9 @@ void __fastcall TLoginDialog::InitControls()
   InitializeBugsCombo(BugRSAPad2Combo);
   InitializeBugsCombo(BugDHGEx2Combo);
   InitializeBugsCombo(BugPKSessID2Combo);
+
+  InitializeBugsCombo(SFTPBugSymlinkCombo);
+  InitializeBugsCombo(SFTPBugUtfCombo);
 }
 //---------------------------------------------------------------------
 void __fastcall TLoginDialog::Init()
@@ -222,6 +225,14 @@ void __fastcall TLoginDialog::LoadSession(TSessionData * aSessionData)
     OverwrittenToRecycleBinCheck->Checked = aSessionData->OverwrittenToRecycleBin;
     RecycleBinPathEdit->Text = aSessionData->RecycleBinPath;
 
+    // SFTP tab
+    #define LOAD_SFTP_BUG_COMBO(BUG) \
+      SFTPBug ## BUG ## Combo->ItemIndex = 2 - aSessionData->SFTPBug[sb ## BUG]; \
+      if (SFTPBug ## BUG ## Combo->ItemIndex < 0) SFTPBug ## BUG ## Combo->ItemIndex = 0
+    LOAD_SFTP_BUG_COMBO(Symlink);
+    LOAD_SFTP_BUG_COMBO(Utf);
+    #undef LOAD_SFTP_BUG_COMBO
+    
     // Authentication tab
     AuthTISCheck->Checked = aSessionData->AuthTIS;
     AuthKICheck->Checked = aSessionData->AuthKI;
@@ -409,7 +420,7 @@ void __fastcall TLoginDialog::SaveSession(TSessionData * aSessionData)
   aSessionData->OverwrittenToRecycleBin = OverwrittenToRecycleBinCheck->Checked;
   aSessionData->RecycleBinPath = RecycleBinPathEdit->Text;
 
-  // Shell tab
+  // SCP tab
   aSessionData->DefaultShell = DefaultShellButton->Checked;
   if (ShellEnterButton->Checked)
     aSessionData->Shell = ShellEdit->Text;
@@ -426,6 +437,12 @@ void __fastcall TLoginDialog::SaveSession(TSessionData * aSessionData)
   aSessionData->TimeDifference =
     (double(TimeDifferenceEdit->AsInteger) / 24) +
     (double(TimeDifferenceMinutesEdit->AsInteger) / 24 / 60);
+
+  // SFTP tab
+  #define SAVE_SFTP_BUG_COMBO(BUG) aSessionData->SFTPBug[sb ## BUG] = (TAutoSwitch)(2 - SFTPBug ## BUG ## Combo->ItemIndex);
+  SAVE_SFTP_BUG_COMBO(Symlink);
+  SAVE_SFTP_BUG_COMBO(Utf);
+  #undef SAVE_SFTP_BUG_COMBO
 
   // Proxy tab
   if (ProxyHTTPButton->Checked) aSessionData->ProxyMethod = pmHTTP;
@@ -528,6 +545,8 @@ void __fastcall TLoginDialog::UpdateControls()
         (DeleteToRecycleBinCheck->Enabled && DeleteToRecycleBinCheck->Checked) ||
         (OverwrittenToRecycleBinCheck->Enabled && OverwrittenToRecycleBinCheck->Checked));
       EnableControl(RecycleBinPathLabel, RecycleBinPathEdit->Enabled);
+
+      EnableControl(SftpSheet, !SCPonlyButton->Checked);
 
       AboutButton->Visible = (Options & loAbout);
       LanguagesButton->Visible = (Options & loLanguage);

@@ -19,6 +19,8 @@ enum TFSCommand { fsNull = 0, fsVarValue, fsLastLine, fsFirstLine,
   fsHomeDirectory, fsUnset, fsUnalias, fsAliasGroupList, fsCreateLink, fsCopyFile, 
   fsAnyCommand, fsReadSymlink, fsChangeProperties, fsMoveFile };
 //---------------------------------------------------------------------------
+typedef void __fastcall (__closure *TLogAddLineEvent)(System::TObject* Sender, const AnsiString AddedLine);
+//---------------------------------------------------------------------------
 class TCustomFileSystem : public TObject
 {
 public:
@@ -43,7 +45,7 @@ public:
   virtual void __fastcall DeleteFile(const AnsiString FileName,
     const TRemoteFile * File, bool Recursive) = 0;
   virtual void __fastcall CustomCommandOnFile(const AnsiString FileName,
-    const TRemoteFile * File, AnsiString Command, int Params) = 0;
+    const TRemoteFile * File, AnsiString Command, int Params, TLogAddLineEvent OutputEvent) = 0;
   virtual void __fastcall DoStartup() = 0;
   virtual void __fastcall HomeDirectory() = 0;
   virtual bool __fastcall IsCapable(int Capability) const = 0;

@@ -16,8 +16,6 @@
 #pragma package(smart_init)
 //---------------------------------------------------------------------------
 const char ShellCommandFileNamePattern[] = "!.!";
-const ccLocal = ccUser;
-const ccShowResults = ccUser << 1;
 //---------------------------------------------------------------------------
 __fastcall TWinConfiguration::TWinConfiguration(): TCustomWinConfiguration()
 {

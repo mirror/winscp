@@ -211,6 +211,12 @@ __published:
   TCheckBox *IgnoreLsWarningsCheck;
   TCheckBox *AliasGroupListCheck;
   TCheckBox *SCPLsFullTimeAutoCheck;
+  TTabSheet *SftpSheet;
+  TXPGroupBox *SFTPBugsGroupBox;
+  TLabel *Label10;
+  TLabel *Label16;
+  TComboBox *SFTPBugSymlinkCombo;
+  TComboBox *SFTPBugUtfCombo;
   void __fastcall DataChange(TObject *Sender);
   void __fastcall FormShow(TObject *Sender);
   void __fastcall SessionListViewSelectItem(TObject *Sender,

@@ -165,8 +165,6 @@ private:
   void __fastcall SessionComboChange(TObject * Sender);
   void __fastcall CloseInternalEditor(TObject * Sender);
   void __fastcall ForceCloseInternalEditor(TObject * Sender);
-  void __fastcall MakeFileList(const AnsiString FileName, const TSearchRec Rec,
-    void * Param);
   void __fastcall TerminalCaptureLog(TObject* Sender, const AnsiString AddedLine);
 
 protected:

@@ -939,6 +939,63 @@ object LoginDialog: TLoginDialog
           end
         end
       end
+      object SftpSheet: TTabSheet
+        Tag = 13
+        Hint = 'SFTP'
+        Caption = 'Sftp'
+        ImageIndex = 12
+        DesignSize = (
+          353
+          269)
+        object SFTPBugsGroupBox: TXPGroupBox
+          Left = 0
+          Top = 6
+          Width = 345
+          Height = 70
+          Anchors = [akLeft, akTop, akRight]
+          Caption = 'Detection of known bugs in SFTP servers'
+          TabOrder = 0
+          DesignSize = (
+            345
+            70)
+          object Label10: TLabel
+            Left = 12
+            Top = 20
+            Width = 222
+            Height = 13
+            Caption = '&Reverses order of symlink command arguments'
+            FocusControl = SFTPBugSymlinkCombo
+          end
+          object Label16: TLabel
+            Left = 12
+            Top = 44
+            Width = 200
+            Height = 13
+            Caption = 'Does not use &UTF-8 for SFTP4 and newer'
+            FocusControl = SFTPBugUtfCombo
+          end
+          object SFTPBugSymlinkCombo: TComboBox
+            Left = 272
+            Top = 15
+            Width = 61
+            Height = 21
+            Style = csDropDownList
+            Anchors = [akLeft, akTop, akRight]
+            ItemHeight = 13
+            TabOrder = 0
+          end
+          object SFTPBugUtfCombo: TComboBox
+            Left = 272
+            Top = 39
+            Width = 61
+            Height = 21
+            Style = csDropDownList
+            Anchors = [akLeft, akTop, akRight]
+            ItemHeight = 13
+            TabOrder = 1
+          end
+        end
+      end
       object LogSheet: TTabSheet
         Tag = 6
         Hint = 'Logging'
@@ -1629,17 +1686,18 @@ object LoginDialog: TLoginDialog
           0853657373696F6E5829000000000000000100000000000000FFFFFFFF000000
           00000000001053746F7265642073657373696F6E735821000000000000000600
           000000000000FFFFFFFF0000000000000000084C6F6767696E67582500000000
-          0000000400000000000000FFFFFFFF00000000020000000C456E7669726F6E6D
+          0000000400000000000000FFFFFFFF00000000030000000C456E7669726F6E6D
           656E745825000000000000000C00000000000000FFFFFFFF0000000000000000
           0C4469726563746F72696573581D000000000000000500000000000000FFFFFF
-          FF0000000000000000045343505824000000000000000800000000000000FFFF
-          FFFF00000000010000000B436F6E6E656374696F6E581F000000000000000900
-          000000000000FFFFFFFF00000000000000000650726F7879581D000000000000
-          000300000000000000FFFFFFFF00000000020000000453534858280000000000
-          00000B00000000000000FFFFFFFF00000000000000000F41757468656E746963
-          6174696F6E581E000000000000000A00000000000000FFFFFFFF000000000000
-          000005427567735825000000000000000700000020000000FFFFFFFF00000000
-          000000000C507265666572656E63657358}
+          FF000000000000000004534350581E000000000000000D00000000000000FFFF
+          FFFF000000000000000005534654505824000000000000000800000000000000
+          FFFFFFFF00000000010000000B436F6E6E656374696F6E581F00000000000000
+          0900000000000000FFFFFFFF00000000000000000650726F7879581D00000000
+          0000000300000000000000FFFFFFFF0000000002000000045353485828000000
+          000000000B00000000000000FFFFFFFF00000000000000000F41757468656E74
+          69636174696F6E581E000000000000000A00000000000000FFFFFFFF00000000
+          0000000005427567735825000000000000000700000020000000FFFFFFFF0000
+          0000000000000C507265666572656E63657358}
       end
       object ShowAdvancedLoginOptionsCheck: TCheckBox
         Left = 16

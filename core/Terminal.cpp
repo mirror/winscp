@@ -9,7 +9,6 @@
 
 #include "Common.h"
 #include "FileBuffer.h"
-#include "FileSystems.h"
 #include "Interface.h"
 #include "RemoteFiles.h"
 #include "ScpFileSystem.h"
@@ -1213,30 +1212,41 @@ void __fastcall TTerminal::CustomCommandOnFile(AnsiString FileName,
   LogEvent(FORMAT("Executing custom command \"%s\" (%d) on file \"%s\".",
     (Params->Command, Params->Params, FileName)));
   if (File) FileModified(File, FileName);
-  DoCustomCommandOnFile(FileName, File, Params->Command, Params->Params);
+  DoCustomCommandOnFile(FileName, File, Params->Command, Params->Params,
+    Params->OutputEvent);
   ReactOnCommand(fsAnyCommand);
 }
 //---------------------------------------------------------------------------
 void __fastcall TTerminal::DoCustomCommandOnFile(AnsiString FileName,
-  const TRemoteFile * File, AnsiString Command, int Params)
+  const TRemoteFile * File, AnsiString Command, int Params,
+  TLogAddLineEvent OutputEvent)
 {
   try
   {
     if (IsCapable[fcAnyCommand])
     {
       assert(FFileSystem);
-      FFileSystem->CustomCommandOnFile(FileName, File, Command, Params);
+      FFileSystem->CustomCommandOnFile(FileName, File, Command, Params, OutputEvent);
     }
     else
     {
       assert(CommandSessionOpened);
       assert(FCommandSession->FSProtocol == cfsSCP);
       LogEvent("Executing custom command on command session.");
-      FCommandSession->Log->OnAddLine = Log->AddFromOtherLog;
+      // TODO: we should set FCommandSession->Log->OnAddLine to 
+      // Log->AddFromOtherLog always as in AnyCommand()
+      // to log shell output, but it collides with OutputEvent, so currenly
+      // there's no logging when OutputEvent is required
+      assert(FCommandSession->Log->OnAddLine == NULL);
+      if (OutputEvent == NULL)
+      {
+        FCommandSession->Log->OnAddLine = Log->AddFromOtherLog;
+      }
+      
       try
       {
         FCommandSession->CurrentDirectory = CurrentDirectory;
-        FCommandSession->FFileSystem->CustomCommandOnFile(FileName, File, Command, Params);
+        FCommandSession->FFileSystem->CustomCommandOnFile(FileName, File, Command, Params, OutputEvent);
       }
       __finally
       {
@@ -1249,19 +1259,20 @@ void __fastcall TTerminal::DoCustomCommandOnFile(AnsiString FileName,
     COMMAND_ERROR_ARI
     (
       FMTLOAD(CUSTOM_COMMAND_ERROR, (Command, FileName)),
-      DoCustomCommandOnFile(FileName, File, Command, Params)
+      DoCustomCommandOnFile(FileName, File, Command, Params, OutputEvent)
     );
   }
 }
 //---------------------------------------------------------------------------
 void __fastcall TTerminal::CustomCommandOnFiles(AnsiString Command,
-  int Params, TStrings * Files)
+  int Params, TStrings * Files, TLogAddLineEvent OutputEvent)
 {
   if (!TRemoteCustomCommand().IsFileListCommand(Command))
   {
     TCustomCommandParams AParams;
     AParams.Command = Command;
     AParams.Params = Params;
+    AParams.OutputEvent = OutputEvent;
     ProcessFiles(Files, foCustomCommand, CustomCommandOnFile, &AParams);
   }
   else
@@ -1284,7 +1295,16 @@ void __fastcall TTerminal::CustomCommandOnFiles(AnsiString Command,
     }
     
     AnsiString Cmd = TRemoteCustomCommand("", FileList).Complete(Command, true);
-    AnyCommand(Cmd);
+    assert(Log->OnAddLine == NULL);
+    Log->OnAddLine = OutputEvent;
+    try
+    {
+      AnyCommand(Cmd);
+    }
+    __finally
+    {
+      Log->OnAddLine = NULL;
+    }  
   }
 }
 //---------------------------------------------------------------------------
@@ -1964,6 +1984,23 @@ void __fastcall TTerminal::OpenLocalFile(const AnsiString FileName,
 
   if (AAttrs) *AAttrs = Attrs;
   if (AHandle) *AHandle = Handle;
+}
+//---------------------------------------------------------------------------
+void __fastcall TTerminal::MakeLocalFileList(const AnsiString FileName,
+  const TSearchRec Rec, void * Param)
+{
+  TMakeLocalFileListParams & Params = *static_cast<TMakeLocalFileListParams*>(Param);
+
+  bool Directory = FLAGSET(Rec.Attr, faDirectory);
+  if (Directory && Params.Recursive)
+  {
+    ProcessLocalDirectory(FileName, MakeLocalFileList, &Params);
+  }
+
+  if (!Directory || Params.IncludeDirs)
+  {
+    Params.FileList->Add(FileName);
+  }
 }
 //---------------------------------------------------------------------------
 void __fastcall TTerminal::CalculateLocalFileSize(const AnsiString FileName,

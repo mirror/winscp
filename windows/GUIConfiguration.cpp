@@ -10,6 +10,9 @@
 //---------------------------------------------------------------------------
 #pragma package(smart_init)
 //---------------------------------------------------------------------------
+const ccLocal = ccUser;
+const ccShowResults = ccUser << 1;
+//---------------------------------------------------------------------------
 static const unsigned int AdditionaLanguageMask = 0xFFFFFF00;
 static const AnsiString AdditionaLanguagePrefix("XX");
 //---------------------------------------------------------------------------

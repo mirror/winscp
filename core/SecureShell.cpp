@@ -186,6 +186,12 @@ AnsiString __fastcall TSecureShell::GetPassword()
     DecryptPassword(FPassword, SessionData->SessionName));
 }
 //---------------------------------------------------------------------------
+TDateTime __fastcall TSecureShell::GetIdleInterval()
+{
+  return (FSessionData->PingType != ptOff) ? FSessionData->PingIntervalDT :
+   TDateTime(0);
+}
+//---------------------------------------------------------------------------
 bool __fastcall TSecureShell::PromptUser(const AnsiString Prompt,
   AnsiString & Response, bool IsPassword)
 {
@@ -926,6 +932,8 @@ void __fastcall TSecureShell::VerifyHostKey(const AnsiString Host, int Port,
 
   int Result;
 
+  FHostKeyFingerprint = Fingerprint;
+
   // Verify the key against the registry.
   Result = verify_host_key(Host.c_str(), Port, KeyType.c_str(), KeyStr.c_str());
   
@@ -1291,9 +1299,15 @@ void __fastcall TSessionLog::AddStartupInfo()
       char const * BugFlags = "A+-";
       for (int Index = 0; Index < BUG_COUNT; Index++)
       {
-        Bugs += AnsiString(BugFlags[Data->Bug[(TSshBug)Index]])+(Index<BUG_COUNT?",":"");
+        Bugs += AnsiString(BugFlags[Data->Bug[(TSshBug)Index]])+(Index<BUG_COUNT-1?",":"");
       }
       ADF("SSH Bugs: %s", (Bugs));
+      Bugs = "";
+      for (int Index = 0; Index < SFTP_BUG_COUNT; Index++)
+      {
+        Bugs += AnsiString(BugFlags[Data->SFTPBug[(TSftpBug)Index]])+(Index<SFTP_BUG_COUNT-1?",":"");
+      }
+      ADF("SFTP Bugs: %s", (Bugs));
       ADF("Proxy: %s", (ProxyMethodList[Data->ProxyMethod]));
       if (Data->ProxyMethod != pmNone)
       {

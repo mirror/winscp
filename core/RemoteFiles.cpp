@@ -289,6 +289,29 @@ AnsiString __fastcall MinimizeName(const AnsiString FileName, int MaxLen, bool U
   }
   return Result;
 }
+//---------------------------------------------------------------------------
+AnsiString __fastcall MakeFileList(TStrings * FileList)
+{
+  AnsiString Result;
+  for (int Index = 0; Index < FileList->Count; Index++)
+  {
+    if (!Result.IsEmpty())
+    {
+      Result += " ";
+    }
+
+    AnsiString FileName = FileList->Strings[Index];
+    if (FileName.Pos(" ") > 0)
+    {
+      Result += "\"" + FileName + "\"";
+    }
+    else
+    {
+      Result += FileName;
+    }
+  }
+  return Result;
+}
 //- TRemoteFiles ------------------------------------------------------------
 __fastcall TRemoteFile::TRemoteFile(TRemoteFile * ALinkedByFile):
   TPersistent()

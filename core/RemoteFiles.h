@@ -357,6 +357,7 @@ bool __fastcall IsUnixHiddenFile(const AnsiString Path);
 AnsiString __fastcall FromUnixPath(const AnsiString Path);
 AnsiString __fastcall ToUnixPath(const AnsiString Path);
 AnsiString __fastcall MinimizeName(const AnsiString FileName, int MaxLen, bool Unix);
+AnsiString __fastcall MakeFileList(TStrings * FileList);
 //---------------------------------------------------------------------------
 #endif
 

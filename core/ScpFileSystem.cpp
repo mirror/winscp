@@ -2,11 +2,11 @@
 #include <vcl.h>
 #pragma hdrstop
 
+#include "Terminal.h"
 #include "ScpFileSystem.h"
 
 #include "Common.h"
 #include "Interface.h"
-#include "Terminal.h"
 #include "TextsCore.h"
 
 #include <stdio.h>
@@ -1104,7 +1104,8 @@ void __fastcall TSCPFileSystem::ChangeFileProperties(const AnsiString FileName,
 }
 //---------------------------------------------------------------------------
 void __fastcall TSCPFileSystem::CustomCommandOnFile(const AnsiString FileName,
-    const TRemoteFile * File, AnsiString Command, int Params)
+    const TRemoteFile * File, AnsiString Command, int Params, 
+    TLogAddLineEvent OutputEvent)
 {
   assert(File);
   bool Dir = File->IsDirectory && !File->IsSymLink;
@@ -1113,6 +1114,7 @@ void __fastcall TSCPFileSystem::CustomCommandOnFile(const AnsiString FileName,
     TCustomCommandParams AParams;
     AParams.Command = Command;
     AParams.Params = Params;
+    AParams.OutputEvent = OutputEvent;
     FTerminal->ProcessDirectory(FileName, FTerminal->CustomCommandOnFile,
       &AParams);
   }
@@ -1121,7 +1123,16 @@ void __fastcall TSCPFileSystem::CustomCommandOnFile(const AnsiString FileName,
   {
     AnsiString Cmd = TRemoteCustomCommand(FileName, "").Complete(Command, true);
 
-    AnyCommand(Cmd);
+    assert(FTerminal->Log->OnAddLine == NULL);
+    FTerminal->Log->OnAddLine = OutputEvent;
+    try
+    {
+      AnyCommand(Cmd);
+    }
+    __finally
+    {
+      FTerminal->Log->OnAddLine = NULL;
+    }  
   }
 }
 //---------------------------------------------------------------------------

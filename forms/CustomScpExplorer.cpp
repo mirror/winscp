@@ -101,13 +101,6 @@ struct TTransferOperationParam
   bool DragDrop;
 };
 //---------------------------------------------------------------------------
-struct TMakeFileListParam
-{
-  TStrings * FileList;
-  bool IncludeDirs;
-  bool Recursive;
-};
-//---------------------------------------------------------------------------
 __fastcall TCustomScpExplorerForm::TCustomScpExplorerForm(TComponent* Owner):
     FFormRestored(False), TForm(Owner)
 {
@@ -688,7 +681,7 @@ void __fastcall TCustomScpExplorerForm::CustomCommand(TStrings * FileList,
 
       if (FLAGCLEAR(Params, ccShowResults))
       {
-        Terminal->CustomCommandOnFiles(Command, Params, FileList);
+        Terminal->CustomCommandOnFiles(Command, Params, FileList, NULL);
       }
       else
       {
@@ -697,21 +690,7 @@ void __fastcall TCustomScpExplorerForm::CustomCommand(TStrings * FileList,
 
         try
         {
-          Terminal->BeginTransaction();
-          try
-          {
-            assert(FTerminal->Log->OnAddLine == NULL);
-            FTerminal->Log->OnAddLine = TerminalCaptureLog;
-            
-            Terminal->CustomCommandOnFiles(Command, Params, FileList);
-          }
-          __finally
-          {
-            assert(FTerminal->Log->OnAddLine == TerminalCaptureLog);
-            FTerminal->Log->OnAddLine = NULL;
-
-            Terminal->EndTransaction();
-          }
+          Terminal->CustomCommandOnFiles(Command, Params, FileList, TerminalCaptureLog);
 
           if (FCapturedLog->Count > 0)
           {
@@ -774,13 +753,13 @@ void __fastcall TCustomScpExplorerForm::CustomCommand(TStrings * FileList,
       {
         RemoteFileList = new TStringList();
 
-        TMakeFileListParam MakeFileListParam;
+        TMakeLocalFileListParams MakeFileListParam;
         MakeFileListParam.FileList = RemoteFileList;
         MakeFileListParam.IncludeDirs = FLAGSET(Params, ccApplyToDirectories);
         MakeFileListParam.Recursive =
           FLAGSET(Params, ccRecursive) && !FileListCommand;
 
-        ProcessLocalDirectory(TempDir, MakeFileList, &MakeFileListParam);
+        ProcessLocalDirectory(TempDir, Terminal->MakeLocalFileList, &MakeFileListParam);
 
         TFileOperationProgressType Progress(&OperationProgress, &OperationFinished);
 
@@ -793,30 +772,12 @@ void __fastcall TCustomScpExplorerForm::CustomCommand(TStrings * FileList,
           if (FileListCommand)
           {
             AnsiString LocalFile;
-            AnsiString FileList;
+            AnsiString FileList = MakeFileList(RemoteFileList);
 
             if (LocalFileCommand)
             {
               assert(LocalFileList->Count == 1);
               LocalFile = LocalFileList->Strings[0];
-            }
-
-            for (int Index = 0; Index < RemoteFileList->Count; Index++)
-            {
-              if (!FileList.IsEmpty())
-              {
-                FileList += " ";
-              }
-
-              AnsiString FileName = RemoteFileList->Strings[Index];
-              if (FileName.Pos(" ") > 0)
-              {
-                FileList += "\"" + FileName + "\"";
-              }
-              else
-              {
-                FileList += FileName;
-              }
             }
 
             TLocalCustomCommand CustomCommand("", LocalFile, FileList);
@@ -896,23 +857,6 @@ void __fastcall TCustomScpExplorerForm::TerminalCaptureLog(TObject* /*Sender*/,
 {
   assert(FCapturedLog != NULL);
   FCapturedLog->Add(AddedLine);
-}
-//---------------------------------------------------------------------------
-void __fastcall TCustomScpExplorerForm::MakeFileList(const AnsiString FileName,
-  const TSearchRec Rec, void * Param)
-{
-  TMakeFileListParam & MakeFileListParam = *static_cast<TMakeFileListParam*>(Param);
-
-  bool Directory = FLAGSET(Rec.Attr, faDirectory);
-  if (Directory && MakeFileListParam.Recursive)
-  {
-    ProcessLocalDirectory(FileName, MakeFileList, &MakeFileListParam);
-  }
-
-  if (!Directory || MakeFileListParam.IncludeDirs)
-  {
-    MakeFileListParam.FileList->Add(FileName);
-  }
 }
 //---------------------------------------------------------------------------
 bool __fastcall TCustomScpExplorerForm::IsFileControl(TObject * Control,
