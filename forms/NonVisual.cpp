@@ -2,14 +2,13 @@
 #include <vcl.h>
 #pragma hdrstop
 
-#include "NonVisual.h"       
+#include "NonVisual.h"
 
 #include <Common.h>
 #include <ScpMain.h>
 #include <TextsWin.h>
 
 #include <Log.h>
-#include <Preferences.h>
 #include <Interface.h>
 #include "WinConfiguration.h"
 #include "TerminalManager.h"
@@ -284,6 +283,7 @@ void __fastcall TNonVisualDataModule::ExplorerActionsUpdate(
   // COMMAND
   UPD(CompareDirectoriesAction, true)
   UPD(SynchronizeAction, true)
+  UPD(FullSynchronizeAction, true)
   UPD(ConsoleAction, ScpExplorer->Terminal && ScpExplorer->Terminal->IsCapable[fcAnyCommand])
   UPD(PuttyAction, true)
   UPD(SynchorizeBrowsingAction, true)
@@ -457,6 +457,7 @@ void __fastcall TNonVisualDataModule::ExplorerActionsExecute(
   // COMMAND
   EXE(CompareDirectoriesAction, ScpExplorer->CompareDirectories())
   EXE(SynchronizeAction, ScpExplorer->SynchronizeDirectories())
+  EXE(FullSynchronizeAction, ScpExplorer->FullSynchronizeDirectories())
   EXE(ConsoleAction, ScpExplorer->OpenConsole())
   EXE(PuttyAction, ScpExplorer->OpenInPutty())
   EXE(SynchorizeBrowsingAction, )

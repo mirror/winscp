@@ -36,7 +36,8 @@ void __fastcall TSessionData::Default()
   PortNumber = default_port;
   UserName = "";
   Password = "";
-  PingInterval = 0;
+  PingInterval = 30;
+  PingType = ptOff;
   Timeout = 15;
   AgentFwd = false;
   AuthTIS = false;
@@ -118,6 +119,7 @@ void __fastcall TSessionData::Assign(TPersistent * Source)
     DUPL(UserName);
     DUPL(Password);
     DUPL(PingInterval);
+    DUPL(PingType);
     DUPL(Timeout);
     DUPL(AgentFwd);
     DUPL(AuthTIS);
@@ -190,7 +192,8 @@ void __fastcall TSessionData::StoreToConfig(void * config)
   ASCOPY(cfg->username, UserName);
   cfg->port = PortNumber;
   cfg->protocol = PROT_SSH;
-  cfg->ping_interval = PingInterval;
+  // ping_interval is not used anyway
+  cfg->ping_interval = (PingType == ptNullPacket) ? PingInterval : 0;
   cfg->compression = Compression;
   cfg->agentfwd = AgentFwd;
 
@@ -306,6 +309,12 @@ void __fastcall TSessionData::Load(THierarchicalStorage * Storage)
     PingInterval =
       Storage->ReadInteger("PingInterval", PingInterval/60)*60 +
       Storage->ReadInteger("PingIntervalSec", PingInterval%60);
+    PingType = static_cast<TPingType>
+      (Storage->ReadInteger("PingType", PingInterval > 0 ? ptNullPacket : ptOff));
+    if (PingInterval == 0)
+    {
+      PingInterval = 60;
+    }
     Timeout = Storage->ReadInteger("Timeout", Timeout);
     AgentFwd = Storage->ReadBool("AgentFwd", AgentFwd);
     AuthTIS = Storage->ReadBool("AuthTIS", AuthTIS);
@@ -415,6 +424,7 @@ void __fastcall TSessionData::Save(THierarchicalStorage * Storage, bool PuttyExp
     }
     Storage->WriteInteger("PingInterval", PingInterval/60);
     Storage->WriteInteger("PingIntervalSec", PingInterval%60);
+    Storage->WriteInteger("PingType", PingType);
     Storage->WriteInteger("Timeout", Timeout);
     Storage->WriteBool("AgentFwd", AgentFwd);
     Storage->WriteBool("AuthTIS", AuthTIS);
@@ -924,16 +934,9 @@ TDateTime __fastcall TSessionData::GetPingIntervalDT()
     (unsigned short)(PingInterval/60%60), (unsigned short)(PingInterval%60), 0);
 }
 //---------------------------------------------------------------------------
-void __fastcall TSessionData::SetPingEnabled(bool value)
+void __fastcall TSessionData::SetPingType(TPingType value)
 {
-  if (value && !FPingInterval) FPingInterval = 60;
-    else
-  if (!value) FPingInterval = 0;
-}
-//---------------------------------------------------------------------------
-bool __fastcall TSessionData::GetPingEnabled()
-{
-  return (bool)(FPingInterval > 0);
+  SET_SESSION_PROPERTY(PingType);
 }
 //---------------------------------------------------------------------
 AnsiString __fastcall TSessionData::GetSessionName()

@@ -99,7 +99,7 @@ bool __fastcall DoLoginDialog(TStoredSessionList * SessionList,
 
 // forms\OpenDirectory.cpp
 enum TOpenDirectoryMode { odBrowse, odAddBookmark };
-bool __fastcall OpenDirectoryDialog(TOpenDirectoryMode Mode, TOperationSide Side,
+bool __fastcall DoOpenDirectoryDialog(TOpenDirectoryMode Mode, TOperationSide Side,
   AnsiString & Directory, TStrings * directories, TTerminal * Terminal);
 
 // forms\LocatinoProfiles.cpp
@@ -157,6 +157,12 @@ typedef void __fastcall (__closure * TSynchronizeStartStopEvent)
 void __fastcall DoSynchronizeDialog(TSynchronizeParamType Params,
     TSynchronizeStartStopEvent OnStartStop);
 
+enum TSynchronizeMode { smRemote, smLocal, smBoth };
+const spDelete = 0x01;
+const spNoConfirmation = 0x02;
+bool __fastcall DoFullSynchronizeDialog(TSynchronizeMode & Mode, int & Params,
+  AnsiString & LocalDirectory, AnsiString & RemoteDirectory);
+
 void __fastcall DoEditorForm(const AnsiString FileName, TCustomForm * ParentForm,
   TNotifyEvent OnFileChanged, const AnsiString Caption = "");
 
@@ -168,7 +174,5 @@ void __fastcall DoFileSystemInfoDialog(TTerminal * Terminal);
 
 // windows\WinMain.cpp
 void __fastcall CheckForUpdates();
-
-int __fastcall FileOperatorDelete(const AnsiString FileName, bool ToRecycleBin);
 //---------------------------------------------------------------------------
 #endif // WinInterfaceH

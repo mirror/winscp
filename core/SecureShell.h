@@ -156,6 +156,7 @@ protected:
   bool __fastcall SshFallbackCmd() const;
   void __fastcall GotHostKey();
   unsigned long __fastcall MaxPacketSize();
+  virtual void __fastcall KeepAlive();
 
 public:
   __fastcall TSecureShell();

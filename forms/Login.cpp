@@ -233,11 +233,21 @@ void __fastcall TLoginDialog::LoadSession(TSessionData * aSessionData)
     }
 
     // Connection tab
-    PingIntervalCheck->Checked = (aSessionData->PingInterval > 0);
-    if (aSessionData->PingEnabled)
-      PingIntervalSecEdit->AsInteger = aSessionData->PingInterval;
-    else
-      PingIntervalSecEdit->AsInteger = 60;
+    switch (aSessionData->PingType)
+    {
+      case ptNullPacket:
+        PingNullPacketButton->Checked = true;
+        break;
+
+      case ptDummyCommand:
+        PingDummyCommandButton->Checked = true;
+        break;
+
+      default:
+        PingOffButton->Checked = true;
+        break;
+    }
+    PingIntervalSecEdit->AsInteger = aSessionData->PingInterval;
     TimeoutEdit->AsInteger = aSessionData->Timeout;
 
     // Shell tab
@@ -339,9 +349,19 @@ void __fastcall TLoginDialog::SaveSession(TSessionData * aSessionData)
   aSessionData->AgentFwd = AgentFwdCheck->Checked;
 
   // Connection tab
-  aSessionData->PingEnabled = PingIntervalCheck->Checked;
-  if (PingIntervalCheck->Checked)
-    aSessionData->PingInterval = PingIntervalSecEdit->AsInteger;
+  if (PingNullPacketButton->Checked)
+  {
+    aSessionData->PingType = ptNullPacket;
+  }
+  else if (PingDummyCommandButton->Checked)
+  {
+    aSessionData->PingType = ptDummyCommand;
+  }
+  else
+  {
+    aSessionData->PingType = ptOff;
+  }
+  aSessionData->PingInterval = PingIntervalSecEdit->AsInteger;
   aSessionData->Timeout = TimeoutEdit->AsInteger;
 
   // Environment tab
@@ -429,7 +449,7 @@ void __fastcall TLoginDialog::UpdateControls()
       if (!PasswordEdit->Text.IsEmpty()) PrivateKeyEdit->Clear();
       EnableControl(PrivateKeyEdit, PasswordEdit->Text.IsEmpty());
 
-      EnableControl(PingIntervalSecEdit, PingIntervalCheck->Checked);
+      EnableControl(PingIntervalSecEdit, !PingOffButton->Checked);
 
       EnableControl(SessionListView, SessionListView->Items->Count);
       AdjustListColumnsWidth(SessionListView);
@@ -605,6 +625,7 @@ void __fastcall TLoginDialog::SetSelectedSession(TSessionData * value)
       TListItem *Item = SessionListView->Items->Item[Index];
       Item->Focused = true;
       Item->Selected = true;
+      Item->MakeVisible(false);
     }
   }
   else

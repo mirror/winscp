@@ -157,14 +157,14 @@ void __fastcall TCopyParamsFrame::ControlChange(TObject * /*Sender*/)
 void __fastcall TCopyParamsFrame::BeforeExecute()
 {
   assert(CustomWinConfiguration);
-  AsciiFileMaskCombo->Items->Text = CustomWinConfiguration->MaskHistory;
+  AsciiFileMaskCombo->Items = CustomWinConfiguration->History["Mask"];
 }
 //---------------------------------------------------------------------------
 void __fastcall TCopyParamsFrame::AfterExecute()
 {
   assert(CustomWinConfiguration);
   AsciiFileMaskCombo->SaveToHistory();
-  CustomWinConfiguration->MaskHistory = AsciiFileMaskCombo->Items->Text;
+  CustomWinConfiguration->History["Mask"] = AsciiFileMaskCombo->Items;
 }
 //---------------------------------------------------------------------------
 void __fastcall TCopyParamsFrame::SelectMask(Integer Start, Integer Length)

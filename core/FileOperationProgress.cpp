@@ -113,7 +113,8 @@ int __fastcall TFileOperationProgressType::TransferProgress()
 int __fastcall TFileOperationProgressType::TotalTransferProgress()
 {
   assert(TotalSizeSet);
-  return TotalSize > 0 ? (int)((TotalTransfered * 100)/TotalSize) : 0;
+  int Result = TotalSize > 0 ? (int)((TotalTransfered * 100)/TotalSize) : 0;
+  return Result < 100 ? Result : Result;
 }
 //---------------------------------------------------------------------------
 int __fastcall TFileOperationProgressType::OverallProgress()

@@ -5,6 +5,8 @@
 #include "Common.h"
 #include "Exceptions.h"
 #include "TextsCore.h"
+#include <math.h>
+#include <shellapi.h>
 //---------------------------------------------------------------------------
 #pragma package(smart_init)
 //---------------------------------------------------------------------------
@@ -317,9 +319,11 @@ void __fastcall ProcessLocalDirectory(AnsiString DirName,
   }
 }
 //---------------------------------------------------------------------------
-void __fastcall DateTimeParams(TDateTime * AUnixEpoch, double * ADifference)
+void __fastcall DateTimeParams(TDateTime * AUnixEpoch,
+  double * ADifference, long * ADifferenceSec)
 {
   static double Difference;
+  static long DifferenceSec;
   static TDateTime UnixEpoch = 0;
 
   if (double(UnixEpoch) == 0)
@@ -334,11 +338,11 @@ void __fastcall DateTimeParams(TDateTime * AUnixEpoch, double * ADifference)
         break;
 
       case TIME_ZONE_ID_STANDARD:
-        Difference = double(TZI.Bias + TZI.StandardBias) / 1440;
+        DifferenceSec = TZI.Bias + TZI.StandardBias;
         break;
 
       case TIME_ZONE_ID_DAYLIGHT:
-        Difference = double(TZI.Bias + TZI.DaylightBias) / 1440;
+        DifferenceSec = TZI.Bias + TZI.DaylightBias;
         break;
 
       case TIME_ZONE_ID_INVALID:
@@ -347,38 +351,113 @@ void __fastcall DateTimeParams(TDateTime * AUnixEpoch, double * ADifference)
     }
     // Is it same as SysUtils::UnixDateDelta = 25569 ??
     UnixEpoch = EncodeDate(1970, 1, 1);
+    Difference = double(DifferenceSec) / 1440;
+    DifferenceSec *= 60;
   }
   if (AUnixEpoch) *AUnixEpoch = UnixEpoch;
   if (ADifference) *ADifference = Difference;
+  if (ADifferenceSec) *ADifferenceSec = DifferenceSec;
 }
 //---------------------------------------------------------------------------
 TDateTime __fastcall UnixToDateTime(unsigned long TimeStamp)
 {
   TDateTime UnixEpoch;
   double Difference;
-  DateTimeParams(&UnixEpoch, &Difference);
+  DateTimeParams(&UnixEpoch, &Difference, NULL);
 
   TDateTime Result;
   Result = UnixEpoch + (double(TimeStamp) / 86400) - Difference;
   return Result;
 }
 //---------------------------------------------------------------------------
+inline __int64 __fastcall Round(double Number)
+{
+  double Floor = floor(Number);
+  double Ceil = ceil(Number);
+  return ((Number - Floor) > (Ceil - Number)) ? Ceil : Floor;
+}
+//---------------------------------------------------------------------------
 FILETIME __fastcall DateTimeToFileTime(const TDateTime DateTime)
 {
-  unsigned long UnixTimeStamp;
+  __int64 UnixTimeStamp;
   FILETIME Result;
   TDateTime UnixEpoch;
-  double Difference;
+  long Difference;
 
-  DateTimeParams(&UnixEpoch, &Difference);
-  UnixTimeStamp = (unsigned long)((double(DateTime - UnixEpoch + Difference) * 86400));
+  DateTimeParams(&UnixEpoch, NULL, &Difference);
+  UnixTimeStamp = Round(double(DateTime - UnixEpoch) * 86400) + Difference;
   TIME_POSIX_TO_WIN(UnixTimeStamp, Result);
   return Result;
 }
 //---------------------------------------------------------------------------
-TDateTime AdjustDateTimeFromUnix(const TDateTime DateTime)
+TDateTime __fastcall AdjustDateTimeFromUnix(const TDateTime DateTime)
 {
   // to be implemented
   return DateTime;
 }
+//---------------------------------------------------------------------------
+__inline static bool __fastcall UnifySignificance(unsigned short & V1,
+  unsigned short & V2)
+{
+  bool Result = (V1 == 0) || (V2 == 0);
+  if (Result)
+  {
+    V1 = 0;
+    V2 = 0;
+  }
+  return Result;
+}
+//---------------------------------------------------------------------------
+void __fastcall UnifyDateTimePrecision(TDateTime & DateTime1, TDateTime & DateTime2)
+{
+  unsigned short Y1, M1, D1, H1, N1, S1, MS1;
+  unsigned short Y2, M2, D2, H2, N2, S2, MS2;
+  bool Changed;
 
+  if (DateTime1 != DateTime2)
+  {
+    DateTime1.DecodeDate(&Y1, &M1, &D1);
+    DateTime1.DecodeTime(&H1, &N1, &S1, &MS1);
+    DateTime2.DecodeDate(&Y2, &M2, &D2);
+    DateTime2.DecodeTime(&H2, &N2, &S2, &MS2);
+    Changed = UnifySignificance(MS1, MS2);
+    if (Changed && UnifySignificance(S1, S2) && UnifySignificance(N1, N2) &&
+        UnifySignificance(H1, H2) && UnifySignificance(D1, D2) &&
+        UnifySignificance(M1, M2))
+    {
+      UnifySignificance(Y1, Y2);
+    }
+    if (Changed)
+    {
+      DateTime1 = EncodeDate(Y1, M1, D1) + EncodeTime(H1, N1, S1, MS1);
+      DateTime2 = EncodeDate(Y2, M2, D2) + EncodeTime(H2, N2, S2, MS2);
+    }
+  }
+}
+//---------------------------------------------------------------------------
+bool __fastcall RecursiveDeleteFile(const AnsiString FileName, bool ToRecycleBin)
+{
+  SHFILEOPSTRUCT Data;
+
+  memset(&Data, 0, sizeof(Data)); 
+  Data.hwnd = Application->Handle;
+  Data.wFunc = FO_DELETE;
+  AnsiString FileList(FileName);
+  FileList.SetLength(FileList.Length() + 2);
+  FileList[FileList.Length() - 1] = '\0';
+  FileList[FileList.Length()] = '\0';
+  Data.pFrom = FileList.c_str();
+  Data.pTo = "";
+  Data.fFlags = FOF_NOCONFIRMATION | FOF_RENAMEONCOLLISION | FOF_NOCONFIRMMKDIR |
+    FOF_NOERRORUI | FOF_SILENT;
+  if (ToRecycleBin)
+  {
+    Data.fFlags |= FOF_ALLOWUNDO;
+  }
+  int Result = SHFileOperation(&Data);
+  if (Result != 0)
+  {
+    //Win32Check(false);
+  }
+  return (Result == 0);
+}

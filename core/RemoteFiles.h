@@ -133,6 +133,12 @@ public:
   __property AnsiString Extension  = { read=GetExtension };
 };
 //---------------------------------------------------------------------------
+class TRemoteParentDirectory : public TRemoteFile
+{
+public:
+  __fastcall TRemoteParentDirectory();
+};
+//---------------------------------------------------------------------------
 class TRemoteFileList : public TObjectList
 {
 friend class TSCPFileSystem;

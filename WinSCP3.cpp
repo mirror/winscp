@@ -3,6 +3,8 @@
 #pragma hdrstop
 USEFORM("forms\CustomScpExplorer.cpp", CustomScpExplorerForm);
 USEFORM("forms\NonVisual.cpp", NonVisualDataModule); /* TDataModule: File Type */
+USEFORM("forms\ScpCommander.cpp", ScpCommanderForm);
+USEFORM("forms\ScpExplorer.cpp", ScpExplorerForm);
 //---------------------------------------------------------------------------
 #include <ScpMain.h>
 #include <WinInterface.h>
@@ -36,4 +38,3 @@ WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
   return 0;
 }
 //---------------------------------------------------------------------------
-

@@ -576,9 +576,9 @@ object LoginDialog: TLoginDialog
             OnClick = DataChange
           end
           object PreserveDirectoryChangesCheck: TCheckBox
-            Left = 195
+            Left = 202
             Top = 60
-            Width = 142
+            Width = 139
             Height = 17
             Anchors = [akLeft, akTop, akRight]
             Caption = '&Permanent cache'
@@ -899,20 +899,10 @@ object LoginDialog: TLoginDialog
           Left = 0
           Top = 6
           Width = 345
-          Height = 95
+          Height = 46
           Anchors = [akLeft, akTop, akRight]
           Caption = 'Timeouts'
           TabOrder = 0
-          DesignSize = (
-            345
-            95)
-          object Label6: TLabel
-            Left = 32
-            Top = 68
-            Width = 140
-            Height = 13
-            Caption = 'Seconds &between keepalives'
-          end
           object Label11: TLabel
             Left = 12
             Top = 19
@@ -929,28 +919,6 @@ object LoginDialog: TLoginDialog
             Caption = 'seconds'
             FocusControl = TimeoutEdit
           end
-          object PingIntervalCheck: TCheckBox
-            Left = 12
-            Top = 43
-            Width = 324
-            Height = 17
-            Anchors = [akLeft, akTop, akRight]
-            Caption = 'Sending of null packets to &keep session alive'
-            TabOrder = 1
-            OnClick = DataChange
-          end
-          object PingIntervalSecEdit: TUpDownEdit
-            Left = 208
-            Top = 63
-            Width = 73
-            Height = 21
-            Alignment = taRightJustify
-            MaxValue = 60
-            MinValue = 1
-            MaxLength = 2
-            TabOrder = 2
-            OnChange = DataChange
-          end
           object TimeoutEdit: TUpDownEdit
             Left = 208
             Top = 14
@@ -963,6 +931,68 @@ object LoginDialog: TLoginDialog
             MaxLength = 2
             TabOrder = 0
             OnChange = DataChange
+          end
+        end
+        object PingGroup: TXPGroupBox
+          Left = 0
+          Top = 58
+          Width = 345
+          Height = 111
+          Anchors = [akLeft, akTop, akRight]
+          Caption = 'Keepalives'
+          TabOrder = 1
+          DesignSize = (
+            345
+            111)
+          object Label6: TLabel
+            Left = 12
+            Top = 84
+            Width = 140
+            Height = 13
+            Caption = 'Seconds &between keepalives'
+            FocusControl = PingIntervalSecEdit
+          end
+          object PingIntervalSecEdit: TUpDownEdit
+            Left = 208
+            Top = 79
+            Width = 73
+            Height = 21
+            Alignment = taRightJustify
+            MaxValue = 60
+            MinValue = 1
+            MaxLength = 2
+            TabOrder = 3
+            OnChange = DataChange
+          end
+          object PingOffButton: TRadioButton
+            Left = 12
+            Top = 19
+            Width = 317
+            Height = 17
+            Anchors = [akLeft, akTop, akRight]
+            Caption = '&Off'
+            TabOrder = 0
+            OnClick = DataChange
+          end
+          object PingNullPacketButton: TRadioButton
+            Left = 12
+            Top = 39
+            Width = 317
+            Height = 17
+            Anchors = [akLeft, akTop, akRight]
+            Caption = 'Sending of &null SSH packets'
+            TabOrder = 1
+            OnClick = DataChange
+          end
+          object PingDummyCommandButton: TRadioButton
+            Left = 12
+            Top = 59
+            Width = 317
+            Height = 17
+            Anchors = [akLeft, akTop, akRight]
+            Caption = 'Executing &dummy protocol commands'
+            TabOrder = 2
+            OnClick = DataChange
           end
         end
       end
@@ -1269,7 +1299,7 @@ object LoginDialog: TLoginDialog
             Height = 21
             Style = csDropDownList
             Anchors = [akLeft, akTop, akRight]
-            ItemHeight = 13
+            ItemHeight = 0
             TabOrder = 0
           end
           object BugPlainPW1Combo: TComboBox
@@ -1279,7 +1309,7 @@ object LoginDialog: TLoginDialog
             Height = 21
             Style = csDropDownList
             Anchors = [akLeft, akTop, akRight]
-            ItemHeight = 13
+            ItemHeight = 0
             TabOrder = 1
           end
           object BugRSA1Combo: TComboBox
@@ -1289,7 +1319,7 @@ object LoginDialog: TLoginDialog
             Height = 21
             Style = csDropDownList
             Anchors = [akLeft, akTop, akRight]
-            ItemHeight = 13
+            ItemHeight = 0
             TabOrder = 2
           end
           object BugHMAC2Combo: TComboBox
@@ -1299,7 +1329,7 @@ object LoginDialog: TLoginDialog
             Height = 21
             Style = csDropDownList
             Anchors = [akLeft, akTop, akRight]
-            ItemHeight = 13
+            ItemHeight = 0
             TabOrder = 3
           end
           object BugDeriveKey2Combo: TComboBox
@@ -1309,7 +1339,7 @@ object LoginDialog: TLoginDialog
             Height = 21
             Style = csDropDownList
             Anchors = [akLeft, akTop, akRight]
-            ItemHeight = 13
+            ItemHeight = 0
             TabOrder = 4
           end
           object BugRSAPad2Combo: TComboBox
@@ -1319,7 +1349,7 @@ object LoginDialog: TLoginDialog
             Height = 21
             Style = csDropDownList
             Anchors = [akLeft, akTop, akRight]
-            ItemHeight = 13
+            ItemHeight = 0
             TabOrder = 5
           end
           object BugDHGEx2Combo: TComboBox
@@ -1329,7 +1359,7 @@ object LoginDialog: TLoginDialog
             Height = 21
             Style = csDropDownList
             Anchors = [akLeft, akTop, akRight]
-            ItemHeight = 13
+            ItemHeight = 0
             TabOrder = 6
           end
           object BugPKSessID2Combo: TComboBox
@@ -1339,7 +1369,7 @@ object LoginDialog: TLoginDialog
             Height = 21
             Style = csDropDownList
             Anchors = [akLeft, akTop, akRight]
-            ItemHeight = 13
+            ItemHeight = 0
             TabOrder = 7
           end
         end

@@ -23,6 +23,7 @@
 #define fcRemoteStatusBar  0x14
 #define fcSessionCombo     0x15
 #define fcMenuToolBar      0x16
+#define fcRemotePopup      0x17
 
 #define fcExplorerMenuBand        0x0003
 #define fcExplorerAddressBand     0x0103
@@ -471,7 +472,6 @@ __published:	// IDE-managed Components
   TMenuItem *CheckForUpdates1;
   TMenuItem *N46;
   TMenuItem *Quit1;
-  TMenuItem *N47;
   TMenuItem *Quit2;
   TAction *PuttyAction;
   TMenuItem *OpeninPuTTY1;
@@ -485,6 +485,12 @@ __published:	// IDE-managed Components
   TAction *ClearCachesAction;
   TMenuItem *ClearCaches1;
   TMenuItem *ClearCaches2;
+  TAction *FullSynchronizeAction;
+  TMenuItem *Synchronize1;
+  TMenuItem *Synchronize2;
+  TMenuItem *N47;
+  TMenuItem *N49;
+  TMenuItem *N50;
   void __fastcall LogActionsUpdate(TBasicAction *Action, bool &Handled);
   void __fastcall LogActionsExecute(TBasicAction *Action, bool &Handled);
   void __fastcall ExplorerActionsUpdate(TBasicAction *Action, bool &Handled);

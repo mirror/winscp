@@ -38,6 +38,7 @@ AnsiString __fastcall FormatCommand(AnsiString Program, AnsiString Params);
 bool __fastcall IsDisplayableStr(const AnsiString Str);
 AnsiString __fastcall StrToHex(const AnsiString Str);
 AnsiString __fastcall HexToStr(const AnsiString Hex);
+bool __fastcall RecursiveDeleteFile(const AnsiString FileName, bool ToRecycleBin);
 //---------------------------------------------------------------------------
 typedef void __fastcall (__closure *TProcessLocalFileEvent)
   (const AnsiString FileName, const TSearchRec Rec, void * Param);
@@ -52,7 +53,8 @@ void __fastcall ProcessLocalDirectory(AnsiString DirName,
 TDateTime __fastcall UnixToDateTime(unsigned long TimeStamp);
 FILETIME __fastcall DateTimeToFileTime(const TDateTime DateTime);
 TDateTime __fastcall UnixToDateTime(unsigned long TimeStamp);
-TDateTime AdjustDateTimeFromUnix(const TDateTime DateTime);
+TDateTime __fastcall AdjustDateTimeFromUnix(const TDateTime DateTime);
+void __fastcall UnifyDateTimePrecision(TDateTime & DateTime1, TDateTime & DateTime2);
 //---------------------------------------------------------------------------
 #endif
 //---------------------------------------------------------------------------

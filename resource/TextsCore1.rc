@@ -39,7 +39,7 @@ BEGIN
   CREATE_DIR_ERROR, "Can't create folder '%s'."
   CREATE_FILE_ERROR, "Can't create file '%s'."
   WRITE_ERROR, "Error writting to file '%s'"
-  CANT_SET_ATTRS, "Can't get attributes of file '%s'."
+  CANT_SET_ATTRS, "Can't set attributes of file '%s'."
   REMOTE_ERROR, "Received error message from remote side: '%s'"
   DELETE_FILE_ERROR, "Error deleting file '%s'."
   LOG_ERROR, "Error occured during logging. It's been turned off."
@@ -136,7 +136,7 @@ BEGIN
 
   CORE_VARIABLE_STRINGS, "CORE_VARIABLE"
   PUTTY_BASED_ON, "SSH and SCP code based on PuTTY %s"
-  PUTTY_VERSION, "(2003-09-12)"
+  PUTTY_VERSION, "(2003-12-22)"
   PUTTY_COPYRIGHT, "Copyright © 1997-2003 Simon Tatham"
   PUTTY_URL, "http://www.chiark.greenend.org.uk/~sgtatham/putty/"
 END

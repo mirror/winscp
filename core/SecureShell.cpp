@@ -577,12 +577,19 @@ void __fastcall TSecureShell::Idle()
   // each 10 min when in background
   noise_regular();
   // Keep session alive
-  if (FSessionData->PingEnabled &&
+  if ((FSessionData->PingType != ptOff) &&
       (Now() - FLastDataSent > FSessionData->PingIntervalDT))
   {
-    LogEvent("Pinging host to keep session alive.");
-    SendSpecial(TS_PING);
+    KeepAlive();
+    // in case keep alive could not be processed, postpone next attempt
+    FLastDataSent = Now();
   }
+}
+//---------------------------------------------------------------------------
+void __fastcall TSecureShell::KeepAlive()
+{
+  LogEvent("Sending null packet to keep session alive.");
+  SendSpecial(TS_PING);
 }
 //---------------------------------------------------------------------------
 void __fastcall TSecureShell::SetLog(TSessionLog * value)
@@ -1116,8 +1123,9 @@ void __fastcall TSessionLog::AddStartupInfo()
          BooleanToEngStr(Data->AuthKI)));
       ADF("Ciphers: %s; Ssh2DES: %s",
         (Data->CipherList, BooleanToEngStr(Data->Ssh2DES)));
-      ADF("Ping interval: %d sec (0 = off); Timeout: %d sec",
-        (Data->PingInterval, Data->Timeout));
+      char * PingTypes = "-NC";
+      ADF("Ping type: %s, Ping interval: %d sec; Timeout: %d sec",
+        (AnsiString(PingTypes[Data->PingType]), Data->PingInterval, Data->Timeout));
       AnsiString Bugs;
       char const * BugFlags = "A+-";
       for (int Index = 0; Index < BUG_COUNT; Index++)
@@ -1145,6 +1153,9 @@ void __fastcall TSessionLog::AddStartupInfo()
          (Data->RemoteDirectory.IsEmpty() ? AnsiString("home") : Data->RemoteDirectory),
          BooleanToEngStr(Data->UpdateDirectories),
          BooleanToEngStr(Data->CacheDirectories)));
+      ADF("Cache directory changes: %s, Permanent: %s",
+        (BooleanToEngStr(Data->CacheDirectoryChanges),
+         BooleanToEngStr(Data->PreserveDirectoryChanges)));
       ADF("Clear aliases: %s, Unset nat.vars: %s, Resolve symlinks: %s",
         (BooleanToEngStr(Data->ClearAliases), BooleanToEngStr(Data->UnsetNationalVars),
          BooleanToEngStr(Data->ResolveSymlinks)));
@@ -1200,6 +1211,8 @@ void __fastcall TSessionLog::Clear()
   FTopIndex += Count;
   TStringList::Clear();
 }
+
+
 
 
 

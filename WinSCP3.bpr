@@ -12,7 +12,8 @@
       windows\WinConfiguration.obj windows\WinInterface.obj windows\WinMain.obj"/>
     <RESFILES value="windows\Windows.res WinSCP3.res"/>
     <DEFFILE value=""/>
-    <RESDEPEN value="$(RESFILES) forms\CustomScpExplorer.dfm forms\NonVisual.dfm"/>
+    <RESDEPEN value="$(RESFILES) forms\CustomScpExplorer.dfm forms\NonVisual.dfm 
+      forms\ScpCommander.dfm forms\ScpExplorer.dfm"/>
     <LIBFILES value="lib\Putty.lib lib\RScpComp.lib lib\ScpCore.lib lib\ScpForms.lib"/>
     <LIBRARIES value="bcbie.lib visualdbclx.lib bcb2kaxserver.lib indy.lib dbxcds.lib dclocx.lib 
       soaprtl.lib dbexpress.lib inetdbxpress.lib inetdb.lib inetdbbde.lib 
@@ -39,7 +40,7 @@
     <DEBUGLIBPATH value="$(BCB)\lib\debug"/>
     <RELEASELIBPATH value="$(BCB)\lib\release"/>
     <LINKER value="ilink32"/>
-    <USERDEFINES value="OLD_DND;_DEBUG"/>
+    <USERDEFINES value="OLD_DND"/>
     <SYSDEFINES value="NO_STRICT"/>
     <MAINSOURCE value="WinSCP3.cpp"/>
     <INCLUDEPATH value="core;forms;windows;resource;components;packages\filemng;packages\dragndrop;packages\my;packages\my\filemng;$(BCB)\include;$(BCB)\include\vcl"/>
@@ -49,12 +50,11 @@
     <OTHERFILES value=""/>
   </MACROS>
   <OPTIONS>
-    <CFLAG1 value="-Od -H=$(BCB)\lib\vcl60.csm -Hc -w -Vx -Ve -X- -r- -a8 -b- -k -y -v -vi- 
-      -c -tW -tWM"/>
-    <PFLAGS value="  -$Y+ -$W -$O- -$A8 -v -JPHNE -M"/>
+    <CFLAG1 value="-O2 -H=$(BCB)\lib\vcl60.csm -Hc -w -Vx -Ve -X- -a8 -b- -k- -vi -c -tW -tWM"/>
+    <PFLAGS value="  -$Y- -$L- -$D- -$A8 -v -JPHNE -M"/>
     <RFLAGS value=""/>
-    <AFLAGS value="/mx /w2 /zi"/>
-    <LFLAGS value="-I -D&quot;&quot; -S:0x1000000 -aa -Tpe -GD -s -Gn -v"/>
+    <AFLAGS value="/mx /w2 /zn"/>
+    <LFLAGS value="-I -D&quot;&quot; -S:0x1000000 -aa -Tpe -GD -s -Gn"/>
     <OTHERFILES value=""/>
   </OPTIONS>
   <LINKER>
@@ -71,8 +71,8 @@
       <FILE FILENAME="windows\GUITools.cpp" FORMNAME="" UNITNAME="GUITools" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
       <FILE FILENAME="forms\NonVisual.cpp" FORMNAME="NonVisualDataModule" UNITNAME="NonVisual" CONTAINERID="CCompiler" DESIGNCLASS="TDataModule" LOCALCOMMAND=""/>
       <FILE FILENAME="windows\ProgParams.cpp" FORMNAME="" UNITNAME="ProgParams" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
-      <FILE FILENAME="forms\ScpCommander.cpp" FORMNAME="" UNITNAME="ScpCommander" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
-      <FILE FILENAME="forms\ScpExplorer.cpp" FORMNAME="" UNITNAME="ScpExplorer" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="forms\ScpCommander.cpp" FORMNAME="ScpCommanderForm" UNITNAME="ScpCommander" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
+      <FILE FILENAME="forms\ScpExplorer.cpp" FORMNAME="ScpExplorerForm" UNITNAME="ScpExplorer" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
       <FILE FILENAME="windows\TerminalManager.cpp" FORMNAME="" UNITNAME="TerminalManager" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
       <FILE FILENAME="windows\Tools.cpp" FORMNAME="" UNITNAME="Tools.cpp" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
       <FILE FILENAME="windows\UserInterface.cpp" FORMNAME="" UNITNAME="UserInterface" CONTAINERID="CCompiler" DESIGNCLASS="" LOCALCOMMAND=""/>
@@ -94,9 +94,9 @@
 IncludeVerInfo=1
 AutoIncBuild=1
 MajorVer=3
-MinorVer=4
-Release=2
-Build=202
+MinorVer=5
+Release=0
+Build=204
 Debug=0
 PreRelease=1
 Special=0
@@ -108,18 +108,18 @@ CodePage=1252
 [Version Info Keys]
 CompanyName=Martin Prikryl
 FileDescription=Windows SCP/SFTP client
-FileVersion=3.4.2.202
+FileVersion=3.5.0.204
 InternalName=winscp3
-LegalCopyright=(c) 2000-2003 Martin Prikryl
+LegalCopyright=(c) 2000-2004 Martin Prikryl
 LegalTrademarks=
-OriginalFilename=winscp330.exe
+OriginalFilename=winscp350.exe
 ProductName=WinSCP
-ProductVersion=3.3.0.0
+ProductVersion=3.5.0.0
 WWW=http://winscp.sourceforge.net/
 
 [Compiler]
 ShowInfoMsgs=1
-LinkDebugVcl=0
+LinkDebugVcl=1
 LinkCGLIB=0
 
   </IDEOPTIONS>

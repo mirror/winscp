@@ -22,7 +22,6 @@
 
 #include <NMHttp.hpp>
 #include <Psock.hpp>
-#include <FileOperator.hpp>
 //---------------------------------------------------------------------------
 #pragma package(smart_init)
 //---------------------------------------------------------------------------
@@ -269,9 +268,11 @@ void __fastcall Execute(TProgramParams * Params)
         {
           if (TerminalManager->ConnectActiveTerminal())
           {
-            TerminalManager->ScpExplorer = CreateScpExplorer();
+            TCustomScpExplorerForm * ScpExplorer = CreateScpExplorer();
             try
             {
+              // moved inside try .. __finally, because it can fail as well
+              TerminalManager->ScpExplorer = ScpExplorer;
               if (UploadListStart > 0)
               {
                 if (UploadListStart <= Params->ParamCount)
@@ -288,7 +289,8 @@ void __fastcall Execute(TProgramParams * Params)
             }
             __finally
             {
-              SAFE_DESTROY(TerminalManager->ScpExplorer);
+              TerminalManager->ScpExplorer = NULL;
+              SAFE_DESTROY(ScpExplorer);
             }
           }
         }
@@ -306,24 +308,4 @@ void __fastcall Execute(TProgramParams * Params)
     TTerminalManager::DestroyInstance();
   }
 }
-//---------------------------------------------------------------------------
-int __fastcall FileOperatorDelete(const AnsiString FileName, bool ToRecycleBin)
-{
-  TFileOperator * FileOperator = new TFileOperator(Application);
-  int Result;
-  try
-  {
-    TFileOperationFlags Flags;
-    Flags << foNoConfirmation << foNoConfirmMkDir << foRenameOnCollision << foSilent;
-    if (ToRecycleBin) Flags << foAllowUndo;
-    FileOperator->Flags = Flags;
-    FileOperator->Operation = Fileoperator::foDelete;
-    FileOperator->OperandFrom->Text = FileName;
-    Result = FileOperator->Execute();
-  }
-  __finally
-  {
-    delete FileOperator;
-  }
-  return Result;
-}
+

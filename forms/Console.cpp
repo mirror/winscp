@@ -108,9 +108,10 @@ bool __fastcall TConsoleDialog::Execute(const AnsiString Command)
   
   try
   {
-    if (CustomWinConfiguration->CommandsHistory->Count)
+    TStrings * CommandsHistory = CustomWinConfiguration->History["Commands"];
+    if ((CommandsHistory != NULL) && (CommandsHistory->Count > 0))
     {
-      CommandEdit->Items = CustomWinConfiguration->CommandsHistory;
+      CommandEdit->Items = CommandsHistory;
     }
     else
     {
@@ -129,7 +130,7 @@ bool __fastcall TConsoleDialog::Execute(const AnsiString Command)
     {
       assert(FTerminal->OnClose == TerminalClose);
       FTerminal->OnClose = FPrevTerminalClose;
-      CustomWinConfiguration->CommandsHistory = CommandEdit->Items;
+      CustomWinConfiguration->History["Commands"] = CommandEdit->Items;
     }
   }
   return true;

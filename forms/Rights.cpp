@@ -142,18 +142,6 @@ void __fastcall TRightsFrame::UpdateControls()
   DoChange();
 }
 //---------------------------------------------------------------------------
-void __fastcall TRightsFrame::FrameContextPopup(TObject * /*Sender*/,
-      TPoint & /*MousePos*/, bool & /*Handled*/)
-{
-//  NonVisualDataModule->RightsFrame = this;
-}
-//---------------------------------------------------------------------------
-void __fastcall TRightsFrame::FrameEnter(TObject * /*Sender*/)
-{
-  // allow keyboard shortcuts
-  //NonVisualDataModule->RightsFrame = this;
-}
-//---------------------------------------------------------------------------
 void __fastcall TRightsFrame::CycleRights(int Group)
 {
   TRightState State;

@@ -267,6 +267,7 @@ __fastcall TSCPFileSystem::TSCPFileSystem(TTerminal * ATerminal):
 {
   FCommandSet = new TCommandSet(FTerminal->SessionData);
   FOutput = new TStringList();
+  FProcessingCommand = false;
 }
 //---------------------------------------------------------------------------
 __fastcall TSCPFileSystem::~TSCPFileSystem()
@@ -335,6 +336,18 @@ bool __fastcall TSCPFileSystem::IsCapable(int Capability) const
     default:
       assert(false);
       return false;
+  }
+}
+//---------------------------------------------------------------------------
+void __fastcall TSCPFileSystem::KeepAlive()
+{
+  if (!FProcessingCommand)
+  {
+    ExecCommand(fsNull, NULL, 0, 0);
+  }
+  else
+  {
+    FTerminal->LogEvent("Cannot send keepalive, command is being executed");
   }
 }
 //---------------------------------------------------------------------------
@@ -409,8 +422,35 @@ AnsiString __fastcall TSCPFileSystem::DelimitStr(AnsiString Str)
   return Str;
 }
 //---------------------------------------------------------------------------
+void __fastcall TSCPFileSystem::EnsureLocation()
+{
+  if (!FCachedDirectoryChange.IsEmpty())
+  {
+    FTerminal->LogEvent(FORMAT("Locating to cached directory \"%s\".",
+      (FCachedDirectoryChange)));
+    AnsiString Directory = FCachedDirectoryChange;
+    FCachedDirectoryChange = "";
+    try
+    {
+      ChangeDirectory(Directory);
+    }
+    catch(...)
+    {
+      // when location to cached directory fails, pretend again
+      // location in cached directory 
+      if (FTerminal->Active && (CurrentDirectory != Directory))
+      {
+        FCachedDirectoryChange = Directory;
+      }
+      throw;
+    }
+  }
+}
+//---------------------------------------------------------------------------
 void __fastcall TSCPFileSystem::SendCommand(const AnsiString Cmd)
 {
+  EnsureLocation();
+
   AnsiString Line;
   FTerminal->ClearStdError();
   FReturnCode = 0;
@@ -418,6 +458,7 @@ void __fastcall TSCPFileSystem::SendCommand(const AnsiString Cmd)
   // We suppose, that 'Cmd' already contains command that ensures,
   // that 'LastLine' will be printed
   FTerminal->SendLine(Cmd);
+  FProcessingCommand = true;
 }
 //---------------------------------------------------------------------------
 bool __fastcall TSCPFileSystem::IsTotalListingLine(const AnsiString Line)
@@ -476,6 +517,7 @@ void __fastcall TSCPFileSystem::SkipFirstLine()
 //---------------------------------------------------------------------------
 void __fastcall TSCPFileSystem::ReadCommandOutput(int Params)
 {
+  FProcessingCommand = false;
   if (Params & coWaitForLastLine)
   {
     AnsiString Line;
@@ -518,35 +560,8 @@ void __fastcall TSCPFileSystem::ReadCommandOutput(int Params)
   }
 }
 //---------------------------------------------------------------------------
-void __fastcall TSCPFileSystem::EnsureLocation()
-{
-  if (!FCachedDirectoryChange.IsEmpty())
-  {
-    FTerminal->LogEvent(FORMAT("Locating to cached directory \"%s\".",
-      (FCachedDirectoryChange)));
-    AnsiString Directory = FCachedDirectoryChange;
-    FCachedDirectoryChange = "";
-    try
-    {
-      ChangeDirectory(Directory);
-    }
-    catch(...)
-    {
-      // when location to cached directory fails, pretend again
-      // location in cached directory 
-      if (FTerminal->Active && (CurrentDirectory != Directory))
-      {
-        FCachedDirectoryChange = Directory;
-      }
-      throw;
-    }
-  }
-}
-//---------------------------------------------------------------------------
 void __fastcall TSCPFileSystem::ExecCommand(const AnsiString Cmd, int Params)
 {
-  EnsureLocation();
-
   if (Params < 0) Params = ecRaiseExcept;
   if (FTerminal->UseBusyCursor)
   {
@@ -1050,7 +1065,16 @@ void __fastcall TSCPFileSystem::SCPResponse(bool * GotLastLine)
         /* TODO 1 : Show stderror to user? */
         FTerminal->ClearStdError();
 
-        ReadCommandOutput(coExpectNoOutput | coRaiseExcept | coOnlyReturnCode);
+        try
+        {
+          ReadCommandOutput(coExpectNoOutput | coRaiseExcept | coOnlyReturnCode);
+        }
+        catch(...)
+        {
+          // when ReadCommandOutput() fails than remote SCP is terminated already
+          *GotLastLine = true;
+          throw;
+        }
       }
         else
       if (Resp == 1)

@@ -33,34 +33,31 @@ Boolean __fastcall UnixComparePaths(const AnsiString Path1, const AnsiString Pat
 //---------------------------------------------------------------------------
 AnsiString __fastcall UnixExtractFileDir(const AnsiString Path)
 {
-  Integer Pos = Path.LastDelimiter('/');
-  if (Pos > 1) return Path.SubString(1, Pos - 1);
-    else
-  if (Pos == 1) return "/";
-    else return Path;
+  int Pos = Path.LastDelimiter('/');
+  // it used to return Path when no slash was found
+  return (Pos > 1) ? Path.SubString(1, Pos - 1) :
+    ((Pos == 1) ? AnsiString("/") : AnsiString());
 }
 //---------------------------------------------------------------------------
 // must return trailing backslash
 AnsiString __fastcall UnixExtractFilePath(const AnsiString Path)
 {
-  Integer Pos = Path.LastDelimiter('/');
-  if (Pos) return Path.SubString(1, Pos);
-    else return Path;
+  int Pos = Path.LastDelimiter('/');
+  // it used to return Path when no slash was found
+  return (Pos > 0) ? Path.SubString(1, Pos) : AnsiString();
 }
 //---------------------------------------------------------------------------
 AnsiString __fastcall UnixExtractFileName(const AnsiString Path)
 {
-  Integer Pos = Path.LastDelimiter('/');
-  if (Pos) return Path.SubString(Pos + 1, Path.Length() - Pos);
-    else return Path;
+  int Pos = Path.LastDelimiter('/');
+  return (Pos > 0) ? Path.SubString(Pos + 1, Path.Length() - Pos) : Path;
 }
 //---------------------------------------------------------------------------
 AnsiString __fastcall UnixExtractFileExt(const AnsiString Path)
 {
   AnsiString FileName = UnixExtractFileName(Path);
-  Integer Pos = FileName.LastDelimiter(".");
-  if (Pos) return Path.SubString(Pos, Path.Length() - Pos + 1);
-    else return "";
+  int Pos = FileName.LastDelimiter(".");
+  return (Pos > 0) ? Path.SubString(Pos, Path.Length() - Pos + 1) : AnsiString();
 }
 //- TRemoteFiles ------------------------------------------------------------
 __fastcall TRemoteFile::TRemoteFile(TRemoteFile * ALinkedByFile):
@@ -527,6 +524,16 @@ void __fastcall TRemoteFile::SetTerminal(TTerminal * value)
     FLinkedFile->Terminal = value;
   }
 }
+//---------------------------------------------------------------------------
+//---------------------------------------------------------------------------
+__fastcall TRemoteParentDirectory::TRemoteParentDirectory() : TRemoteFile()
+{
+  FileName = "..";
+  Modification = Now();
+  LastAccess = Modification;
+  Type = 'D';
+  Size = 0;
+}
 //=== TRemoteFileList ------------------------------------------------------
 __fastcall TRemoteFileList::TRemoteFileList():
   TObjectList()
@@ -827,16 +834,12 @@ void __fastcall TRemoteDirectoryChangesCache::AddDirectoryChange(
 void __fastcall TRemoteDirectoryChangesCache::ClearDirectoryChange(
   AnsiString SourceDir)
 {
-  AnsiString Key;
-  if (DirectoryChangeKey(SourceDir, "", Key))
+  for (int Index = 0; Index < Count; Index++)
   {
-    for (int Index = 0; Index < Count; Index++)
+    if (Names[Index].SubString(1, SourceDir.Length()) == SourceDir)
     {
-      if (Names[Index].SubString(1, Key.Length()) == Key)
-      {
-        Delete(Index);
-        Index--;
-      }
+      Delete(Index);
+      Index--;
     }
   }
 }

@@ -197,9 +197,10 @@ BEGIN
         CLEANUP_HOSTKEYS, "Cached host keys"
         CLEANUP_INIFILE, "Configuration INI file"
         CLEANUP_SEEDFILE, "Random seed file"
+        SELECT_LOCAL_DIRECTORY, "Select local directory."
 
         WIN_VARIABLE_STRINGS, "WIN_VARIABLE"
-        WINSCP_COPYRIGHT, "Copyright © 2000-2003 Martin Prikryl"
+        WINSCP_COPYRIGHT, "Copyright © 2000-2004 Martin Prikryl"
         HOMEPAGE_URL, "http://winscp.sourceforge.net/"
         HISTORY_URL, "http://winscp.sourceforge.net/eng/history.php"
         REQUIREMENTS_URL, "http://winscp.sourceforge.net/eng/requirements.php"

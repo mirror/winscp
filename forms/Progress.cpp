@@ -36,6 +36,7 @@ __fastcall TProgressForm::TProgressForm(TComponent* AOwner)
   FUpdateCounter = 0;
   FLastUpdate = 0;
   FDeleteToRecycleBin = false;
+  FShowAsModalStorage = NULL;
   UseSystemSettings(this);
 }
 //---------------------------------------------------------------------------
@@ -45,11 +46,8 @@ __fastcall TProgressForm::~TProgressForm()
   FData.Clear();
   if (IsIconic(Application->Handle) && FMinimizedByMe)
     Application->Restore();
-    
-  if (FFormState.Contains(fsModal))
-  {
-    HideAsModal();
-  }
+
+  ReleaseAsModal(this, FShowAsModalStorage);
 }
 //---------------------------------------------------------------------
 void __fastcall TProgressForm::UpdateControls()
@@ -149,8 +147,10 @@ void __fastcall TProgressForm::UpdateControls()
   }
 
   FileLabel->Caption = FData.FileName;
-  OperationProgress->Position = FData.OverallProgress();
-  OperationProgress->Hint = FORMAT("%d%%", (OperationProgress->Position));
+  int OverallProgress = FData.OverallProgress();
+  OperationProgress->Position = OverallProgress;
+  OperationProgress->Hint = FORMAT("%d%%", (OverallProgress));
+  Caption = FORMAT("%d%% %s", (OverallProgress, OperationName(FData.Operation)));
 
   if (TransferOperation)
   {
@@ -217,7 +217,7 @@ void __fastcall TProgressForm::SetProgressData(const TFileOperationProgressType 
   if (!FDataReceived)
   {
     FDataReceived = true;
-    ShowAsModal(); 
+    ShowAsModal(this, FShowAsModalStorage);
   }
 
   if (InstantUpdate)
@@ -338,41 +338,6 @@ void __fastcall TProgressForm::SetDisconnectWhenComplete(bool value)
 bool __fastcall TProgressForm::GetDisconnectWhenComplete()
 {
   return DisconnectWhenCompleteCheck->Checked;
-}
-//---------------------------------------------------------------------------
-void __fastcall TProgressForm::ShowAsModal()
-{
-  // method duplicated in TOperationStatusForm
-  CancelDrag();
-  if (GetCapture() != 0) SendMessage(GetCapture(), WM_CANCELMODE, 0, 0);
-  ReleaseCapture();
-  FFormState << fsModal;
-  FFocusActiveWindow = GetActiveWindow();
-
-  FFocusWindowList = DisableTaskWindows(0);
-  Show();
-  SendMessage(Handle, CM_ACTIVATE, 0, 0);
-}
-//---------------------------------------------------------------------------
-void __fastcall TProgressForm::HideAsModal()
-{
-  // method duplicated in TOperationStatusForm
-  assert(FFormState.Contains(fsModal));
-  SendMessage(Handle, CM_DEACTIVATE, 0, 0);
-  if (GetActiveWindow() != Handle)
-  {
-    FFocusActiveWindow = 0;
-  }
-  Hide();
-
-  EnableTaskWindows(FFocusWindowList);
-
-  if (FFocusActiveWindow != 0)
-  {
-    SetActiveWindow(FFocusActiveWindow);
-  }
-
-  FFormState >> fsModal;
 }
 //---------------------------------------------------------------------------
 bool __fastcall TProgressForm::GetAllowMinimize()

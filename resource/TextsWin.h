@@ -217,6 +217,7 @@
 #define UPDATES_URL             1706
 #define DOWNLOAD_URL            1707
 #define DONATE_URL              1708
+#define SELECT_LOCAL_DIRECTORY  1709
 
 #define TRANSLATOR_INFO         1801
 #define MIDDLE_EAST             1802

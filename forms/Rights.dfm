@@ -5,8 +5,6 @@ object RightsFrame: TRightsFrame
   Height = 109
   PopupMenu = RightsPopup
   TabOrder = 0
-  OnContextPopup = FrameContextPopup
-  OnEnter = FrameEnter
   object OwnerLabel: TLabel
     Left = 4
     Top = 4

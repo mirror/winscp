@@ -27,7 +27,7 @@
     <PATHRC value=".;"/>
     <PATHASM value=".;"/>
     <LINKER value="TLib"/>
-    <USERDEFINES value="PUTTY_LIB;_WINDOWS;_DEBUG;_MSC_VER=1000"/>
+    <USERDEFINES value="PUTTY_LIB;_WINDOWS;_MSC_VER=1000"/>
     <SYSDEFINES value="_RTLDLL;NO_STRICT"/>
     <MAINSOURCE value="Putty.bpf"/>
     <INCLUDEPATH value="putty;putty\CHARSET;$(BCB)\include;$(BCB)\include\vcl"/>
@@ -37,10 +37,9 @@
     <OTHERFILES value=""/>
   </MACROS>
   <OPTIONS>
-    <CFLAG1 value="-Od -H=$(BCB)\lib\vcl60.csm -Hc -Vx -Ve -X- -r- -a8 -b- -k -y -v -vi- -c 
-      -tW -tWM"/>
-    <PFLAGS value="  -$Y+ -$W -$O- -$A8 -v -JPHNE -M"/>
-    <AFLAGS value="/mx /w2 /zi"/>
+    <CFLAG1 value="-O2 -H=$(BCB)\lib\vcl60.csm -Hc -Vx -Ve -X- -a8 -b- -k- -vi -c -tW -tWM"/>
+    <PFLAGS value="  -$Y- -$L- -$D- -$A8 -v -JPHNE -M"/>
+    <AFLAGS value="/mx /w2 /zn"/>
     <LFLAGS value="/P64 /C"/>
     <OTHERFILES value=""/>
   </OPTIONS>

@@ -21,6 +21,7 @@ enum TSshBug { sbIgnore1, sbPlainPW1, sbRSA1, sbHMAC2, sbDeriveKey2, sbRSAPad2,
   sbDHGEx2, sbPKSessID2 };
 #define BUG_COUNT (sbPKSessID2+1)
 enum TAutoSwitch { asOn, asOff, asAuto };
+enum TPingType { ptOff, ptNullPacket, ptDummyCommand };
 const puRequireUsername =     0x01;
 const puExcludeLeadingSlash = 0x02;
 //---------------------------------------------------------------------------
@@ -38,6 +39,7 @@ private:
   AnsiString FUserName;
   AnsiString FPassword;
   int FPingInterval;
+  TPingType FPingType;
   bool FAgentFwd;
   bool FAliasGroupList;
   bool FAuthTIS;
@@ -108,8 +110,7 @@ private:
   void __fastcall SetPingIntervalDT(TDateTime value);
   TDateTime __fastcall GetPingIntervalDT();
   void __fastcall SetTimeDifference(TDateTime value);
-  void __fastcall SetPingEnabled(bool value);
-  bool __fastcall GetPingEnabled();
+  void __fastcall SetPingType(TPingType value);
   AnsiString __fastcall GetSessionName();
   void __fastcall SetFSProtocol(TFSProtocol value);
   AnsiString __fastcall GetFSProtocolStr();
@@ -197,7 +198,7 @@ public:
   __property bool ClearAliases = { read = FClearAliases, write = SetClearAliases };
   __property TDateTime PingIntervalDT = { read = GetPingIntervalDT, write = SetPingIntervalDT };
   __property TDateTime TimeDifference = { read = FTimeDifference, write = SetTimeDifference };
-  __property bool PingEnabled = { read = GetPingEnabled, write = SetPingEnabled };
+  __property TPingType PingType = { read = FPingType, write = SetPingType };
   __property AnsiString SessionName  = { read=GetSessionName };
   __property AnsiString LocalDirectory  = { read=FLocalDirectory, write=SetLocalDirectory };
   __property AnsiString RemoteDirectory  = { read=FRemoteDirectory, write=SetRemoteDirectory };

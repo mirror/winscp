@@ -20,6 +20,7 @@ public:
   virtual __fastcall ~TSFTPFileSystem();
 
   virtual AnsiString __fastcall AbsolutePath(AnsiString Path);
+  virtual void __fastcall KeepAlive();
   virtual void __fastcall AnyCommand(const AnsiString Command);
   virtual void __fastcall ChangeDirectory(const AnsiString Directory);
   virtual void __fastcall CachedChangeDirectory(const AnsiString Directory);
@@ -69,7 +70,8 @@ protected:
   TStrings * FExtensions;
 
   void __fastcall CustomReadFile(const AnsiString FileName,
-    TRemoteFile *& File, char Type, TRemoteFile * ALinkedByFile = NULL);
+    TRemoteFile *& File, char Type, TRemoteFile * ALinkedByFile = NULL,
+    bool AllowNonexistence = false);
   virtual AnsiString __fastcall GetCurrentDirectory();
   AnsiString __fastcall GetHomeDirectory();
   unsigned long __fastcall GotStatusPacket(TSFTPPacket * Packet, int AllowStatus);

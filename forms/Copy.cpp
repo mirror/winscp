@@ -7,15 +7,15 @@
 #include <ScpMain.h>
 #include <TextsWin.h>
 #include <VCLCommon.h>
+#include <CustomWinConfiguration.h>
 
 #include "Copy.h"
-#include "GUIConfiguration.h"
 //---------------------------------------------------------------------------
 #pragma package(smart_init)
-#pragma link "ComboEdit"
 #pragma link "MoreButton"
 #pragma link "Rights"
 #pragma link "CopyParams"
+#pragma link "HistoryComboBox"
 #pragma resource "*.dfm"
 //---------------------------------------------------------------------------
 bool __fastcall DoCopyDialog(bool ToRemote,
@@ -97,10 +97,9 @@ void __fastcall TCopyDialog::SetAllowDirectory(bool value)
   }
 }
 //---------------------------------------------------------------------------
-TCustomEdit * __fastcall TCopyDialog::GetDirectoryEdit()
+THistoryComboBox * __fastcall TCopyDialog::GetDirectoryEdit()
 {
-  return ToRemote ? (TCustomEdit *)RemoteDirectoryEdit :
-    (TCustomEdit *)LocalDirectoryEdit;
+  return ToRemote ? RemoteDirectoryEdit : LocalDirectoryEdit;
 }
 //---------------------------------------------------------------------------
 void __fastcall TCopyDialog::SetFileMask(const AnsiString value)
@@ -206,6 +205,8 @@ void __fastcall TCopyDialog::UpdateControls()
     Caption = LoadStr(COPY_MOVE_CAPTION);
     CopyButton->Caption = LoadStr(COPY_MOVE_BUTTON);
   }
+  
+  LocalDirectoryBrowseButton->Visible = !ToRemote && !DragDrop && AllowDirectory;
 }
 //---------------------------------------------------------------------------
 void __fastcall TCopyDialog::SetDragDrop(Boolean value)
@@ -243,6 +244,8 @@ void __fastcall TCopyDialog::FormShow(TObject * /*Sender*/)
 //---------------------------------------------------------------------------
 bool __fastcall TCopyDialog::Execute()
 {
+  DirectoryEdit->Items = CustomWinConfiguration->History[
+    ToRemote ? "RemoteTarget" : "LocalTarget"];
   SaveSettingsCheck->Checked = false;
   MoreButton->Expanded = GUIConfiguration->CopyParamDialogExpanded;
   CopyParamsFrame->BeforeExecute();
@@ -258,6 +261,9 @@ bool __fastcall TCopyDialog::Execute()
       {
         Configuration->CopyParam = Params;
       }
+      DirectoryEdit->SaveToHistory();
+      CustomWinConfiguration->History[ToRemote ?
+        "RemoteTarget" : "LocalTarget"] = DirectoryEdit->Items;
     }
     __finally
     {
@@ -330,3 +336,16 @@ bool __fastcall TCopyDialog::GetAllowTransferMode()
 {
   return CopyParamsFrame->AllowTransferMode;
 }
+//---------------------------------------------------------------------------
+void __fastcall TCopyDialog::LocalDirectoryBrowseButtonClick(
+      TObject * /*Sender*/)
+{
+  assert(!ToRemote);
+  AnsiString Directory = LocalDirectoryEdit->Text;
+  if (SelectDirectory(Directory, LoadStr(SELECT_LOCAL_DIRECTORY), true))
+  {
+    LocalDirectoryEdit->Text = Directory;
+  }
+}
+//---------------------------------------------------------------------------
+

@@ -72,7 +72,7 @@ void __fastcall TWinConfiguration::Default()
 
   FScpExplorer.WindowParams = "-1;-1;600;400;0";
   FScpExplorer.DirViewParams = "0;1;0|150,1;70,1;101,1;79,1;62,1;55,1|0;1;2;3;4;5";
-  FScpExplorer.CoolBarLayout = "6,0,1,196,6;2,1,0,531,5;5,1,1,103,4;3,0,1,127,3;4,1,0,636,2;1,1,1,636,1;0,1,1,636,0";
+  FScpExplorer.CoolBarLayout = "5,0,0,94,6;1,1,0,638,5;4,0,0,239,4;3,1,0,424,3;6,1,0,206,2;2,1,1,634,1;0,1,1,634,0";
   FScpExplorer.StatusBar = true;
   AnsiString PersonalFolder;
   SpecialFolderLocation(CSIDL_PERSONAL, PersonalFolder);

@@ -13,6 +13,7 @@ public:
   virtual __fastcall ~TSCPFileSystem();
 
   virtual AnsiString __fastcall AbsolutePath(AnsiString Path);
+  virtual void __fastcall KeepAlive();
   virtual void __fastcall AnyCommand(const AnsiString Command);
   virtual void __fastcall ChangeDirectory(const AnsiString Directory);
   virtual void __fastcall CachedChangeDirectory(const AnsiString Directory);
@@ -64,6 +65,7 @@ private:
   TStrings * FOutput;
   int FReturnCode;
   AnsiString FCachedDirectoryChange;
+  bool FProcessingCommand;
 
   void __fastcall AliasGroupList();
   void __fastcall ClearAliases();

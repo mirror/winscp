@@ -46,6 +46,7 @@ const int SFTPNoMessageNumber = -1;
 const int asOK =            1 << SSH_FX_OK;
 const int asEOF =           1 << SSH_FX_EOF;
 const int asOpUnsupported = 1 << SSH_FX_OP_UNSUPPORTED;
+const int asNoSuchFile =    1 << SSH_FX_NO_SUCH_FILE;
 const int asAll = 0xFFFF;
 //---------------------------------------------------------------------------
 #define GET_32BIT(cp) \
@@ -903,6 +904,13 @@ bool __fastcall TSFTPFileSystem::IsCapable(int Capability) const
   }
 }
 //---------------------------------------------------------------------------
+void __fastcall TSFTPFileSystem::KeepAlive()
+{
+  TSFTPPacket Packet(SSH_FXP_REALPATH);
+  Packet.AddString("/");
+  SendPacketAndReceiveResponse(&Packet, &Packet);
+}
+//---------------------------------------------------------------------------
 void __fastcall TSFTPFileSystem::AdditionalInfo(TStrings * AdditionalInfo,
   bool Initial)
 {
@@ -991,7 +999,7 @@ AnsiString __fastcall TSFTPFileSystem::DecodeUTF(const AnsiString UTF)
   Params.Buffer.SetLength(Params.Pos);
 
   return Params.Buffer;
-}          
+}
 //---------------------------------------------------------------------------
 inline void __fastcall TSFTPFileSystem::BusyStart()
 {
@@ -1154,7 +1162,7 @@ int __fastcall TSFTPFileSystem::ReceivePacket(TSFTPPacket * Packet,
 
   int Result = SSH_FX_OK;
   int Reservation = FPacketReservations->IndexOf(Packet);
-  
+
   if (Reservation < 0 || Packet->Capacity == 0)
   {
     bool IsReserved;
@@ -1355,7 +1363,7 @@ AnsiString __fastcall TSFTPFileSystem::RealPath(const AnsiString Path,
     if (!Path.IsEmpty())
     {
       // this condition/block was outside (before) current block
-      // but it dod not work when Path was empty 
+      // but it dod not work when Path was empty
       if (!BaseDir.IsEmpty())
       {
         APath = UnixIncludeTrailingBackslash(BaseDir);
@@ -1613,14 +1621,29 @@ void __fastcall TSFTPFileSystem::ReadDirectory(TRemoteFileList * FileList)
   AnsiString Directory = LocalCanonify(FileList->Directory);
   FTerminal->LogEvent(FORMAT("Listing directory \"%s\".", (Directory)));
 
-  TSFTPPacket Packet(SSH_FXP_OPENDIR);
-  Packet.AddString(Directory);
-
-  SendPacketAndReceiveResponse(&Packet, &Packet, SSH_FXP_HANDLE);
-
-  AnsiString Handle = Packet.GetString();
-
+  // moved before SSH_FXP_OPENDIR, so directory listing does not retain
+  // old data (e.g. parent directory) when reading fails
   FileList->Clear();
+
+  TSFTPPacket Packet(SSH_FXP_OPENDIR);
+  AnsiString Handle;
+
+  try
+  {
+    Packet.AddString(Directory);
+
+    SendPacketAndReceiveResponse(&Packet, &Packet, SSH_FXP_HANDLE);
+
+    Handle = Packet.GetString();
+  }     
+  catch(...)
+  {
+    if (FTerminal->Active)
+    {
+      FileList->AddFile(new TRemoteParentDirectory());
+    }
+    throw;
+  }
 
   TSFTPPacket Response;
   try
@@ -1764,15 +1787,18 @@ bool __fastcall inline TSFTPFileSystem::RemoteFileExists(const AnsiString FullPa
   try
   {
     TRemoteFile * AFile;
-    ReadFile(FullPath, AFile);
-    Result = true;
-    if (File)
+    CustomReadFile(FullPath, AFile, SSH_FXP_LSTAT, NULL, true);
+    Result = (AFile != NULL);
+    if (Result)
     {
-      *File = AFile;
-    }
-    else
-    {
-      delete AFile;
+      if (File)
+      {
+        *File = AFile;
+      }
+      else
+      {
+        delete AFile;
+      }
     }
   }
   catch(...)
@@ -1787,7 +1813,8 @@ bool __fastcall inline TSFTPFileSystem::RemoteFileExists(const AnsiString FullPa
 }
 //---------------------------------------------------------------------------
 void __fastcall TSFTPFileSystem::CustomReadFile(const AnsiString FileName,
-  TRemoteFile *& File, char Type, TRemoteFile * ALinkedByFile)
+  TRemoteFile *& File, char Type, TRemoteFile * ALinkedByFile,
+  bool AllowNonexistence)
 {
   TSFTPPacket Packet(Type);
 
@@ -1798,10 +1825,19 @@ void __fastcall TSFTPFileSystem::CustomReadFile(const AnsiString FileName,
       SSH_FILEXFER_ATTR_ACCESSTIME | SSH_FILEXFER_ATTR_MODIFYTIME |
       SSH_FILEXFER_ATTR_OWNERGROUP);
   }
-  SendPacketAndReceiveResponse(&Packet, &Packet, SSH_FXP_ATTRS);
+  SendPacketAndReceiveResponse(&Packet, &Packet, SSH_FXP_ATTRS,
+    AllowNonexistence ? asNoSuchFile : -1);
 
-  File = LoadFile(&Packet, ALinkedByFile);
-  File->FileName = UnixExtractFileName(FileName);
+  if (Packet.Type == SSH_FXP_ATTRS)
+  {
+    File = LoadFile(&Packet, ALinkedByFile);
+    File->FileName = UnixExtractFileName(FileName);
+  }
+  else
+  {
+    assert(AllowNonexistence);
+    File = NULL;
+  }
 }
 //---------------------------------------------------------------------------
 void __fastcall TSFTPFileSystem::DeleteFile(const AnsiString FileName,
@@ -1943,10 +1979,6 @@ void __fastcall TSFTPFileSystem::CopyToRemote(TStrings * FilesToCopy,
           if (!FTerminal->HandleException(&E)) throw;
         );
       }
-    /*  catch(...)
-      {
-        throw;
-      }*/
     }
     __finally
     {
@@ -1992,7 +2024,7 @@ void __fastcall TSFTPFileSystem::SFTPConfirmOverwrite(const AnsiString FileName,
           Answer = FTerminal->DoQueryUser(FORMAT(LoadStr(APPEND_OR_RESUME), (FileName)),
             qaYes | qaNo | qaCancel, 0);
         );
-        
+
         if (Answer == qaCancel)
         {
           if (!OperationProgress->Cancel)
@@ -2274,7 +2306,7 @@ void __fastcall TSFTPFileSystem::SFTPSource(const AnsiString FileName,
       __finally
       {
         if (FTerminal->Active)
-        {        
+        {
           SFTPCloseRemote(OpenParams.RemoteFileHandle, DestFileName,
             OperationProgress, TransferFinished);
 
@@ -2327,8 +2359,6 @@ void __fastcall TSFTPFileSystem::SFTPSource(const AnsiString FileName,
     }
     __finally
     {
-      // !!!using catch() instead of __finally is here by purpose
-      // !!!it solves problem with external exception (too many nested __finally ???)
       CloseHandle(File);
     }
   }
@@ -2529,11 +2559,9 @@ void __fastcall TSFTPFileSystem::SFTPDirectorySource(const AnsiString DirectoryN
     {
       // If ESkipFile occurs, just log it and continue with next file
       SUSPEND_OPERATION (
-        if (FTerminal->DoQueryUser(FMTLOAD(COPY_ERROR, (FileName)), E.Message,
-              qaOK | qaAbort, qpAllowContinueOnError) == qaAbort)
-        {
-          OperationProgress->Cancel = csCancel;
-        }
+        // here a message to user was displayed, which was not appropriate
+        // when user refused to overwrite the file in subdirectory.
+        // hopefuly it won't be missing in other situations.
         if (!FTerminal->HandleException(&E)) throw;
       );
     }
@@ -2589,7 +2617,7 @@ void __fastcall TSFTPFileSystem::CopyToLocal(TStrings * FilesToCopy,
       catch(...)
       {
         throw;
-      } 
+      }
     }
     __finally
     {
@@ -2649,7 +2677,7 @@ void __fastcall TSFTPFileSystem::SFTPSink(const AnsiString FileName,
     else
     {
       // file is symlink to directory, currently do nothing, but it should be
-      // reported to user 
+      // reported to user
     }
   }
   else
@@ -2948,7 +2976,7 @@ void __fastcall TSFTPFileSystem::SFTPSink(const AnsiString FileName,
   {
     // If file is directory, do not delete it recursively, because it should be
     // empty already. If not, it should not be deleted (some files were
-    // skipped or some new files were copied to it, while we were downloading)  
+    // skipped or some new files were copied to it, while we were downloading)
     bool Recursive = false;
     FTerminal->DeleteFile(FileName, File, &Recursive);
   }
@@ -2980,6 +3008,3 @@ void __fastcall TSFTPFileSystem::SFTPSinkFile(AnsiString FileName,
     }
   }
 }
-
-
-

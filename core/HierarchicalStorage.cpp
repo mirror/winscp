@@ -63,7 +63,7 @@ bool __fastcall THierarchicalStorage::OpenRootKey(bool CanCreate)
 //---------------------------------------------------------------------------
 bool __fastcall THierarchicalStorage::OpenSubKey(const AnsiString SubKey, bool )
 {
-  FKeyHistory->Add(IncludeTrailingBackslash(CurrentSubKey + SubKey));
+  FKeyHistory->Add(IncludeTrailingBackslash(CurrentSubKey+SubKey));
   return true;
 }
 //---------------------------------------------------------------------------
@@ -225,7 +225,7 @@ AnsiString __fastcall THierarchicalStorage::ReadBinaryData(const AnsiString Name
   AnsiString Value;
   Value.SetLength(Size);
   ReadBinaryData(Name, Value.c_str(), Size);
-  return Value; 
+  return Value;
 }
 //---------------------------------------------------------------------------
 void __fastcall THierarchicalStorage::WriteString(const AnsiString Name, const AnsiString Value)
@@ -356,7 +356,7 @@ bool __fastcall TRegistryStorage::ValueExists(const AnsiString Value)
 //---------------------------------------------------------------------------
 int __fastcall TRegistryStorage::BinaryDataSize(const AnsiString Name)
 {
-  return FRegistry->GetDataSize(Name); 
+  return FRegistry->GetDataSize(Name);
 }
 //---------------------------------------------------------------------------
 bool __fastcall TRegistryStorage::ReadBool(const AnsiString Name, bool Default)
@@ -683,4 +683,3 @@ void __fastcall TIniFileStorage::WriteBinaryData(const AnsiString Name,
 {
   WriteStringRaw(Name, StrToHex(AnsiString(static_cast<char*>(Buffer), Size)));
 }
-

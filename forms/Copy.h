@@ -6,10 +6,10 @@
 #include <Controls.hpp>
 #include <StdCtrls.hpp>
 #include <Forms.hpp>
-#include <ComboEdit.hpp>
 #include <Mask.hpp>
 #include <MoreButton.hpp>
 #include <ExtCtrls.hpp>
+#include <HistoryComboBox.hpp>
 
 #include "Rights.h"
 #include "CopyParams.h"
@@ -18,16 +18,18 @@ class TCopyDialog : public TForm
 {
 __published:
   TLabel *DirectoryLabel;
-  TDirectoryEdit *LocalDirectoryEdit;
-  TEdit *RemoteDirectoryEdit;
+  THistoryComboBox *LocalDirectoryEdit;
+  THistoryComboBox *RemoteDirectoryEdit;
   TMoreButton *MoreButton;
   TButton *CopyButton;
   TButton *CancelButton;
   TPanel *MorePanel;
   TCheckBox *SaveSettingsCheck;
   TCopyParamsFrame *CopyParamsFrame;
+  TButton *LocalDirectoryBrowseButton;
   void __fastcall FormShow(TObject *Sender);
   void __fastcall FormCloseQuery(TObject *Sender, bool &CanClose);
+  void __fastcall LocalDirectoryBrowseButtonClick(TObject *Sender);
 private:
   bool FToRemote;
   bool FDragDrop;
@@ -38,7 +40,7 @@ private:
   bool __fastcall GetAllowTransferMode();
   AnsiString __fastcall GetDirectory();
   void __fastcall SetToRemote(bool value);
-  TCustomEdit * __fastcall GetDirectoryEdit();
+  THistoryComboBox * __fastcall GetDirectoryEdit();
   void __fastcall SetParams(TCopyParamType value);
   TCopyParamType __fastcall GetParams();
   void __fastcall SetAllowTransferMode(Boolean value);
@@ -55,7 +57,7 @@ public:
   __property bool AllowTransferMode = { read = GetAllowTransferMode, write = SetAllowTransferMode };
   __property bool ToRemote = { read = FToRemote, write = SetToRemote };
   __property AnsiString Directory = { read = GetDirectory, write = SetDirectory };
-  __property TCustomEdit * DirectoryEdit = { read = GetDirectoryEdit };
+  __property THistoryComboBox * DirectoryEdit = { read = GetDirectoryEdit };
   __property bool DragDrop = { read = FDragDrop, write = SetDragDrop };
   __property TStrings * FileList = { read = FFileList, write = SetFileList };
   __property TCopyParamType Params = { read = GetParams, write = SetParams };

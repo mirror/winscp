@@ -67,8 +67,7 @@ private:
   int FUpdateCounter;
   bool FAsciiTransferChanged;
   bool FResumeStatusChanged;
-  void * FFocusWindowList;
-  void * FFocusActiveWindow;
+  void * FShowAsModalStorage;
   TDateTime FLastUpdate;
   bool FDeleteToRecycleBin;
 
@@ -81,8 +80,6 @@ protected:
   void __fastcall CancelOperation();
   void __fastcall MinimizeApp();
   void __fastcall UpdateControls();
-  void __fastcall HideAsModal();
-  void __fastcall ShowAsModal();
 
 public:
   static AnsiString __fastcall OperationName(TFileOperation Operation);

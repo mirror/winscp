@@ -46,10 +46,7 @@ __published:
   TAction *LeaveRightsAsIsAction;
   TImageList *RightsImages;
   void __fastcall ControlChange(TObject *Sender);
-  void __fastcall FrameContextPopup(TObject *Sender,
-    TPoint &MousePos, bool &Handled);
   void __fastcall RightsButtonsClick(TObject *Sender);
-  void __fastcall FrameEnter(TObject *Sender);
   void __fastcall OctalEditExit(TObject *Sender);
   void __fastcall OctalEditChange(TObject *Sender);
   void __fastcall RightsActionsExecute(TBasicAction *Action,

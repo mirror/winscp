@@ -103,11 +103,8 @@ __published:
   TTreeView *SimpleNavigationTree;
   TTabSheet *ConnSheet;
   TXPGroupBox *TimeoutGroup;
-  TLabel *Label6;
   TLabel *Label11;
   TLabel *Label12;
-  TCheckBox *PingIntervalCheck;
-  TUpDownEdit *PingIntervalSecEdit;
   TUpDownEdit *TimeoutEdit;
   TTabSheet *ProxySheet;
   TXPGroupBox *ProxyTypeGroup;
@@ -193,6 +190,12 @@ __published:
   TButton *LanguagesButton;
   TCheckBox *CacheDirectoryChangesCheck;
   TCheckBox *PreserveDirectoryChangesCheck;
+  TXPGroupBox *PingGroup;
+  TLabel *Label6;
+  TUpDownEdit *PingIntervalSecEdit;
+  TRadioButton *PingOffButton;
+  TRadioButton *PingNullPacketButton;
+  TRadioButton *PingDummyCommandButton;
   void __fastcall DataChange(TObject *Sender);
   void __fastcall FormShow(TObject *Sender);
   void __fastcall SessionListViewSelectItem(TObject *Sender,
