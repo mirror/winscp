@@ -124,6 +124,54 @@ void Debug(const char* Message)
   }
 }
 //---------------------------------------------------------------------------
+void LogVersion(HINSTANCE HInstance)
+{
+  if (GLogOn)
+  {
+    char FileName[MAX_PATH];
+    if (GetModuleFileName(HInstance, FileName, sizeof(FileName)) > 0)
+    {
+      Debug(FileName);
+      
+      unsigned long InfoHandle, Size;
+      Size = GetFileVersionInfoSize(FileName, &InfoHandle);
+      if (Size > 0)
+      {
+        void * Info;
+        Info = new char[Size];
+        if (GetFileVersionInfo(FileName, InfoHandle, Size, Info) != 0)
+        {
+          VS_FIXEDFILEINFO * VersionInfo;
+          unsigned int VersionInfoSize;
+          if (VerQueryValue(Info, "\\", reinterpret_cast<void**>(&VersionInfo),
+                &VersionInfoSize) != 0)
+          {
+            char VersionStr[100];
+            snprintf(VersionStr, sizeof(VersionStr), "LogVersion %d.%d.%d.%d",
+              HIWORD(VersionInfo->dwFileVersionMS),
+              LOWORD(VersionInfo->dwFileVersionMS),
+              HIWORD(VersionInfo->dwFileVersionLS),
+              LOWORD(VersionInfo->dwFileVersionLS));
+            Debug(VersionStr);
+          }
+          else
+          {
+            Debug("LogVersion no fixed version info");
+          }
+        }
+        else
+        {
+          Debug("LogVersion cannot read version info");
+        }
+      }
+      else
+      {
+        Debug("LogVersion no version info");
+      }
+    }
+  }
+}
+//---------------------------------------------------------------------------
 extern "C" int APIENTRY
 DllMain(HINSTANCE HInstance, DWORD Reason, LPVOID Reserved)
 {
@@ -172,6 +220,7 @@ DllMain(HINSTANCE HInstance, DWORD Reason, LPVOID Reserved)
     }
     DEBUG("DllMain loaded settings");
     DEBUG(GEnabled ? "DllMain enabled" : "DllMain disabled");
+    LogVersion(HInstance);
   }
   else
   {
@@ -625,15 +674,6 @@ STDMETHODIMP_(UINT) CShellExt::CopyCallback(HWND Hwnd, UINT Func, UINT Flags,
       FLastTicks = Ticks;
       const char* BackPtr = strrchr(SrcFile, '\\');
 
-      /*DEBUG(BackPtr);
-      char xxx[30];
-      sprintf(xxx, "%s, %d, %s, %d",
-        DRAG_EXT_DUMMY_DIR_PREFIX, DRAG_EXT_DUMMY_DIR_PREFIX_LEN,
-        BackPtr + 1,
-        (int)strncmp(BackPtr + 1, DRAG_EXT_DUMMY_DIR_PREFIX,
-            DRAG_EXT_DUMMY_DIR_PREFIX_LEN));
-      DEBUG(xxx);*/
-
       if ((BackPtr != NULL) &&
           (strncmp(BackPtr + 1, DRAG_EXT_DUMMY_DIR_PREFIX,
             DRAG_EXT_DUMMY_DIR_PREFIX_LEN) == 0))
@@ -658,8 +698,7 @@ STDMETHODIMP_(UINT) CShellExt::CopyCallback(HWND Hwnd, UINT Func, UINT Flags,
             if (WaitResult != WAIT_TIMEOUT)
             {
               DEBUG("CShellExt::CopyCallback mutex got");
-              if ((CommStruct->Version >= TDragExtCommStruct::MinVersion) &&
-                  (CommStruct->Version <= TDragExtCommStruct::MaxVersion))
+              if (CommStruct->Version >= TDragExtCommStruct::MinVersion)
               {
                 DEBUG("CShellExt::CopyCallback supported structure version");
                 if (CommStruct->Dragging)
