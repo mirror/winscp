@@ -40,7 +40,7 @@ void __fastcall TFileOperationProgressType::Clear()
   TotalTransfered = 0;
   TotalResumed = 0;
   TotalSize = 0;
-  FTotalSizeSet = false;
+  TotalSizeSet = false;
   Operation = foNone;
   DragDrop = false;
   YesToAll = false;
@@ -112,13 +112,13 @@ int __fastcall TFileOperationProgressType::TransferProgress()
 //---------------------------------------------------------------------------
 int __fastcall TFileOperationProgressType::TotalTransferProgress()
 {
-  assert(FTotalSizeSet);
+  assert(TotalSizeSet);
   return TotalSize > 0 ? (int)((TotalTransfered * 100)/TotalSize) : 0;
 }
 //---------------------------------------------------------------------------
 int __fastcall TFileOperationProgressType::OverallProgress()
 {
-  if (FTotalSizeSet)
+  if (TotalSizeSet)
   {
     assert((Operation == foCopy) || (Operation == foMove));
     return TotalTransferProgress();
@@ -189,7 +189,7 @@ unsigned long __fastcall TFileOperationProgressType::LocalBlockSize()
 void __fastcall TFileOperationProgressType::SetTotalSize(__int64 ASize)
 {
   TotalSize = ASize;
-  FTotalSizeSet = true;
+  TotalSizeSet = true;
   DoProgress();
 }
 //---------------------------------------------------------------------------
@@ -206,7 +206,7 @@ void __fastcall TFileOperationProgressType::AddTransfered(__int64 ASize)
   {
     // this can happen with SFTP when downloading file that
     // grows while being downloaded
-    if (FTotalSizeSet)
+    if (TotalSizeSet)
     {
       TotalSize += (TransferedSize - TransferSize); 
     }
@@ -278,5 +278,20 @@ TDateTime __fastcall TFileOperationProgressType::TimeExpected()
   unsigned int CurCps = CPS();
   if (CurCps) return TDateTime((double)(((double)(TransferSize - TransferedSize)) / CurCps) / (24 * 60 * 60));
     else return 0; 
+}
+//---------------------------------------------------------------------------
+TDateTime __fastcall TFileOperationProgressType::TotalTimeExpected()
+{
+  assert(TotalSizeSet);
+  unsigned int CurCps = CPS();
+  if (CurCps > 0)
+  {
+    return TDateTime((double)((double)TotalSize / CurCps) /
+      (24 * 60 * 60));
+  }
+  else
+  {
+    return 0;
+  }
 }
 

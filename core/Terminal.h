@@ -14,6 +14,7 @@ class TRemoteDirectory;
 class TRemoteFile;
 class TCustomFileSystem;
 struct TCalculateSizeParams;
+struct TOverwriteFileParams;
 typedef TStringList TUserGroupsList;
 typedef void __fastcall (__closure *TReadDirectoryEvent)(System::TObject* Sender, Boolean ReloadOnly);
 typedef void __fastcall (__closure *TProcessFileEvent)
@@ -21,7 +22,7 @@ typedef void __fastcall (__closure *TProcessFileEvent)
 typedef int __fastcall (__closure *TFileOperationEvent)
   (void * Param1, void * Param2);
 //---------------------------------------------------------------------------
-#define SUSPEND_OPERATION(Command)    \
+/*#define SUSPEND_OPERATION(Command)    \
   {                                   \
     OperationProgress->Suspend();     \
     try {                             \
@@ -30,13 +31,20 @@ typedef int __fastcall (__closure *TFileOperationEvent)
       OperationProgress->Resume();    \
     }                                 \
   }
+ */
+
+#define SUSPEND_OPERATION(Command)                            \
+  {                                                           \
+    TSuspendFileOperationProgress Suspend(OperationProgress); \
+    Command                                                   \
+  }
+ 
 
 #define THROW_SKIP_FILE(EXCEPTION, MESSAGE) \
   throw EScpSkipFile(EXCEPTION, MESSAGE)
 
 /* TODO : Better user interface (query to user) */
-// FILENAME is no longer used
-#define FILE_OPERATION_LOOP_EX(FILENAME, ALLOW_SKIP, MESSAGE, OPERATION) { \
+#define FILE_OPERATION_LOOP_CUSTOM(TERMINAL, ALLOW_SKIP, MESSAGE, OPERATION) { \
   bool DoRepeat; \
   do { \
     DoRepeat = false; \
@@ -62,7 +70,7 @@ typedef int __fastcall (__closure *TFileOperationEvent)
       int Answer; \
       int Params = qpAllowContinueOnError | (!(ALLOW_SKIP) ? qpFatalAbort : 0); \
       SUSPEND_OPERATION ( \
-        Answer = FTerminal->DoQueryUser(MESSAGE, &E, Answers, Params); \
+        Answer = TERMINAL->DoQueryUser(MESSAGE, &E, Answers, Params); \
       ); \
       DoRepeat = (Answer == qaRetry); \
       if (Answer == qaAbort) OperationProgress->Cancel = csCancel; \
@@ -72,12 +80,12 @@ typedef int __fastcall (__closure *TFileOperationEvent)
     } \
   } while (DoRepeat); }
 
-#define FILE_OPERATION_LOOP(FILENAME, MESSAGE, OPERATION) \
-  FILE_OPERATION_LOOP_EX(FILENAME, True, MESSAGE, OPERATION)
+#define FILE_OPERATION_LOOP(MESSAGE, OPERATION) \
+  FILE_OPERATION_LOOP_EX(True, MESSAGE, OPERATION)
 //---------------------------------------------------------------------------
 enum TFSCapability { fcUserGroupListing, fcModeChanging, fcGroupChanging,
   fcOwnerChanging, fcAnyCommand, fcHardLink, fcSymbolicLink, fcResolveSymlink,
-  fcTextMode, fcRename };
+  fcTextMode, fcRename, fcNativeTextMode };
 //---------------------------------------------------------------------------
 const cpDelete = 0x01;
 const cpDragDrop = 0x04;
@@ -114,9 +122,13 @@ private:
   TFileOperationProgressType * FOperationProgress;
   bool FUseBusyCursor;
   TRemoteDirectoryCache * FDirectoryCache;
+  TRemoteDirectoryChangesCache * FDirectoryChangesCache;
   TCustomFileSystem * FFileSystem;
+  TStrings * FAdditionalInfo;
+  AnsiString FLastDirectoryChange;
   void __fastcall CommandError(Exception * E, const AnsiString Msg);
   int __fastcall CommandError(Exception * E, const AnsiString Msg, int Answers);
+  AnsiString __fastcall PeekCurrentDirectory();
   AnsiString __fastcall GetCurrentDirectory();
   bool __fastcall GetExceptionOnFail() const;
   AnsiString __fastcall GetProtocolName();
@@ -125,6 +137,7 @@ private:
   void __fastcall SetExceptionOnFail(bool value);
   void __fastcall ReactOnCommand(int /*TFSCommand*/ Cmd);
   AnsiString __fastcall GetUserName() const;
+  bool __fastcall GetAreCachesEmpty() const;
 
 protected:
   void __fastcall DoStartReadDirectory();
@@ -146,7 +159,6 @@ protected:
     TFileOperationProgressType * OperationProgress, bool AllowSkip,
     const AnsiString Message, void * Param1 = NULL, void * Param2 = NULL);
   bool __fastcall GetIsCapable(TFSCapability Capability) const;
-  void __fastcall DirectoryModified(const AnsiString Path, bool SubDirs);
   void __fastcall ProcessFiles(TStrings * FileList,
     TFileOperation Operation, TProcessFileEvent ProcessFile, void * Param = NULL);
   void __fastcall ProcessDirectory(const AnsiString DirName,
@@ -155,9 +167,11 @@ protected:
   void __fastcall ReadDirectory(TRemoteFileList * FileList);
   void __fastcall CustomReadDirectory(TRemoteFileList * FileList);
   void __fastcall DoCreateLink(const AnsiString FileName, const AnsiString PointTo, bool Symbolic);
+  bool __fastcall CreateLocalFile(const AnsiString FileName,
+    TFileOperationProgressType * OperationProgress, HANDLE * AHandle);
   void __fastcall OpenLocalFile(const AnsiString FileName, int Access,
     int * Attrs, HANDLE * Handle, unsigned long * ACTime, unsigned long * MTime,
-    unsigned long * ATime, __int64 * Size);
+    unsigned long * ATime, __int64 * Size, bool TryWriteReadOnly = true);
   TRemoteFileList * ReadDirectoryListing(AnsiString Directory);
   bool __fastcall HandleException(Exception * E);
   void __fastcall CalculateFileSize(AnsiString FileName,
@@ -167,6 +181,9 @@ protected:
   void __fastcall CalculateLocalFileSize(const AnsiString FileName,
     const TSearchRec Rec, /*__int64*/ void * Size);
   void __fastcall CalculateLocalFilesSize(TStrings * FileList, __int64 & Size);
+  TStrings * __fastcall GetAdditionalInfo();
+  int __fastcall ConfirmFileOverwrite(const AnsiString FileName,
+    const TOverwriteFileParams * FileParams, int Answers, int Params);
 
   __property TFileOperationProgressType * OperationProgress = { read=FOperationProgress };
 
@@ -175,8 +192,10 @@ public:
   __fastcall ~TTerminal();
   virtual void __fastcall Open();
   virtual void __fastcall Close();
+  void __fastcall DirectoryModified(const AnsiString Path, bool SubDirs);
   void __fastcall AnyCommand(const AnsiString Command);
   void __fastcall CloseOnCompletion(const AnsiString Message = "");
+  AnsiString __fastcall AbsolutePath(AnsiString Path);
   void __fastcall BeginTransaction();
   void __fastcall ReadCurrentDirectory();
   void __fastcall ReadDirectory(bool ReloadOnly);
@@ -209,6 +228,10 @@ public:
   void __fastcall RenameFile(const AnsiString FileName, const AnsiString NewName);
   void __fastcall RenameFile(const TRemoteFile * File, const AnsiString NewName, bool CheckExistence);
   void __fastcall CalculateFilesSize(TStrings * FileList, __int64 & Size, int Params);
+  void __fastcall ClearCaches();
+  static bool __fastcall IsAbsolutePath(const AnsiString Path);
+  static AnsiString __fastcall ExpandFileName(AnsiString Path,
+    const AnsiString BasePath);
 
   __property AnsiString CurrentDirectory = { read = GetCurrentDirectory, write = SetCurrentDirectory };
   __property bool ExceptionOnFail = { read = GetExceptionOnFail, write = SetExceptionOnFail };
@@ -223,6 +246,8 @@ public:
   __property bool UseBusyCursor = { read = FUseBusyCursor, write = FUseBusyCursor };
   __property AnsiString UserName  = { read=GetUserName };
   __property bool IsCapable[TFSCapability Capability] = { read = GetIsCapable };
+  __property TStrings * AdditionalInfo = { read = GetAdditionalInfo };
+  __property bool AreCachesEmpty = { read = GetAreCachesEmpty };
 };
 //---------------------------------------------------------------------------
 class TTerminalList : public TObjectList
@@ -254,6 +279,14 @@ struct TCalculateSizeParams
 {
   __int64 Size;
   int Params;
+};
+//---------------------------------------------------------------------------
+struct TOverwriteFileParams
+{
+  __int64 SourceSize;
+  __int64 DestSize;
+  TDateTime SourceTimestamp;
+  TDateTime DestTimestamp;
 };
 //---------------------------------------------------------------------------
 #endif

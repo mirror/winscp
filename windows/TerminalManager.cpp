@@ -7,7 +7,6 @@
 #include "LogMemo.h"
 #include "NonVisual.h"
 #include "WinConfiguration.h"
-#include "UserInterface.h"
 #include <Log.h>
 #include <OperationStatus.h>
 #include <Common.h>

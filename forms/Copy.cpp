@@ -2,8 +2,6 @@
 #include <vcl.h>
 #pragma hdrstop
 
-#include <UnixDirView.h>
-
 #include <Common.h>
 #include <WinInterface.h>
 #include <ScpMain.h>
@@ -11,7 +9,7 @@
 #include <VCLCommon.h>
 
 #include "Copy.h"
-#include "WinConfiguration.h"
+#include "GUIConfiguration.h"
 //---------------------------------------------------------------------------
 #pragma package(smart_init)
 #pragma link "ComboEdit"
@@ -20,10 +18,10 @@
 #pragma link "CopyParams"
 #pragma resource "*.dfm"
 //---------------------------------------------------------------------------
-bool __fastcall DoCopyDialog(TTransferDirection Direction,
-  TTransferType Type, bool DragDrop, TStrings * FileList,
+bool __fastcall DoCopyDialog(bool ToRemote,
+  bool Move, bool DragDrop, TStrings * FileList,
   bool AllowTransferMode, AnsiString & TargetDirectory,
-  TCopyParamType * Params)
+  TCopyParamType * Params, bool AllowDirectory)
 {
   bool Result;
   TCopyDialog *CopyDialog = new TCopyDialog(Application);
@@ -36,12 +34,13 @@ bool __fastcall DoCopyDialog(TTransferDirection Direction,
       CopyDialog->AllowTransferMode = false; // Default is true
       Params->TransferMode = tmBinary;
     }
-    CopyDialog->Direction = Direction;
-    CopyDialog->DragDrop = DragDrop && (Direction == tdToLocal);
+    CopyDialog->ToRemote = ToRemote;
+    CopyDialog->DragDrop = DragDrop && !ToRemote;
     if (!CopyDialog->DragDrop) CopyDialog->Directory = TargetDirectory;
     CopyDialog->FileList = FileList;
     CopyDialog->Params = *Params;
-    CopyDialog->TransferType = Type;
+    CopyDialog->Move = Move;
+    CopyDialog->AllowDirectory = AllowDirectory;
     Result = CopyDialog->Execute();
     if (Result)
     {
@@ -60,65 +59,108 @@ __fastcall TCopyDialog::TCopyDialog(TComponent* Owner)
         : TForm(Owner)
 {
   // on start set different value than we want to allow property-setter to proceed
-  FDirection = tdToLocal;
-  FTransferType = ttMove;
+  FToRemote = false;
+  FMove = true;
 
-  Direction = tdToRemote;
-  TransferType = ttCopy;
-  AllowTransferMode = True;
+  ToRemote = true;
+  Move = false;
+  AllowTransferMode = true;
+  AllowDirectory = true;
 
   UseSystemSettings(this);
 }
 //---------------------------------------------------------------------------
-void __fastcall TCopyDialog::SetDirection(TTransferDirection value)
+void __fastcall TCopyDialog::SetToRemote(bool value)
 {
-  if (FDirection != value)
+  if (FToRemote != value)
   {
     AnsiString ADirectory = DirectoryEdit->Text;
-    FDirection = value;
+    FToRemote = value;
     DirectoryEdit->Text = ADirectory;
 
-    RemoteDirectoryEdit->Visible = False;
-    LocalDirectoryEdit->Visible = False;
+    RemoteDirectoryEdit->Visible = false;
+    LocalDirectoryEdit->Visible = false;
     DirectoryEdit->Visible = !DragDrop;
+    DirectoryEdit->Enabled = AllowDirectory;
     DirectoryLabel->FocusControl = DirectoryEdit;
     UpdateControls();
-    CopyParamsFrame->Direction = Direction == tdToLocal ? pdToLocal : pdToRemote;
+    CopyParamsFrame->Direction = !ToRemote ? pdToLocal : pdToRemote;
+  }
+}
+//---------------------------------------------------------------------------
+void __fastcall TCopyDialog::SetAllowDirectory(bool value)
+{
+  if (AllowDirectory != value)
+  {
+    FAllowDirectory = value;
+    DirectoryEdit->Enabled = AllowDirectory;
   }
 }
 //---------------------------------------------------------------------------
 TCustomEdit * __fastcall TCopyDialog::GetDirectoryEdit()
 {
-  assert((Direction == tdToRemote) || (Direction == tdToLocal));
-  return Direction == tdToRemote ? (TCustomEdit *)RemoteDirectoryEdit :
+  return ToRemote ? (TCustomEdit *)RemoteDirectoryEdit :
     (TCustomEdit *)LocalDirectoryEdit;
+}
+//---------------------------------------------------------------------------
+void __fastcall TCopyDialog::SetFileMask(const AnsiString value)
+{
+  if (!DragDrop)
+  {
+    DirectoryEdit->Text = Directory + value;
+  }
+  else
+  {
+    FFileMask = value;
+  }
+}
+//---------------------------------------------------------------------------
+AnsiString __fastcall TCopyDialog::GetFileMask()
+{
+  if (!DragDrop)
+  {
+    return ToRemote ? UnixExtractFileName(DirectoryEdit->Text) :
+      ExtractFileName(DirectoryEdit->Text);
+  }
+  else
+  {
+    return FFileMask;
+  }
 }
 //---------------------------------------------------------------------------
 void __fastcall TCopyDialog::SetParams(TCopyParamType value)
 {
   CopyParamsFrame->Params = value;
+  SetFileMask(value.FileMask);
 }
 //---------------------------------------------------------------------------
 TCopyParamType __fastcall TCopyDialog::GetParams()
 {
-  TCopyParamType Params;
-  Params = CopyParamsFrame->Params;
+  TCopyParamType Params = CopyParamsFrame->Params;
+  Params.FileMask = GetFileMask();
   return Params;
 }
 //---------------------------------------------------------------------------
 void __fastcall TCopyDialog::SetDirectory(AnsiString value)
 {
-  DirectoryEdit->Text = value;
+  value = ToRemote ? UnixIncludeTrailingBackslash(value) :
+    IncludeTrailingBackslash(value);
+  DirectoryEdit->Text = value + GetFileMask();
 }
 //---------------------------------------------------------------------------
 AnsiString __fastcall TCopyDialog::GetDirectory()
 {
-  assert(((Direction == tdToRemote) || (Direction == tdToLocal)) &&
-    DirectoryEdit && !DragDrop);
+  assert(DirectoryEdit && !DragDrop);
 
   AnsiString Result = DirectoryEdit->Text;
-  if (Direction == tdToRemote) Result = UnixIncludeTrailingBackslash(Result);
-    else Result = IncludeTrailingBackslash(Result);
+  if (ToRemote)
+  {
+    Result = UnixIncludeTrailingBackslash(UnixExtractFilePath(Result));
+  }
+  else
+  {
+    Result = IncludeTrailingBackslash(ExtractFilePath(Result));
+  }
   return Result;
 }
 //---------------------------------------------------------------------------
@@ -135,18 +177,14 @@ void __fastcall TCopyDialog::UpdateControls()
 {
   if (FileList && FileList->Count)
   {
-    assert((Direction == tdToRemote) || (Direction == tdToLocal));
-
-    AnsiString TransferStr =
-      LoadStr(FTransferType == ttCopy ? COPY_COPY : COPY_MOVE);
+    AnsiString TransferStr = LoadStr(!Move ? COPY_COPY : COPY_MOVE);
     AnsiString DirectionStr =
-      LoadStr((DragDrop ? COPY_TODROP :
-         (FDirection == tdToLocal ? COPY_TOLOCAL : COPY_TOREMOTE)));
+      LoadStr((DragDrop ? COPY_TODROP : (!ToRemote ? COPY_TOLOCAL : COPY_TOREMOTE)));
 
     if (FileList->Count == 1)
     {
       AnsiString FileName;
-      if (FDirection == tdToLocal) FileName = UnixExtractFileName(FFileList->Strings[0]);
+      if (!ToRemote) FileName = UnixExtractFileName(FFileList->Strings[0]);
         else FileName = ExtractFileName(FFileList->Strings[0]);
       DirectoryLabel->Caption = FMTLOAD(COPY_FILE,
         (TransferStr, FileName, DirectionStr));
@@ -158,7 +196,7 @@ void __fastcall TCopyDialog::UpdateControls()
     }
   }
 
-  if (TransferType == ttCopy)
+  if (!Move)
   {
     Caption = LoadStr(COPY_COPY_CAPTION);
     CopyButton->Caption = LoadStr(COPY_COPY_BUTTON);
@@ -177,28 +215,27 @@ void __fastcall TCopyDialog::SetDragDrop(Boolean value)
     FDragDrop = value;
     if (value)
     {
-      Direction = tdToLocal;
+      ToRemote = false;
       DirectoryEdit->Text = "";
     }
-    DirectoryEdit->Visible = !value || (Direction == tdToRemote);
+    DirectoryEdit->Visible = !value || ToRemote;
     UpdateControls();
   }
 }
 //---------------------------------------------------------------------------
-void __fastcall TCopyDialog::SetTransferType(TTransferType value)
+void __fastcall TCopyDialog::SetMove(bool value)
 {
-  if (TransferType != value)
+  if (Move != value)
   {
-    FTransferType = value;
+    FMove = value;
     UpdateControls();
   }
 }
 //---------------------------------------------------------------------------
 void __fastcall TCopyDialog::FormShow(TObject * /*Sender*/)
 {
-  assert(FileList && (FileList->Count > 0) &&
-    ((Direction == tdToLocal) || !DragDrop));
-  if (!DragDrop) DirectoryEdit->SetFocus();
+  assert(FileList && (FileList->Count > 0) && (!ToRemote || !DragDrop));
+  if (!DragDrop && AllowDirectory) DirectoryEdit->SetFocus();
     else
   if (MoreButton->Expanded) MorePanel->SetFocus();
     else CopyButton->SetFocus();
@@ -207,9 +244,7 @@ void __fastcall TCopyDialog::FormShow(TObject * /*Sender*/)
 bool __fastcall TCopyDialog::Execute()
 {
   SaveSettingsCheck->Checked = false;
-  MoreButton->Expanded =
-    WinConfiguration->CopyParamDialogExpanded && WinConfiguration->ExpertMode;
-  MoreButton->Visible = WinConfiguration->ExpertMode;
+  MoreButton->Expanded = GUIConfiguration->CopyParamDialogExpanded;
   CopyParamsFrame->BeforeExecute();
   bool Result = (ShowModal() == mrOk);
   if (Result)
@@ -218,7 +253,7 @@ bool __fastcall TCopyDialog::Execute()
     Configuration->BeginUpdate();
     try
     {
-      WinConfiguration->CopyParamDialogExpanded = MoreButton->Expanded;
+      GUIConfiguration->CopyParamDialogExpanded = MoreButton->Expanded;
       if (SaveSettingsCheck->Checked)
       {
         Configuration->CopyParam = Params;
@@ -237,20 +272,30 @@ void __fastcall TCopyDialog::FormCloseQuery(TObject * /*Sender*/,
 {
   if (ModalResult != mrCancel)
   {
-    if ((Direction == tdToLocal) && !DragDrop && !DirectoryExists(Directory))
+    if (!ToRemote && !DragDrop)
     {
-      if (MessageDialog(FMTLOAD(CREATE_LOCAL_DIRECTORY, (Directory)),
-            qtConfirmation, qaOK | qaCancel, 0) != qaCancel)
+      AnsiString Dir = Directory;
+      AnsiString Drive = ExtractFileDrive(Dir);
+      if (Drive.IsEmpty() || (Drive.Length() != 2) || (Drive[2] != ':'))
       {
-        if (!ForceDirectories(Directory))
-        {
-          SimpleErrorDialog(FMTLOAD(CREATE_LOCAL_DIR_ERROR, (Directory)));
-          CanClose = false;
-        }
+        SimpleErrorDialog(LoadStr(ABSOLUTE_PATH_REQUIRED));
+        CanClose = false;
       }
-      else
+      else if (!DirectoryExists(Dir))
       {
-        CanClose = False;
+        if (MessageDialog(FMTLOAD(CREATE_LOCAL_DIRECTORY, (Dir)),
+              qtConfirmation, qaOK | qaCancel, 0) != qaCancel)
+        {
+          if (!ForceDirectories(Dir))
+          {
+            SimpleErrorDialog(FMTLOAD(CREATE_LOCAL_DIR_ERROR, (Dir)));
+            CanClose = false;
+          }
+        }
+        else
+        {
+          CanClose = False;
+        }
       }
 
       if (!CanClose)

@@ -18,14 +18,14 @@
 #include <ActnList.hpp>
 #include <UpDownEdit.hpp>
 #include <XPGroupBox.hpp>
+#include <PasswordEdit.hpp>
+#include <Menus.hpp>
 //----------------------------------------------------------------------------
 #include <Configuration.h>
 #include <SessionData.h>
 
 #include "LogSettings.h"
 #include "GeneralSettings.h"
-#include <Menus.hpp>
-#include "PasswordEdit.hpp"
 //----------------------------------------------------------------------------
 class TLoginDialog : public TForm
 {
@@ -94,9 +94,9 @@ __published:
   TUpDownEdit *PortNumberEdit;
   TFilenameEdit *PrivateKeyEdit;
   TXPGroupBox *DirectoriesGroup;
-  TLabel *Label9;
-  TLabel *Label10;
-  TLabel *Label16;
+  TLabel *LocalDirectoryLabel;
+  TLabel *RemoteDirectoryLabel;
+  TLabel *LocalDirectoryDescLabel;
   TDirectoryEdit *LocalDirectoryEdit;
   TEdit *RemoteDirectoryEdit;
   TCheckBox *UpdateDirectoriesCheck;
@@ -191,6 +191,8 @@ __published:
   TMenuItem *CheckForUpdates1;
   TButton *SaveButton;
   TButton *LanguagesButton;
+  TCheckBox *CacheDirectoryChangesCheck;
+  TCheckBox *PreserveDirectoryChangesCheck;
   void __fastcall DataChange(TObject *Sender);
   void __fastcall FormShow(TObject *Sender);
   void __fastcall SessionListViewSelectItem(TObject *Sender,
@@ -234,14 +236,15 @@ private:
   TSessionData * FSessionData;
   TStoredSessionList * FStoredSessions;
   int FCipherDragSource, FCipherDragDest;
-  bool FInitial;
+  int FOptions;
   TPopupMenu * FLanguagesPopupMenu;
   AnsiString FOrigCaption;
   bool FInitialized;
   TTabSheet * FSavedTab;
   int FSavedSession;
   bool FLocaleChanging;
-  void * FSystemSettings; 
+  void * FSystemSettings;
+  AnsiString FCurrentSessionName;  
 
   void __fastcall LoadSession(TSessionData * aSessionData);
   void __fastcall UpdateControls();
@@ -270,7 +273,7 @@ protected:
   bool __fastcall AllowCipherDrag(int X, int Y);
   void __fastcall CipherMove(int Source, int Dest);
   void __fastcall PrepareNavigationTree(TTreeView * Tree);
-  void __fastcall SetInitial(bool value);
+  void __fastcall SetOptions(int value);
   void __fastcall LocaleClick(TObject * Sender);
   void __fastcall Init();
   void __fastcall ShowTabs(bool Show);
@@ -285,7 +288,7 @@ public:
   __property TSessionData * SessionData  = { read=GetSessionData, write=SetSessionData };
   __property TStoredSessionList * StoredSessions  = { read=FStoredSessions, write=SetStoredSessions };
   __property TSessionData * SelectedSession  = { read=GetSelectedSession, write=SetSelectedSession };
-  __property bool Initial = { read=FInitial, write=SetInitial };
+  __property int Options = { read=FOptions, write=SetOptions };
 };
 //----------------------------------------------------------------------------
 #endif

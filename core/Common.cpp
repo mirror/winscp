@@ -219,6 +219,56 @@ AnsiString __fastcall FormatCommand(AnsiString Program, AnsiString Params)
   return Program + Params;
 }
 //---------------------------------------------------------------------------
+bool __fastcall IsDisplayableStr(const AnsiString Str)
+{
+  bool Displayable = true;
+  int Index = 1;
+  while ((Index <= Str.Length()) && Displayable)
+  {
+    if (Str[Index] < '\32')
+    {
+      Displayable = false;
+    }
+    Index++;
+  }
+  return Displayable;
+}
+//---------------------------------------------------------------------------
+AnsiString __fastcall StrToHex(const AnsiString Str)
+{
+  AnsiString Result;
+  for (int i = 1; i <= Str.Length(); i++)
+  {
+    Result += IntToHex(Str[i], 2);
+  }
+  return Result;
+}
+//---------------------------------------------------------------------------
+AnsiString __fastcall HexToStr(const AnsiString Hex)
+{
+  static AnsiString Digits = "01234556789ABCDEF";
+  AnsiString Result;
+  int L, P1, P2;
+  L = Hex.Length();
+  if (L % 2 == 0)
+  {
+    for (int i = 1; i <= Hex.Length(); i += 2)
+    {
+      P1 = Digits.Pos(Hex[i]);
+      P2 = Digits.Pos(Hex[i + 1]);
+      if (P1 <= 0 || P2 <= 0)
+      {
+        break;
+      }
+      else
+      {
+        Result += static_cast<char>((P1 - 1) * 16 + P2 - 1);
+      }
+    }
+  }
+  return Result;
+}
+//---------------------------------------------------------------------------
 bool __fastcall FileSearchRec(const AnsiString FileName, TSearchRec & Rec)
 {
   int FindAttrs = faReadOnly | faHidden | faSysFile | faDirectory | faArchive;
@@ -265,5 +315,70 @@ void __fastcall ProcessLocalDirectory(AnsiString DirName,
       FindClose(SearchRec);
     }
   }
+}
+//---------------------------------------------------------------------------
+void __fastcall DateTimeParams(TDateTime * AUnixEpoch, double * ADifference)
+{
+  static double Difference;
+  static TDateTime UnixEpoch = 0;
+
+  if (double(UnixEpoch) == 0)
+  {
+    TIME_ZONE_INFORMATION TZI;
+    unsigned long GTZI;
+
+    GTZI = GetTimeZoneInformation(&TZI);
+    switch (GTZI) {
+      case TIME_ZONE_ID_UNKNOWN:
+        Difference = 0;
+        break;
+
+      case TIME_ZONE_ID_STANDARD:
+        Difference = double(TZI.Bias + TZI.StandardBias) / 1440;
+        break;
+
+      case TIME_ZONE_ID_DAYLIGHT:
+        Difference = double(TZI.Bias + TZI.DaylightBias) / 1440;
+        break;
+
+      case TIME_ZONE_ID_INVALID:
+      default:
+        throw Exception(TIMEZONE_ERROR);
+    }
+    // Is it same as SysUtils::UnixDateDelta = 25569 ??
+    UnixEpoch = EncodeDate(1970, 1, 1);
+  }
+  if (AUnixEpoch) *AUnixEpoch = UnixEpoch;
+  if (ADifference) *ADifference = Difference;
+}
+//---------------------------------------------------------------------------
+TDateTime __fastcall UnixToDateTime(unsigned long TimeStamp)
+{
+  TDateTime UnixEpoch;
+  double Difference;
+  DateTimeParams(&UnixEpoch, &Difference);
+
+  TDateTime Result;
+  Result = UnixEpoch + (double(TimeStamp) / 86400) - Difference;
+  return Result;
+}
+//---------------------------------------------------------------------------
+FILETIME __fastcall DateTimeToFileTime(const TDateTime DateTime)
+{
+  unsigned long UnixTimeStamp;
+  FILETIME Result;
+  TDateTime UnixEpoch;
+  double Difference;
+
+  DateTimeParams(&UnixEpoch, &Difference);
+  UnixTimeStamp = (unsigned long)((double(DateTime - UnixEpoch + Difference) * 86400));
+  TIME_POSIX_TO_WIN(UnixTimeStamp, Result);
+  return Result;
+}
+//---------------------------------------------------------------------------
+TDateTime AdjustDateTimeFromUnix(const TDateTime DateTime)
+{
+  // to be implemented
+  return DateTime;
 }
 

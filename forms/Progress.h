@@ -32,7 +32,7 @@ __published:
   TPanel *TransferPanel;
   TLabel *Label3;
   TLabel *TimeElapsedLabel;
-  TLabel *Label5;
+  TLabel *StartTimeLabelLabel;
   TLabel *StartTimeLabel;
   TLabel *Label4;
   TLabel *BytesTransferedLabel;
@@ -50,6 +50,8 @@ __published:
   TTrackBar *SpeedBar;
   TLabel *SpeedLowLabel;
   TLabel *SpeedHighLabel;
+  TLabel *TimeEstimatedLabelLabel;
+  TLabel *TimeEstimatedLabel;
   void __fastcall UpdateTimerTimer(TObject *Sender);
   void __fastcall FormShow(TObject *Sender);
   void __fastcall FormHide(TObject *Sender);
@@ -60,6 +62,7 @@ private:
   TFileOperationProgressType FData;
   bool FDataReceived;
   TFileOperation FLastOperation;
+  bool FLastTotalSizeSet;
   bool FMinimizedByMe;
   int FUpdateCounter;
   bool FAsciiTransferChanged;
@@ -67,9 +70,12 @@ private:
   void * FFocusWindowList;
   void * FFocusActiveWindow;
   TDateTime FLastUpdate;
+  bool FDeleteToRecycleBin;
 
   void __fastcall SetDisconnectWhenComplete(bool value);
   bool __fastcall GetDisconnectWhenComplete();
+  void __fastcall SetAllowMinimize(bool value);
+  bool __fastcall GetAllowMinimize();
 
 protected:
   void __fastcall CancelOperation();
@@ -86,6 +92,8 @@ public:
   virtual __fastcall TProgressForm(TComponent * AOwner);
   __property TCancelStatus Cancel = { read = FCancel };
   __property bool DisconnectWhenComplete = { read=GetDisconnectWhenComplete, write=SetDisconnectWhenComplete };
+  __property bool AllowMinimize = { read=GetAllowMinimize, write=SetAllowMinimize };
+  __property bool DeleteToRecycleBin = { read=FDeleteToRecycleBin, write=FDeleteToRecycleBin };
 };
 //----------------------------------------------------------------------------
 #endif

@@ -59,15 +59,6 @@ __published:	// IDE-managed Components
   TMenuItem *Selectall1;
   TImageList *LogImages;
   TImageList *LogDisabledImages;
-  TActionList *RightsActions;
-  TImageList *RightsImages;
-  TPopupMenu *RightsPopup;
-  TAction *NoRightsAction;
-  TAction *DefaultRightsAction;
-  TAction *AllRightsAction;
-  TMenuItem *Norights1;
-  TMenuItem *Defaultrights1;
-  TMenuItem *Allrights1;
   TImageList *ExplorerImages;
   TPopupMenu *RemoteDirViewPopup;
   TMenuItem *CurrentCopyMenuItem;
@@ -445,8 +436,6 @@ __published:	// IDE-managed Components
   TMenuItem *Openterminal2;
   TAction *LocalExploreDirectoryAction;
   TMenuItem *Exploredirectory1;
-  TAction *LeaveRightsAsIsAction;
-  TMenuItem *Leaveasis1;
   TAction *CurrentEditAction;
   TMenuItem *CurentEditMenuItem;
   TMenuItem *Edit2;
@@ -490,15 +479,18 @@ __published:	// IDE-managed Components
   TMenuItem *N48;
   TAction *DonatePageAction;
   TMenuItem *Donate1;
+  TAction *FileSystemInfoAction;
+  TMenuItem *Serverprotocolinformation1;
+  TMenuItem *Serverprotocolinformation2;
+  TAction *ClearCachesAction;
+  TMenuItem *ClearCaches1;
+  TMenuItem *ClearCaches2;
   void __fastcall LogActionsUpdate(TBasicAction *Action, bool &Handled);
   void __fastcall LogActionsExecute(TBasicAction *Action, bool &Handled);
-  void __fastcall RightsActionsExecute(TBasicAction *Action, bool &Handled);
-  void __fastcall RightsActionsUpdate(TBasicAction *Action, bool &Handled);
   void __fastcall ExplorerActionsUpdate(TBasicAction *Action, bool &Handled);
   void __fastcall ExplorerActionsExecute(TBasicAction *Action, bool &Handled);
   void __fastcall SessionIdleTimerTimer(TObject *Sender);
 private:
-  TRightsFrame * FRightsFrame;
   TListColumn * FListColumn;
   TCustomScpExplorerForm * FScpExplorer;
   bool FSessionIdleTimerExecuting;
@@ -520,7 +512,6 @@ public:
 
   __fastcall TNonVisualDataModule(TComponent * Owner);
   __property TListColumn * ListColumn = { read = FListColumn, write = FListColumn };
-  __property TRightsFrame * RightsFrame = { read = FRightsFrame, write = FRightsFrame };
   __property TCustomScpExplorerForm * ScpExplorer = { read = FScpExplorer, write = SetScpExplorer };
 };
 //---------------------------------------------------------------------------

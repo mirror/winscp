@@ -6,7 +6,6 @@ USEFORM("forms\NonVisual.cpp", NonVisualDataModule); /* TDataModule: File Type *
 //---------------------------------------------------------------------------
 #include <ScpMain.h>
 #include <WinInterface.h>
-#include <UserInterface.h>
 #include <ProgParams.h>
 //---------------------------------------------------------------------------
 WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)

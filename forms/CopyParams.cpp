@@ -7,7 +7,7 @@
 #include <Common.h>
 #include <VCLCommon.h>
 #include <ScpMain.h>
-#include "WinConfiguration.h"
+#include "CustomWinConfiguration.h"
 #include "TextsWin.h"
 //---------------------------------------------------------------------------
 #pragma package(smart_init)
@@ -156,13 +156,15 @@ void __fastcall TCopyParamsFrame::ControlChange(TObject * /*Sender*/)
 //---------------------------------------------------------------------------
 void __fastcall TCopyParamsFrame::BeforeExecute()
 {
-  AsciiFileMaskCombo->Items->Text = WinConfiguration->MaskHistory;
+  assert(CustomWinConfiguration);
+  AsciiFileMaskCombo->Items->Text = CustomWinConfiguration->MaskHistory;
 }
 //---------------------------------------------------------------------------
 void __fastcall TCopyParamsFrame::AfterExecute()
 {
+  assert(CustomWinConfiguration);
   AsciiFileMaskCombo->SaveToHistory();
-  WinConfiguration->MaskHistory = AsciiFileMaskCombo->Items->Text;
+  CustomWinConfiguration->MaskHistory = AsciiFileMaskCombo->Items->Text;
 }
 //---------------------------------------------------------------------------
 void __fastcall TCopyParamsFrame::SelectMask(Integer Start, Integer Length)

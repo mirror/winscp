@@ -26,6 +26,9 @@
       case qaAbort: Abort(); \
     } \
   }
+
+#define FILE_OPERATION_LOOP_EX(ALLOW_SKIP, MESSAGE, OPERATION) \
+  FILE_OPERATION_LOOP_CUSTOM(this, ALLOW_SKIP, MESSAGE, OPERATION)
 //---------------------------------------------------------------------------
 __fastcall TTerminal::TTerminal(): TSecureShell()
 {
@@ -38,17 +41,53 @@ __fastcall TTerminal::TTerminal(): TSecureShell()
   FUserGroups = new TUserGroupsList();
   FOnProgress = NULL;
   FOnFinished = NULL;
+  FAdditionalInfo = NULL;
   FUseBusyCursor = True;
   FLockDirectory = "";
   FDirectoryCache = new TRemoteDirectoryCache();
+  FDirectoryChangesCache = NULL;
 }
 //---------------------------------------------------------------------------
 __fastcall TTerminal::~TTerminal()
 {
+  if (SessionData->CacheDirectoryChanges && SessionData->PreserveDirectoryChanges &&
+      (FDirectoryChangesCache != NULL))
+  {
+    Configuration->SaveDirectoryChangesCache(SessionData->SessionKey,
+      FDirectoryChangesCache);
+  }
+
   SAFE_DESTROY(FFileSystem);
   delete FFiles;
   delete FUserGroups;
   delete FDirectoryCache;
+  delete FDirectoryChangesCache;
+  delete FAdditionalInfo;
+}
+//---------------------------------------------------------------------------
+bool __fastcall TTerminal::IsAbsolutePath(const AnsiString Path)
+{
+  return !Path.IsEmpty() && Path[1] == '/';
+}
+//---------------------------------------------------------------------------
+AnsiString __fastcall TTerminal::ExpandFileName(AnsiString Path,
+  const AnsiString BasePath)
+{
+  Path = UnixExcludeTrailingBackslash(Path);
+  if (!IsAbsolutePath(Path) && !BasePath.IsEmpty())
+  {
+    // TODO: Handle more complicated cases like "../../xxx"
+    if (Path == "..")
+    {
+      Path = UnixExcludeTrailingBackslash(UnixExtractFilePath(
+        UnixExcludeTrailingBackslash(BasePath)));
+    }
+    else
+    {
+      Path = UnixIncludeTrailingBackslash(BasePath) + Path;
+    }
+  }
+  return Path;
 }
 //---------------------------------------------------------------------------
 AnsiString __fastcall TTerminal::GetProtocolName()
@@ -78,12 +117,38 @@ void __fastcall TTerminal::Open()
     FFileSystem = new TSFTPFileSystem(this);
     LogEvent("Using SFTP protocol.");
   }
+  if (SessionData->CacheDirectoryChanges)
+  {
+    FDirectoryChangesCache = new TRemoteDirectoryChangesCache();
+    if (SessionData->PreserveDirectoryChanges)
+    {
+      Configuration->LoadDirectoryChangesCache(SessionData->SessionKey,
+        FDirectoryChangesCache);
+    }
+  }
 }
 //---------------------------------------------------------------------------
 bool __fastcall TTerminal::GetIsCapable(TFSCapability Capability) const
 {
   assert(FFileSystem);
   return FFileSystem->IsCapable(Capability);
+}
+//---------------------------------------------------------------------------
+TStrings * __fastcall TTerminal::GetAdditionalInfo()
+{
+  bool Initial = (FAdditionalInfo == NULL);
+  if (Initial)
+  {
+    FAdditionalInfo = new TStringList();
+  }
+  assert(FFileSystem);
+  FFileSystem->AdditionalInfo(FAdditionalInfo, Initial);
+  return FAdditionalInfo;
+}
+//---------------------------------------------------------------------------
+AnsiString __fastcall TTerminal::AbsolutePath(AnsiString Path)
+{
+  return FFileSystem->AbsolutePath(Path);
 }
 //---------------------------------------------------------------------------
 void __fastcall TTerminal::ReactOnCommand(int /*TFSCommand*/ Cmd)
@@ -147,10 +212,9 @@ int __fastcall TTerminal::FileOperationLoop(TFileOperationEvent CallBackFunc,
 {
   assert(CallBackFunc);
   int Result;
-  TTerminal * FTerminal = this; // required by FILE_OPERATION_LOOP_EX macro
   FILE_OPERATION_LOOP_EX
   (
-    "", AllowSkip, Message,
+    AllowSkip, Message,
     Result = CallBackFunc(Param1, Param2);
   );
 
@@ -177,6 +241,15 @@ AnsiString __fastcall TTerminal::TranslateLockedPath(AnsiString Path, bool Lock)
   return Path;
 }
 //---------------------------------------------------------------------------
+void __fastcall TTerminal::ClearCaches()
+{
+  FDirectoryCache->Clear();
+  if (FDirectoryChangesCache != NULL)
+  {
+    FDirectoryChangesCache->Clear();
+  }
+}
+//---------------------------------------------------------------------------
 void __fastcall TTerminal::SetCurrentDirectory(AnsiString value)
 {
   assert(FFileSystem);
@@ -201,6 +274,16 @@ AnsiString __fastcall TTerminal::GetCurrentDirectory()
   return TranslateLockedPath(FCurrentDirectory, true);
 }
 //---------------------------------------------------------------------------
+AnsiString __fastcall TTerminal::PeekCurrentDirectory()
+{
+  if (FFileSystem)
+  {
+    FCurrentDirectory = FFileSystem->CurrentDirectory;
+  }
+
+  return TranslateLockedPath(FCurrentDirectory, true);
+}
+//---------------------------------------------------------------------------
 TUserGroupsList * __fastcall TTerminal::GetUserGroups()
 {
   assert(FFileSystem);
@@ -216,6 +299,12 @@ AnsiString __fastcall TTerminal::GetUserName() const
 {
   // in future might be implemented to detect username similar to GetUserGroups
   return SessionData->UserName;
+}
+//---------------------------------------------------------------------------
+bool __fastcall TTerminal::GetAreCachesEmpty() const
+{
+  return FDirectoryCache->IsEmpty &&
+    ((FDirectoryChangesCache == NULL) || FDirectoryChangesCache->IsEmpty);
 }
 //---------------------------------------------------------------------------
 void __fastcall TTerminal::DoChangeDirectory()
@@ -356,6 +445,21 @@ void __fastcall TTerminal::CloseOnCompletion(const AnsiString Message)
     Message.IsEmpty() ? LoadStr(CLOSED_ON_COMPLETION) : Message);
 }
 //---------------------------------------------------------------------------
+int __fastcall TTerminal::ConfirmFileOverwrite(const AnsiString FileName,
+  const TOverwriteFileParams * FileParams, int Answers, int Params)
+{
+  AnsiString Message = FMTLOAD(FILE_OVERWRITE, (FileName));
+  if (FileParams)
+  {
+    Message = FMTLOAD(FILE_OVERWRITE_DETAILS, (Message,
+      IntToStr(FileParams->SourceSize),
+      FormatDateTime("ddddd tt", FileParams->SourceTimestamp),
+      IntToStr(FileParams->DestSize),
+      FormatDateTime("ddddd tt", FileParams->DestTimestamp)));
+  }
+  return DoQueryUser(Message, Answers, Params);
+}
+//---------------------------------------------------------------------------
 void __fastcall TTerminal::FileModified(const TRemoteFile * File)
 {
   assert(File);
@@ -363,7 +467,7 @@ void __fastcall TTerminal::FileModified(const TRemoteFile * File)
   {
     if (File->IsDirectory)
     {
-      // do not use UnixIncludeTrailingBackslash(CurrentDirectory) 
+      // do not use UnixIncludeTrailingBackslash(CurrentDirectory)
       FDirectoryCache->ClearFileList(
         File->Directory->FullDirectory + File->FileName, true);
     }
@@ -382,6 +486,11 @@ void __fastcall TTerminal::ReloadDirectory()
   if (SessionData->CacheDirectories)
   {
     FDirectoryCache->ClearFileList(CurrentDirectory, false);
+  }
+  if (SessionData->CacheDirectoryChanges)
+  {
+    assert(FDirectoryChangesCache != NULL);
+    FDirectoryChangesCache->ClearDirectoryChange(CurrentDirectory);
   }
 
   ReadCurrentDirectory();
@@ -449,6 +558,13 @@ void __fastcall TTerminal::ReadCurrentDirectory()
 
     FFileSystem->ReadCurrentDirectory();
     ReactOnCommand(fsCurrentDirectory);
+
+    if (SessionData->CacheDirectoryChanges)
+    {
+      assert(FDirectoryChangesCache != NULL);
+      FDirectoryChangesCache->AddDirectoryChange(OldDirectory,
+        FLastDirectoryChange, CurrentDirectory);
+    }
 
     if (OldDirectory.IsEmpty())
     {
@@ -863,7 +979,7 @@ void __fastcall TTerminal::CalculateFileSize(AnsiString FileName,
   {
     FileName = File->FileName;
   }
-  if (File->IsDirectory)
+  if (File->IsDirectory && !File->IsSymLink)
   {
     LogEvent(FORMAT("Getting size of directory \"%s\"", (FileName)));
     DoCalculateDirectorySize(FileName, File,
@@ -1062,8 +1178,22 @@ void __fastcall TTerminal::ChangeDirectory(const AnsiString Directory)
   assert(FFileSystem);
   try
   {
-    LogEvent(FORMAT("Changing directory to \"%s\".", (Directory)));
-    FFileSystem->ChangeDirectory(Directory);
+    AnsiString CachedDirectory;
+    assert(!SessionData->CacheDirectoryChanges || (FDirectoryChangesCache != NULL));
+    if (SessionData->CacheDirectoryChanges &&
+        FDirectoryChangesCache->GetDirectoryChange(PeekCurrentDirectory(),
+          Directory, CachedDirectory))
+    {
+      LogEvent(FORMAT("Cached directory change via \"%s\" to \"%s\".",
+        (Directory, CachedDirectory)));
+      FFileSystem->CachedChangeDirectory(CachedDirectory);
+    }
+    else
+    {
+      LogEvent(FORMAT("Changing directory to \"%s\".", (Directory)));
+      FFileSystem->ChangeDirectory(Directory);
+    }
+    FLastDirectoryChange = Directory;
     ReactOnCommand(fsChangeDirectory);
   }
   catch (Exception &E)
@@ -1116,22 +1246,96 @@ void __fastcall TTerminal::AnyCommand(const AnsiString Command)
   }
 }
 //---------------------------------------------------------------------------
+bool __fastcall TTerminal::CreateLocalFile(const AnsiString FileName,
+  TFileOperationProgressType * OperationProgress, HANDLE * AHandle)
+{
+  assert(AHandle);
+  bool Result = true;
+
+  FILE_OPERATION_LOOP (FMTLOAD(CREATE_FILE_ERROR, (FileName)),
+    bool Done;
+    do
+    {
+      *AHandle = CreateFile(FileName.c_str(), GENERIC_WRITE, 0, NULL,
+        CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0);
+      Done = (*AHandle != INVALID_HANDLE_VALUE);
+      if (!Done)
+      {
+        int FileAttr;
+        if (FileExists(FileName) &&
+          (((FileAttr = FileGetAttr(FileName)) & faReadOnly) != 0))
+        {
+          if (OperationProgress->NoToAll)
+          {
+            Result = false;
+          }
+          else if (!OperationProgress->YesToAll)
+          {
+            int Answer;
+            SUSPEND_OPERATION
+            (
+              Answer = DoQueryUser(
+                FMTLOAD(READ_ONLY_OVERWRITE, (FileName)),
+                qaYes | qaNo | qaAbort | qaYesToAll | qaNoToAll, 0);
+            );
+            switch (Answer) {
+              case qaYesToAll: OperationProgress->YesToAll = true; break;
+              case qaAbort: OperationProgress->Cancel = csCancel; // continue on next case
+              case qaNoToAll: OperationProgress->NoToAll = true;
+              case qaNo: Result = false; break;
+            }
+          }
+
+          if (Result)
+          {
+            FILE_OPERATION_LOOP (FMTLOAD(CANT_SET_ATTRS, (FileName)),
+              if (FileSetAttr(FileName, FileAttr & ~faReadOnly) != 0)
+              {
+                EXCEPTION;
+              }
+            );
+          }
+          else
+          {
+            Done = true;
+          }
+        }
+        else
+        {
+          EXCEPTION;
+        }
+      }
+    }
+    while (!Done);
+  );
+  
+  return Result;
+}
+//---------------------------------------------------------------------------
 void __fastcall TTerminal::OpenLocalFile(const AnsiString FileName,
   int Access, int * AAttrs, HANDLE * AHandle, unsigned long * ACTime,
-  unsigned long * AMTime, unsigned long * AATime, __int64 * ASize)
+  unsigned long * AMTime, unsigned long * AATime, __int64 * ASize,
+  bool TryWriteReadOnly)
 {
-  TTerminal * FTerminal = this; //required by FILE_OPERATION_LOOP macro
   int Attrs = 0;
   HANDLE Handle = 0;
 
-  FILE_OPERATION_LOOP (FileName, FMTLOAD(FILE_NOT_EXISTS, (FileName)),
+  FILE_OPERATION_LOOP (FMTLOAD(FILE_NOT_EXISTS, (FileName)),
     Attrs = FileGetAttr(FileName);
     if (Attrs == -1) EXCEPTION;
   )
 
   if ((Attrs & faDirectory) == 0)
   {
-    FILE_OPERATION_LOOP (FileName, FMTLOAD(OPENFILE_ERROR, (FileName)),
+    bool NoHandle = false;
+    if (!TryWriteReadOnly && (Access == GENERIC_WRITE) &&
+        ((Attrs & faReadOnly) != 0))
+    {
+      Access = GENERIC_READ;
+      NoHandle = true;
+    }
+    
+    FILE_OPERATION_LOOP (FMTLOAD(OPENFILE_ERROR, (FileName)),
       Handle = CreateFile(FileName.c_str(), Access,
         Access == GENERIC_READ ? FILE_SHARE_READ : 0,
         NULL, OPEN_EXISTING, 0, 0);
@@ -1147,7 +1351,7 @@ void __fastcall TTerminal::OpenLocalFile(const AnsiString FileName,
       if (AATime || AMTime)
       {
         // Get last file access and modification time
-        FILE_OPERATION_LOOP (FileName, FMTLOAD(CANT_GET_ATTRS, (FileName)),
+        FILE_OPERATION_LOOP (FMTLOAD(CANT_GET_ATTRS, (FileName)),
           FILETIME ATime;
           FILETIME MTime;
           FILETIME CTime;
@@ -1161,13 +1365,19 @@ void __fastcall TTerminal::OpenLocalFile(const AnsiString FileName,
       if (ASize)
       {
         // Get file size
-        FILE_OPERATION_LOOP (FileName, FMTLOAD(CANT_GET_ATTRS, (FileName)),
+        FILE_OPERATION_LOOP (FMTLOAD(CANT_GET_ATTRS, (FileName)),
           unsigned long LSize;
           unsigned long HSize;
           LSize = GetFileSize(Handle, &HSize);
           if ((LSize == 0xFFFFFFFF) && (GetLastError() != NO_ERROR)) EXCEPTION;
           *ASize = (__int64(HSize) << 32) + LSize;
         );
+      }
+
+      if ((AHandle == NULL) || NoHandle)
+      {
+        CloseHandle(Handle);
+        Handle = NULL;
       }
     }
     catch(...)
@@ -1238,6 +1448,7 @@ void __fastcall TTerminal::CopyToRemote(TStrings * FilesToCopy,
 
   try
   {
+
     __int64 Size;
     if (CopyParam->CalculateSize)
     {
@@ -1247,7 +1458,7 @@ void __fastcall TTerminal::CopyToRemote(TStrings * FilesToCopy,
     TFileOperationProgressType OperationProgress(FOnProgress, FOnFinished);
     OperationProgress.Start((Params & cpDelete ? foMove : foCopy), osLocal,
       FilesToCopy->Count, Params & cpDragDrop, TargetDir);
-      
+
     if (CopyParam->CalculateSize)
     {
       OperationProgress.SetTotalSize(Size);

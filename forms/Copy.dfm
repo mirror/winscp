@@ -105,6 +105,9 @@ object CopyDialog: TCopyDialog
       Height = 149
       TabOrder = 0
       inherited RemotePropertiesGroup: TXPGroupBox
+        inherited RightsFrame: TRightsFrame
+          PopupMenu = CopyParamsFrame.RightsFrame.RightsPopup
+        end
         inherited PreserveRightsCheck: TCheckBox
           Left = 12
         end

@@ -14,7 +14,6 @@
 #include <TextsWin.h>
 
 #include "CustomScpExplorer.h"
-#include "UserInterface.h"
 #include "TerminalManager.h"
 #include "NonVisual.h"
 #include "ProgParams.h"
@@ -23,6 +22,7 @@
 
 #include <NMHttp.hpp>
 #include <Psock.hpp>
+#include <FileOperator.hpp>
 //---------------------------------------------------------------------------
 #pragma package(smart_init)
 //---------------------------------------------------------------------------
@@ -37,23 +37,10 @@ TSessionData * GetLoginData(const AnsiString SessionName)
     if (!AData)
     {
       Data->Assign(StoredSessions->DefaultSettings);
-      // 2.0 #89   2002-2-21
-      // if command line parameter is not name of any stored session,
-      // we check if its hase "username:password@host" format
-      int AtPos = SessionName.Pos("@");
-      if (AtPos)
+      if (Data->ParseUrl(SessionName, 0))
       {
+        Data->Name = "";
         DefaultsOnly = false;
-        AnsiString Param = SessionName;
-        Data->HostName = Param.SubString(AtPos+1, Param.Length() - AtPos);
-        Param.SetLength(AtPos - 1);
-        int ColonPos = Param.Pos(":");
-        if (ColonPos)
-        {
-          Data->Password = Param.SubString(ColonPos + 1, Param.Length() - ColonPos);
-          Param.SetLength(ColonPos - 1);
-        }
-        Data->UserName = Param;
       }
       else
       {
@@ -79,7 +66,7 @@ TSessionData * GetLoginData(const AnsiString SessionName)
 
   if (!Data->CanLogin || DefaultsOnly)
   {
-    if (!DoLoginDialog(StoredSessions, Data, true) || !Data->CanLogin)
+    if (!DoLoginDialog(StoredSessions, Data, loStartup) || !Data->CanLogin)
     {
       delete Data;
       Data = NULL;
@@ -104,8 +91,8 @@ void __fastcall Upload(TTerminal * Terminal, TProgramParams * Params,
     }
     TargetDirectory = UnixIncludeTrailingBackslash(Terminal->CurrentDirectory);
 
-    if (DoCopyDialog(tdToRemote, ttCopy, false, FileList,
-          Terminal->IsCapable[fcTextMode], TargetDirectory, &CopyParam))
+    if (DoCopyDialog(true, false, false, FileList,
+          Terminal->IsCapable[fcTextMode], TargetDirectory, &CopyParam, true))
     {
       int Params = 0;
       Terminal->CopyToRemote(FileList, TargetDirectory, &CopyParam, Params);
@@ -318,4 +305,25 @@ void __fastcall Execute(TProgramParams * Params)
     NonVisualDataModule = NULL;
     TTerminalManager::DestroyInstance();
   }
+}
+//---------------------------------------------------------------------------
+int __fastcall FileOperatorDelete(const AnsiString FileName, bool ToRecycleBin)
+{
+  TFileOperator * FileOperator = new TFileOperator(Application);
+  int Result;
+  try
+  {
+    TFileOperationFlags Flags;
+    Flags << foNoConfirmation << foNoConfirmMkDir << foRenameOnCollision << foSilent;
+    if (ToRecycleBin) Flags << foAllowUndo;
+    FileOperator->Flags = Flags;
+    FileOperator->Operation = Fileoperator::foDelete;
+    FileOperator->OperandFrom->Text = FileName;
+    Result = FileOperator->Execute();
+  }
+  __finally
+  {
+    delete FileOperator;
+  }
+  return Result;
 }

@@ -11,7 +11,6 @@
 #include <WinInterface.h>
 
 #include "Progress.h"
-#include "WinConfiguration.h"
 //---------------------------------------------------------------------
 #pragma link "PathLabel"
 #pragma resource "*.dfm"
@@ -28,6 +27,7 @@ __fastcall TProgressForm::TProgressForm(TComponent* AOwner)
 	: FData(), TForm(AOwner)
 {
   FLastOperation = foNone;
+  FLastTotalSizeSet = false;
   FDataReceived = false;
   FAsciiTransferChanged = false;
   FResumeStatusChanged = false;
@@ -35,6 +35,7 @@ __fastcall TProgressForm::TProgressForm(TComponent* AOwner)
   FMinimizedByMe = false;
   FUpdateCounter = 0;
   FLastUpdate = 0;
+  FDeleteToRecycleBin = false;
   UseSystemSettings(this);
 }
 //---------------------------------------------------------------------------
@@ -75,10 +76,8 @@ void __fastcall TProgressForm::UpdateControls()
           break;
 
         case foDelete:
-          if ((FData.Side == osLocal) && WinConfiguration->DeleteToRecycleBin)
-            Animate->CommonAVI = aviRecycleFile;
-          else
-            Animate->CommonAVI = aviDeleteFile;
+          Animate->CommonAVI = ((FData.Side == osLocal) && DeleteToRecycleBin) ?
+            aviRecycleFile : aviDeleteFile;
           break;
 
         case foSetProperties:
@@ -123,7 +122,7 @@ void __fastcall TProgressForm::UpdateControls()
       else
     if (!TransferOperation && TransferPanel->Visible) Delta += -TransferPanel->Height;
     TransferPanel->Visible = TransferOperation;
-    SpeedPanel->Visible = TransferOperation && WinConfiguration->ExpertMode;
+    SpeedPanel->Visible = TransferOperation;
 
     ClientHeight = ClientHeight + Delta;
     DisconnectWhenCompleteCheck->Top = DisconnectWhenCompleteCheck->Top + Delta;
@@ -135,9 +134,19 @@ void __fastcall TProgressForm::UpdateControls()
     TargetPathLabel->UnixPath = (FData.Side == osLocal);
 
     FileLabel->UnixPath = (FData.Side == osRemote);
-    
+
     FLastOperation = FData.Operation;
+    FLastTotalSizeSet = !FData.TotalSizeSet;
   };
+
+  if (FLastTotalSizeSet != FData.TotalSizeSet)
+  {
+    StartTimeLabelLabel->Visible = !FData.TotalSizeSet;
+    StartTimeLabel->Visible = !FData.TotalSizeSet;
+    TimeEstimatedLabelLabel->Visible = FData.TotalSizeSet;
+    TimeEstimatedLabel->Visible = FData.TotalSizeSet;
+    FLastTotalSizeSet = FData.TotalSizeSet; 
+  }
 
   FileLabel->Caption = FData.FileName;
   OperationProgress->Position = FData.OverallProgress();
@@ -153,7 +162,13 @@ void __fastcall TProgressForm::UpdateControls()
     {
       TargetPathLabel->Caption = LoadStr(PROGRESS_DRAGDROP_TARGET);
     }
+
     StartTimeLabel->Caption = FData.StartTime.TimeString();
+    if (FData.TotalSizeSet)
+    {
+      TimeEstimatedLabel->Caption = FormatDateTime(Configuration->TimeFormat,
+        FData.TotalTimeExpected());
+    }
     TimeElapsedLabel->Caption = FormatDateTime(Configuration->TimeFormat, FData.TimeElapsed());
     BytesTransferedLabel->Caption = FormatBytes(FData.TotalTransfered);
     CPSLabel->Caption = FORMAT("%s/s", (FormatBytes(FData.CPS())));
@@ -358,6 +373,16 @@ void __fastcall TProgressForm::HideAsModal()
   }
 
   FFormState >> fsModal;
+}
+//---------------------------------------------------------------------------
+bool __fastcall TProgressForm::GetAllowMinimize()
+{
+  return MinimizeButton->Visible;
+}
+//---------------------------------------------------------------------------
+void __fastcall TProgressForm::SetAllowMinimize(bool value)
+{
+  MinimizeButton->Visible = value;
 }
 
 

@@ -15,6 +15,7 @@
 #include <VCLCommon.h>
 #include <Log.h>
 
+#include "GUITools.h"
 #include "NonVisual.h"
 #include "Tools.h"
 #include "WinConfiguration.h"
@@ -102,18 +103,9 @@ void __fastcall TCustomScpExplorerForm::SetTerminal(TTerminal * value)
   {
     if (FTerminal)
     {
-      /*assert(Terminal->OnProgress == OperationProgress);
-      Terminal->OnProgress = NULL;
-      assert(Terminal->OnFinished == OperationFinished);
-      Terminal->OnFinished = NULL;*/
       UpdateSessionData(Terminal->SessionData);
     }
     FTerminal = value;
-    if (Terminal)
-    {
-      /*Terminal->OnProgress = OperationProgress;
-      Terminal->OnFinished = OperationFinished;*/
-    }
     TerminalChanged();
   }
 }
@@ -159,8 +151,9 @@ bool __fastcall TCustomScpExplorerForm::CopyParamDialog(
   assert(Terminal && Terminal->Active);
   if (Confirm)
   {
-    return DoCopyDialog(Direction, Type, DragDrop, FileList,
-      Terminal->IsCapable[fcTextMode], TargetDirectory, &CopyParam);
+    return DoCopyDialog(Direction == tdToRemote, Type == ttMove,
+      DragDrop, FileList, Terminal->IsCapable[fcTextMode], TargetDirectory,
+      &CopyParam, true);
   }
   else
   {
@@ -206,6 +199,7 @@ void __fastcall TCustomScpExplorerForm::FileOperationProgress(
   {
     //assert(Screen && Screen->ActiveCustomForm);
     FProgressForm = new TProgressForm(Application);
+    FProgressForm->DeleteToRecycleBin = WinConfiguration->DeleteToRecycleBin;
     // When main window is hidden, we suppose "/upload" mode
     if (!Visible)
     {
@@ -215,14 +209,7 @@ void __fastcall TCustomScpExplorerForm::FileOperationProgress(
   // operation is finished (or terminated), so we hide progress form
   else if (!ProgressData.InProgress && FProgressForm)
   {
-    try
-    {
-      delete FProgressForm;
-    }
-    __finally
-    {
-      FProgressForm = NULL;
-    }
+    SAFE_DESTROY(FProgressForm);
   }
 
   if (FProgressForm)
@@ -1133,8 +1120,7 @@ void __fastcall TCustomScpExplorerForm::SessionStatusBarMouseMove(
 //---------------------------------------------------------------------------
 void __fastcall TCustomScpExplorerForm::ApplicationHint(TObject * /*Sender*/)
 {
-  TStatusBar * SessionStatusBar = (TStatusBar *)GetComponent(fcStatusBar);
-  assert(SessionStatusBar && Application);
+  assert(GetComponent(fcStatusBar) && Application);
   AnsiString AHint = GetLongHint(Application->Hint);
   FShowStatusBarHint = Active && !AHint.IsEmpty() && (AHint != "X");
   if (FShowStatusBarHint)
@@ -1154,7 +1140,7 @@ void __fastcall TCustomScpExplorerForm::NewSession()
   try
   {
     Data->Assign(StoredSessions->DefaultSettings);
-    if (DoLoginDialog(StoredSessions, Data, false))
+    if (DoLoginDialog(StoredSessions, Data, loAddSession))
     {
       assert(Data->CanLogin);
       TTerminalManager * Manager = TTerminalManager::Instance();
@@ -1479,45 +1465,12 @@ void __fastcall TCustomScpExplorerForm::DoOpenDirectoryDialog(
 //---------------------------------------------------------------------------
 void __fastcall TCustomScpExplorerForm::OpenInPutty()
 {
-  if (FileExists(WinConfiguration->PuttyPath))
-  {
-    THierarchicalStorage * Storage = NULL;
-    TSessionData * ExportData = NULL;
-    try
-    {
-      ExportData = new TSessionData("");
-      ExportData->Assign(Terminal->SessionData);
-      ExportData->Modified = true;
-      ExportData->Name = WinConfiguration->PuttySession;
-      ExportData->Password = "";
-      Storage = new TRegistryStorage(Configuration->PuttySessionsKey);
-      Storage->AccessMode = smReadWrite;
-      if (Storage->OpenRootKey(true))
-      {
-        ExportData->Save(Storage, true);
-      }
-    }
-    __finally
-    {
-      delete Storage;
-      delete ExportData;
-    }
-
-    if (!ExecuteShell(WinConfiguration->PuttyPath,
-          FORMAT("-load \"%s\"", (WinConfiguration->PuttySession))))
-    {
-      throw Exception(FMTLOAD(EXECUTE_APP_ERROR, (WinConfiguration->PuttyPath)));
-    }
-  }
-  else
-  {
-    throw Exception(FMTLOAD(FILE_NOT_FOUND, (WinConfiguration->PuttyPath)));
-  }
+  OpenSessionInPutty(Terminal->SessionData);
 }
 //---------------------------------------------------------------------------
 void __fastcall TCustomScpExplorerForm::OpenConsole()
 {
-  DoConsoleDialog();
+  DoConsoleDialog(Terminal);
 }
 //---------------------------------------------------------------------------
 void __fastcall TCustomScpExplorerForm::DirViewDDDragEnter(
@@ -1530,6 +1483,7 @@ void __fastcall TCustomScpExplorerForm::DirViewDDDragEnter(
 void __fastcall TCustomScpExplorerForm::DirViewDDDragLeave(
       TObject *Sender)
 {
+  USEDPARAM(Sender);  
   assert(FDDTargetDirView == Sender);
   FDDTargetDirView = NULL;
 }
