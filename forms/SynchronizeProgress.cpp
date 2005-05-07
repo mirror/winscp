@@ -75,7 +75,7 @@ void __fastcall TSynchronizeProgressForm::UpdateControls()
 void __fastcall TSynchronizeProgressForm::CancelButtonClick(TObject * /*Sender*/)
 {
   if (!FCanceled && (MessageDialog(LoadStr(CANCEL_OPERATION), qtConfirmation,
-       qaOK | qaCancel, 0) == qaOK))
+       qaOK | qaCancel, HELP_NONE) == qaOK))
   {
     FCanceled = true;
   }

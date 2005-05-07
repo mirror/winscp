@@ -65,6 +65,7 @@ public:
   bool YesToNewer;
   bool NoToAll;
   bool SkipToAll;
+  bool AlternateResumeAlways;
 
   bool TotalSizeSet;
 

@@ -29,7 +29,7 @@ inherited RightsExtFrame: TRightsExtFrame
   end
   inherited DirectoriesXCheck: TCheckBox
     Top = 89
-    TabOrder = 12
+    TabOrder = 13
   end
   object OctalEdit: TEdit [17]
     Left = 55
@@ -37,7 +37,7 @@ inherited RightsExtFrame: TRightsExtFrame
     Width = 64
     Height = 21
     MaxLength = 4
-    TabOrder = 13
+    TabOrder = 12
     Text = 'OctalEdit'
     OnChange = OctalEditChange
     OnExit = OctalEditExit

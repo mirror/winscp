@@ -27,6 +27,7 @@ public:
   void __fastcall FreeActiveTerminal();
   void __fastcall CycleTerminals(bool Forward);
   static void ConnectTerminal(TTerminal * Terminal);
+  AnsiString __fastcall UpdateAppTitle();
 
   __property TCustomScpExplorerForm * ScpExplorer = { read = FScpExplorer, write = SetScpExplorer };
   __property TTerminal * ActiveTerminal = { read = FActiveTerminal, write = SetActiveTerminal };
@@ -64,6 +65,8 @@ private:
   void __fastcall UpdateTerminal(TTerminal * Terminal);
   void __fastcall UpdateAll();
   void __fastcall ApplicationException(TObject * Sender, Exception * E);
+  void __fastcall ApplicationShowHint(AnsiString & HintStr, bool & CanShow,
+    THintInfo & HintInfo);
   void __fastcall ConfigurationChange(TObject * Sender);
   void __fastcall TerminalQueryUser(TObject * Sender,
     const AnsiString Query, TStrings * MoreMessages, int Answers,
@@ -87,7 +90,6 @@ private:
     bool & DisconnectWhenFinished);
   void __fastcall OperationProgress(TFileOperationProgressType & ProgressData,
     TCancelStatus & Cancel);
-  void __fastcall UpdateAppTitle();
   void __fastcall DeleteLocalFile(const AnsiString FileName);
 };
 //---------------------------------------------------------------------------

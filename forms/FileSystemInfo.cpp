@@ -88,4 +88,9 @@ void __fastcall TFileSystemInfoDialog::SetTerminal(TTerminal * value)
   }
 }
 //---------------------------------------------------------------------
+void __fastcall TFileSystemInfoDialog::HelpButtonClick(TObject * /*Sender*/)
+{
+  FormHelp(this);
+}
+//---------------------------------------------------------------------------
 

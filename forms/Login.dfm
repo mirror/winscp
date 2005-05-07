@@ -13,6 +13,7 @@ object LoginDialog: TLoginDialog
   KeyPreview = True
   OldCreateOrder = True
   Position = poMainFormCenter
+  OnKeyDown = FormKeyDown
   OnShow = FormShow
   DesignSize = (
     522
@@ -50,6 +51,7 @@ object LoginDialog: TLoginDialog
     Caption = 'Close'
     ModalResult = 2
     TabOrder = 4
+    Visible = False
   end
   object AboutButton: TButton
     Left = 11
@@ -79,7 +81,7 @@ object LoginDialog: TLoginDialog
     Align = alTop
     Anchors = [akLeft, akTop, akRight, akBottom]
     BevelOuter = bvNone
-    TabOrder = 5
+    TabOrder = 6
     object PageControl: TPageControl
       Tag = 6
       Left = 161
@@ -178,7 +180,7 @@ object LoginDialog: TLoginDialog
           Width = 88
           Height = 25
           Anchors = [akTop, akRight]
-          Caption = 'Shell &icon'
+          Caption = 'Shell &icon...'
           TabOrder = 5
           OnClick = ShellIconsButtonClick
         end
@@ -322,23 +324,23 @@ object LoginDialog: TLoginDialog
             OnClick = DataChange
           end
           object SCPonlyButton: TRadioButton
-            Left = 16
+            Left = 264
             Top = 19
             Width = 65
             Height = 17
             Caption = 'S&CP'
             Checked = True
-            TabOrder = 0
+            TabOrder = 2
             TabStop = True
             OnClick = DataChange
           end
           object SFTPonlyButton: TRadioButton
-            Left = 264
+            Left = 16
             Top = 19
             Width = 65
             Height = 17
             Caption = 'SF&TP'
-            TabOrder = 2
+            TabOrder = 0
             OnClick = DataChange
           end
         end
@@ -980,12 +982,13 @@ object LoginDialog: TLoginDialog
             Caption = '&Reverses order of symlink command arguments'
             FocusControl = SFTPBugSymlinkCombo
           end
-          object Label16: TLabel
+          object Label36: TLabel
             Left = 12
             Top = 44
             Width = 192
             Height = 13
             Caption = '&Misinterprets file timestamps prior to 1970'
+            FocusControl = SFTPBugSignedTSCombo
           end
           object SFTPBugSymlinkCombo: TComboBox
             Left = 272
@@ -1033,6 +1036,7 @@ object LoginDialog: TLoginDialog
             Width = 128
             Height = 13
             Caption = 'Server does not use &UTF-8'
+            FocusControl = SFTPBugUtfCombo
           end
           object SFTPMaxVersionCombo: TComboBox
             Left = 272
@@ -1917,9 +1921,9 @@ object LoginDialog: TLoginDialog
           000000000000FFFFFFFF0000000000000000084C6F6767696E67582500000000
           0000000400000000000000FFFFFFFF00000000030000000C456E7669726F6E6D
           656E745825000000000000000C00000000000000FFFFFFFF0000000000000000
-          0C4469726563746F72696573581D000000000000000500000000000000FFFFFF
-          FF000000000000000004534350581E000000000000000D00000000000000FFFF
-          FFFF000000000000000005534654505824000000000000000800000000000000
+          0C4469726563746F72696573581E000000000000000D00000000000000FFFFFF
+          FF00000000000000000553465450581D000000000000000500000000000000FF
+          FFFFFF0000000000000000045343505824000000000000000800000000000000
           FFFFFFFF00000000010000000B436F6E6E656374696F6E581F00000000000000
           0900000000000000FFFFFFFF00000000000000000650726F7879581D00000000
           0000000300000000000000FFFFFFFF0000000003000000045353485826000000
@@ -1940,6 +1944,16 @@ object LoginDialog: TLoginDialog
         OnClick = DataChange
       end
     end
+  end
+  object HelpButton: TButton
+    Left = 436
+    Top = 333
+    Width = 75
+    Height = 25
+    Anchors = [akRight, akBottom]
+    Caption = 'Help'
+    TabOrder = 5
+    OnClick = HelpButtonClick
   end
   object ActionList: TActionList
     OnUpdate = ActionListUpdate

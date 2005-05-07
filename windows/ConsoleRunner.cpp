@@ -484,7 +484,7 @@ class TConsoleRunner
 public:
   TConsoleRunner(TConsole * Console);
 
-  int __fastcall Run(const AnsiString Session, const AnsiString ScriptFile);
+  int __fastcall Run(const AnsiString Session, TStrings * ScriptCommands);
 
 protected:
   bool __fastcall Input(AnsiString & Str, bool Echo);
@@ -913,15 +913,14 @@ bool __fastcall TConsoleRunner::Input(AnsiString & Str, bool Echo)
   return Result;
 }
 //---------------------------------------------------------------------------
-int __fastcall TConsoleRunner::Run(const AnsiString Session, const AnsiString ScriptFile)
+int __fastcall TConsoleRunner::Run(const AnsiString Session, TStrings * ScriptCommands)
 {
   try
   {
-    TStrings * ScriptCommands = NULL;
     FScript = new TManagementScript(StoredSessions);
     try
     {
-      FScript->CopyParam = GUIConfiguration->CopyParam;
+      FScript->CopyParam = GUIConfiguration->DefaultCopyParam;
       FScript->OnPrint = ScriptPrint;
       FScript->OnPrintProgress = ScriptPrintProgress;
       FScript->OnInput = ScriptInput;
@@ -937,12 +936,6 @@ int __fastcall TConsoleRunner::Run(const AnsiString Session, const AnsiString Sc
       if (!Session.IsEmpty())
       {
         FScript->Connect(Session);
-      }
-
-      if (!ScriptFile.IsEmpty())
-      {
-        ScriptCommands = new TStringList();
-        ScriptCommands->LoadFromFile(ScriptFile);
       }
 
       int ScriptPos = 0;
@@ -975,7 +968,6 @@ int __fastcall TConsoleRunner::Run(const AnsiString Session, const AnsiString Sc
     {
       delete FScript;
       FScript = NULL;
-      delete ScriptCommands;
     }
   }
   catch(Exception & E)
@@ -1006,6 +998,7 @@ int __fastcall Console(TProgramParams * Params, bool Help)
   int Result = 0;
   TConsole * Console = NULL;
   TConsoleRunner * Runner = NULL;
+  TStrings * ScriptCommands = new TStringList();
   try
   {
     AnsiString ConsoleInstance;
@@ -1032,8 +1025,12 @@ int __fastcall Console(TProgramParams * Params, bool Help)
     }
     else
     {
-      AnsiString ScriptFile;
-      Params->FindSwitch("script", ScriptFile);
+      AnsiString Value;
+      if (Params->FindSwitch("script", Value))
+      {
+        ScriptCommands->LoadFromFile(Value);
+      }
+      Params->FindSwitch("command", ScriptCommands);
 
       Runner = new TConsoleRunner(Console);
 
@@ -1042,13 +1039,15 @@ int __fastcall Console(TProgramParams * Params, bool Help)
       {
         Session = Params->Param[1];
       }
-      Result = Runner->Run(Session, ScriptFile);
+      Result = Runner->Run(Session,
+        (ScriptCommands->Count > 0 ? ScriptCommands : NULL));
     }
   }
   __finally
   {
     delete Runner;
     delete Console;
+    delete ScriptCommands;
   }
 
   return Result;

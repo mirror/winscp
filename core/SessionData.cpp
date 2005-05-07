@@ -27,6 +27,8 @@ const TKex DefaultKexList[KEX_COUNT] =
   { kexDHGEx, kexDHGroup14, kexDHGroup1, kexWarn };
 const char FSProtocolNames[FSPROTOCOL_COUNT][11] = { "SCP", "SFTP (SCP)", "SFTP" };
 //--- TSessionData ----------------------------------------------------
+AnsiString TSessionData::FInvalidChars("/\\[]");
+//---------------------------------------------------------------------
 __fastcall TSessionData::TSessionData(AnsiString aName):
   TNamedObject(aName)
 {
@@ -834,6 +836,14 @@ bool __fastcall TSessionData::ParseUrl(AnsiString Url, int Params,
   return Result;
 }
 //---------------------------------------------------------------------
+void __fastcall TSessionData::ValidateName(const AnsiString Name)
+{
+  if (Name.LastDelimiter(FInvalidChars) > 0)
+  {
+    throw Exception(FMTLOAD(ITEM_NAME_INVALID, (Name, FInvalidChars)));
+  }
+}
+//---------------------------------------------------------------------
 bool __fastcall TSessionData::GetCanLogin()
 {
   return !FHostName.IsEmpty() && !FUserName.IsEmpty();
@@ -1453,25 +1463,37 @@ void __fastcall TStoredSessionList::Load(THierarchicalStorage * Storage,
     {
       TSessionData *SessionData;
       AnsiString SessionName = UnMungeStr(SubKeys->Strings[Index]);
-      if (SessionName == FDefaultSettings->Name) SessionData = FDefaultSettings;
-        else SessionData = (TSessionData*)FindByName(SessionName);
-
-      if ((SessionData != FDefaultSettings) || !UseDefaults)
+      bool ValidName = true;
+      try
       {
-        if (!SessionData)
+        TSessionData::ValidateName(SessionName);
+      }
+      catch(...)
+      {
+        ValidName = false;
+      }
+      if (ValidName)
+      {
+        if (SessionName == FDefaultSettings->Name) SessionData = FDefaultSettings;
+          else SessionData = (TSessionData*)FindByName(SessionName);
+
+        if ((SessionData != FDefaultSettings) || !UseDefaults)
         {
-          SessionData = new TSessionData("");
-          if (UseDefaults)
+          if (!SessionData)
           {
-            SessionData->Assign(DefaultSettings);
+            SessionData = new TSessionData("");
+            if (UseDefaults)
+            {
+              SessionData->Assign(DefaultSettings);
+            }
+            SessionData->Name = SessionName;
+            Add(SessionData);
           }
-          SessionData->Name = SessionName;
-          Add(SessionData);
-        }
-        SessionData->Load(Storage);
-        if (AsModified)
-        {
-          SessionData->Modified = true;
+          SessionData->Load(Storage);
+          if (AsModified)
+          {
+            SessionData->Modified = true;
+          }
         }
       }
     }

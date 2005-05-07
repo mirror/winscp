@@ -2,11 +2,10 @@
 #include <vcl.h>
 #pragma hdrstop
 
-#include <AssociatedStatusBar.hpp>
-
 #include <Common.h>
 #include <ScpMain.h>
 #include <TextsWin.h>
+#include <HelpWin.h>
 #include <WinInterface.h>
 #include <VCLCommon.h>
 #include <GUIConfiguration.h>
@@ -313,12 +312,12 @@ void __fastcall TProgressForm::CancelOperation()
           (FData.TimeExpected() > GUIConfiguration->IgnoreCancelBeforeFinish))
       {
         Result = MessageDialog(LoadStr(CANCEL_OPERATION_FATAL), qtWarning,
-          qaYes | qaNo | qaCancel, 0);
+          qaYes | qaNo | qaCancel, HELP_PROGRESS_CANCEL);
       }
       else
       {
         Result = MessageDialog(LoadStr(CANCEL_OPERATION), qtConfirmation,
-          qaOK | qaCancel, 0);
+          qaOK | qaCancel, HELP_PROGRESS_CANCEL);
       }
       switch (Result) {
         case qaYes:

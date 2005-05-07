@@ -7,7 +7,7 @@ object FullSynchronizeDialog: TFullSynchronizeDialog
   BorderStyle = bsDialog
   Caption = 'Synchronize'
   ClientHeight = 399
-  ClientWidth = 396
+  ClientWidth = 433
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -19,20 +19,20 @@ object FullSynchronizeDialog: TFullSynchronizeDialog
   OnCloseQuery = FormCloseQuery
   OnShow = FormShow
   DesignSize = (
-    396
+    433
     399)
   PixelsPerInch = 96
   TextHeight = 13
   object DirectoriesGroup: TXPGroupBox
     Left = 8
     Top = 6
-    Width = 380
+    Width = 417
     Height = 119
     Anchors = [akLeft, akTop, akRight]
     Caption = 'Directories'
     TabOrder = 0
     DesignSize = (
-      380
+      417
       119)
     object LocalDirectoryLabel: TLabel
       Left = 11
@@ -55,7 +55,7 @@ object FullSynchronizeDialog: TFullSynchronizeDialog
     object RemoteDirectoryEdit: THistoryComboBox
       Left = 11
       Top = 84
-      Width = 358
+      Width = 395
       Height = 21
       AutoComplete = False
       Anchors = [akLeft, akTop, akRight]
@@ -68,7 +68,7 @@ object FullSynchronizeDialog: TFullSynchronizeDialog
     object LocalDirectoryEdit: THistoryComboBox
       Left = 11
       Top = 35
-      Width = 275
+      Width = 312
       Height = 21
       AutoComplete = False
       Anchors = [akLeft, akTop, akRight]
@@ -79,17 +79,18 @@ object FullSynchronizeDialog: TFullSynchronizeDialog
       OnChange = ControlChange
     end
     object LocalDirectoryBrowseButton: TButton
-      Left = 293
+      Left = 330
       Top = 33
       Width = 75
       Height = 25
+      Anchors = [akTop, akRight]
       Caption = 'Bro&wse...'
       TabOrder = 1
       OnClick = LocalDirectoryBrowseButtonClick
     end
   end
   object OkButton: TButton
-    Left = 228
+    Left = 185
     Top = 366
     Width = 75
     Height = 25
@@ -97,10 +98,10 @@ object FullSynchronizeDialog: TFullSynchronizeDialog
     Caption = 'OK'
     Default = True
     ModalResult = 1
-    TabOrder = 6
+    TabOrder = 7
   end
   object CancelButton: TButton
-    Left = 312
+    Left = 267
     Top = 366
     Width = 75
     Height = 25
@@ -108,38 +109,37 @@ object FullSynchronizeDialog: TFullSynchronizeDialog
     Cancel = True
     Caption = 'Cancel'
     ModalResult = 2
-    TabOrder = 7
+    TabOrder = 8
   end
   object OptionsGroup: TXPGroupBox
     Left = 8
     Top = 184
-    Width = 380
+    Width = 268
     Height = 97
-    Anchors = [akLeft, akTop, akRight]
     Caption = 'Synchronize options'
     TabOrder = 2
     object SynchronizeDeleteCheck: TCheckBox
       Left = 11
       Top = 44
-      Width = 150
+      Width = 126
       Height = 17
       Caption = '&Delete files'
       TabOrder = 1
       OnClick = ControlChange
     end
     object SynchronizeNoConfirmationCheck: TCheckBox
-      Left = 179
+      Left = 139
       Top = 68
-      Width = 135
+      Width = 123
       Height = 17
       Caption = '&No confirmations'
       TabOrder = 4
       OnClick = ControlChange
     end
     object SynchronizeExistingOnlyCheck: TCheckBox
-      Left = 179
+      Left = 139
       Top = 44
-      Width = 107
+      Width = 123
       Height = 17
       Caption = '&Existing files only'
       TabOrder = 2
@@ -148,7 +148,7 @@ object FullSynchronizeDialog: TFullSynchronizeDialog
     object SynchronizePreviewChangesCheck: TCheckBox
       Left = 11
       Top = 68
-      Width = 150
+      Width = 126
       Height = 17
       Caption = 'Pre&view changes'
       TabOrder = 3
@@ -157,27 +157,27 @@ object FullSynchronizeDialog: TFullSynchronizeDialog
     object SynchronizeTimestampCheck: TCheckBox
       Left = 11
       Top = 20
-      Width = 358
+      Width = 246
       Height = 17
-      Caption = 'Sync&hronize timestamps of existing files only, not files'
+      Caption = 'Synchronize timestamps &only, not files'
       TabOrder = 0
       OnClick = ControlChange
     end
   end
-  object TransferPreferencesButton: TButton
+  object TransferSettingsButton: TButton
     Left = 8
     Top = 366
-    Width = 137
+    Width = 129
     Height = 25
     Anchors = [akRight, akBottom]
-    Caption = 'Transfer &preferences...'
-    TabOrder = 5
-    OnClick = TransferPreferencesButtonClick
+    Caption = 'Transfer settin&gs...'
+    TabOrder = 6
+    OnClick = TransferSettingsButtonClick
   end
   object DirectionGroup: TXPGroupBox
     Left = 8
     Top = 130
-    Width = 380
+    Width = 417
     Height = 49
     Anchors = [akLeft, akTop, akRight]
     Caption = 'Direction'
@@ -192,7 +192,7 @@ object FullSynchronizeDialog: TFullSynchronizeDialog
       OnClick = ControlChange
     end
     object SynchronizeRemoteButton: TRadioButton
-      Left = 123
+      Left = 139
       Top = 20
       Width = 102
       Height = 17
@@ -201,7 +201,7 @@ object FullSynchronizeDialog: TFullSynchronizeDialog
       OnClick = ControlChange
     end
     object SynchronizeLocalButton: TRadioButton
-      Left = 235
+      Left = 288
       Top = 20
       Width = 110
       Height = 17
@@ -211,32 +211,26 @@ object FullSynchronizeDialog: TFullSynchronizeDialog
     end
   end
   object CompareCriterionsGroup: TXPGroupBox
-    Left = 8
-    Top = 286
-    Width = 380
-    Height = 49
-    Anchors = [akLeft, akTop, akRight]
+    Left = 285
+    Top = 184
+    Width = 140
+    Height = 97
     Caption = 'Compare criterions'
     TabOrder = 3
-    DesignSize = (
-      380
-      49)
     object SynchronizeByTimeCheck: TCheckBox
       Left = 11
       Top = 20
-      Width = 158
+      Width = 121
       Height = 17
-      Anchors = [akLeft, akTop, akRight]
       Caption = '&Modification time'
       TabOrder = 0
       OnClick = SynchronizeByTimeSizeCheckClick
     end
     object SynchronizeBySizeCheck: TCheckBox
-      Left = 179
-      Top = 20
-      Width = 190
+      Left = 11
+      Top = 44
+      Width = 121
       Height = 17
-      Anchors = [akLeft, akTop, akRight]
       Caption = '&File size'
       TabOrder = 1
       OnClick = SynchronizeByTimeSizeCheckClick
@@ -248,6 +242,40 @@ object FullSynchronizeDialog: TFullSynchronizeDialog
     Width = 246
     Height = 17
     Caption = 'Use &same options next time'
+    TabOrder = 5
+  end
+  object CopyParamGroup: TXPGroupBox
+    Left = 8
+    Top = 286
+    Width = 417
+    Height = 50
+    Caption = 'Transfer settings'
     TabOrder = 4
+    OnContextPopup = CopyParamGroupContextPopup
+    OnDblClick = CopyParamGroupDblClick
+    DesignSize = (
+      417
+      50)
+    object CopyParamLabel: TLabel
+      Left = 7
+      Top = 15
+      Width = 403
+      Height = 26
+      Anchors = [akLeft, akTop, akRight, akBottom]
+      AutoSize = False
+      Caption = 'CopyParamLabel'
+      WordWrap = True
+      OnDblClick = CopyParamGroupDblClick
+    end
+  end
+  object HelpButton: TButton
+    Left = 349
+    Top = 366
+    Width = 75
+    Height = 25
+    Anchors = [akRight, akBottom]
+    Caption = '&Help'
+    TabOrder = 9
+    OnClick = HelpButtonClick
   end
 end

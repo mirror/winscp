@@ -6,7 +6,7 @@ object SynchronizeDialog: TSynchronizeDialog
   BorderIcons = [biSystemMenu, biMinimize, biMaximize, biHelp]
   BorderStyle = bsDialog
   Caption = 'Keep remote directory up to date X'
-  ClientHeight = 264
+  ClientHeight = 322
   ClientWidth = 396
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -20,7 +20,7 @@ object SynchronizeDialog: TSynchronizeDialog
   OnShow = FormShow
   DesignSize = (
     396
-    264)
+    322)
   PixelsPerInch = 96
   TextHeight = 13
   object DirectoriesGroup: TXPGroupBox
@@ -91,7 +91,7 @@ object SynchronizeDialog: TSynchronizeDialog
   end
   object StopButton: TButton
     Left = 152
-    Top = 230
+    Top = 288
     Width = 74
     Height = 25
     Anchors = [akLeft, akBottom]
@@ -100,8 +100,8 @@ object SynchronizeDialog: TSynchronizeDialog
     OnClick = StopButtonClick
   end
   object CancelButton: TButton
-    Left = 314
-    Top = 230
+    Left = 232
+    Top = 288
     Width = 74
     Height = 25
     Anchors = [akLeft, akBottom]
@@ -182,7 +182,7 @@ object SynchronizeDialog: TSynchronizeDialog
   end
   object StartButton: TButton
     Left = 152
-    Top = 230
+    Top = 288
     Width = 74
     Height = 25
     Anchors = [akLeft, akBottom]
@@ -193,7 +193,7 @@ object SynchronizeDialog: TSynchronizeDialog
   end
   object MinimizeButton: TButton
     Left = 233
-    Top = 230
+    Top = 288
     Width = 74
     Height = 25
     Anchors = [akLeft, akBottom]
@@ -201,14 +201,48 @@ object SynchronizeDialog: TSynchronizeDialog
     TabOrder = 5
     OnClick = MinimizeButtonClick
   end
-  object TransferPreferencesButton: TButton
+  object TransferSettingsButton: TButton
     Left = 8
-    Top = 230
+    Top = 288
     Width = 137
     Height = 25
     Anchors = [akRight, akBottom]
-    Caption = 'Transfer &preferences...'
+    Caption = 'Transfer settin&gs...'
     TabOrder = 2
-    OnClick = TransferPreferencesButtonClick
+    OnClick = TransferSettingsButtonClick
+  end
+  object CopyParamGroup: TXPGroupBox
+    Left = 8
+    Top = 230
+    Width = 381
+    Height = 50
+    Caption = 'Transfer settings'
+    TabOrder = 7
+    OnContextPopup = CopyParamGroupContextPopup
+    OnDblClick = CopyParamGroupDblClick
+    DesignSize = (
+      381
+      50)
+    object CopyParamLabel: TLabel
+      Left = 7
+      Top = 15
+      Width = 367
+      Height = 26
+      Anchors = [akLeft, akTop, akRight, akBottom]
+      AutoSize = False
+      Caption = 'CopyParamLabel'
+      WordWrap = True
+      OnDblClick = CopyParamGroupDblClick
+    end
+  end
+  object HelpButton: TButton
+    Left = 313
+    Top = 288
+    Width = 75
+    Height = 25
+    Anchors = [akRight, akBottom]
+    Caption = '&Help'
+    TabOrder = 8
+    OnClick = HelpButtonClick
   end
 end

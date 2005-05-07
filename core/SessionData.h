@@ -43,6 +43,7 @@ extern const char FSProtocolNames[FSPROTOCOL_COUNT][11];
 class TSessionData : public TNamedObject
 {
 private:
+  static AnsiString FInvalidChars;
   AnsiString FHostName;
   int FPortNumber;
   AnsiString FUserName;
@@ -218,6 +219,7 @@ public:
     AnsiString * ConnectInfo, AnsiString * HostName, int * PortNumber,
     AnsiString * UserName, AnsiString * Password, AnsiString * Path,
     AnsiString * FileName);
+  static void __fastcall ValidateName(const AnsiString Name);
 
   __property AnsiString HostName  = { read=FHostName, write=SetHostName };
   __property int PortNumber  = { read=FPortNumber, write=SetPortNumber };

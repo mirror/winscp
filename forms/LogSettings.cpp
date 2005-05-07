@@ -22,7 +22,6 @@ __fastcall TLoggingFrame::TLoggingFrame(TComponent* Owner)
         : TFrame(Owner)
 {
   FEnableLogWindow = true;
-  InstallPathWordBreakProc(LogFileNameEdit);
 }
 //---------------------------------------------------------------------------
 void __fastcall TLoggingFrame::LoadConfiguration()
@@ -45,6 +44,9 @@ void __fastcall TLoggingFrame::LoadConfiguration()
     LogWindowLinesEdit->AsInteger = Configuration->LogWindowLines;
   else
     LogWindowLinesEdit->AsInteger = 500;
+
+  // somehow does not work for this particular frame when called from constructor
+  InstallPathWordBreakProc(LogFileNameEdit);
 }
 //---------------------------------------------------------------------------
 void __fastcall TLoggingFrame::SaveConfiguration()

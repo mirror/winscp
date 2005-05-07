@@ -71,8 +71,14 @@ __fastcall TCopyDialog::TCopyDialog(TComponent* Owner)
   Move = false;
   FOptions = 0;
   FOutputOptions = 0;
+  FPresetsMenu = new TPopupMenu(this);
 
   UseSystemSettings(this);
+}
+//---------------------------------------------------------------------------
+__fastcall TCopyDialog::~TCopyDialog()
+{
+  delete FPresetsMenu;
 }
 //---------------------------------------------------------------------------
 void __fastcall TCopyDialog::AdjustControls()
@@ -255,6 +261,7 @@ void __fastcall TCopyDialog::UpdateControls()
   EnableControl(QueueNoConfirmationCheck,
     ((Options & coTemp) == 0) && QueueCheck->Checked);
   QueueNoConfirmationCheck->Visible = MoreButton->Expanded;
+  EnableControl(SaveSettingsCheck, FLAGCLEAR(Options, coDisableSaveSettings));
 }
 //---------------------------------------------------------------------------
 void __fastcall TCopyDialog::SetMove(bool value)
@@ -290,6 +297,8 @@ void __fastcall TCopyDialog::FormShow(TObject * /*Sender*/)
 //---------------------------------------------------------------------------
 bool __fastcall TCopyDialog::Execute()
 {
+  // at start assume that copy param is current preset
+  FPreset = GUIConfiguration->CopyParamCurrent;
   DirectoryEdit->Items = CustomWinConfiguration->History[
     ToRemote ? "RemoteTarget" : "LocalTarget"];
   MoreButton->Expanded = GUIConfiguration->CopyParamDialogExpanded;
@@ -302,9 +311,10 @@ bool __fastcall TCopyDialog::Execute()
     try
     {
       GUIConfiguration->CopyParamDialogExpanded = MoreButton->Expanded;
-      if (FLAGSET(OutputOptions, cooSaveSettings))
+      if (FLAGSET(OutputOptions, cooSaveSettings) &&
+          FLAGCLEAR(Options, coDisableSaveSettings))
       {
-        GUIConfiguration->CopyParam = Params;
+        GUIConfiguration->DefaultCopyParam = Params;
       }
       DirectoryEdit->SaveToHistory();
       CustomWinConfiguration->History[ToRemote ?
@@ -330,7 +340,7 @@ void __fastcall TCopyDialog::FormCloseQuery(TObject * /*Sender*/,
       if (!DirectoryExists(Dir))
       {
         if (MessageDialog(FMTLOAD(CREATE_LOCAL_DIRECTORY, (Dir)),
-              qtConfirmation, qaOK | qaCancel, 0) != qaCancel)
+              qtConfirmation, qaOK | qaCancel, HELP_NONE) != qaCancel)
         {
           if (!ForceDirectories(Dir))
           {
@@ -372,7 +382,28 @@ void __fastcall TCopyDialog::LocalDirectoryBrowseButtonClick(
 void __fastcall TCopyDialog::ControlChange(TObject * /*Sender*/)
 {
   UpdateControls();
+  ResetSystemSettings(this);
 }
 //---------------------------------------------------------------------------
-
-
+void __fastcall TCopyDialog::PresetsButtonClick(TObject * /*Sender*/)
+{
+  TCopyParamType Param = Params;
+  CopyParamListPopup(
+    PresetsButton->ClientToScreen(TPoint(0, PresetsButton->Height)),
+    FPresetsMenu, Params, FPreset, CopyParamClick, cplNone);
+}
+//---------------------------------------------------------------------------
+void __fastcall TCopyDialog::CopyParamClick(TObject * Sender)
+{
+  TCopyParamType Param = Params;
+  if (CopyParamListPopupClick(Sender, Param, FPreset))
+  {
+    Params = Param;
+  }
+}
+//---------------------------------------------------------------------------
+void __fastcall TCopyDialog::HelpButtonClick(TObject * /*Sender*/)
+{
+  FormHelp(this);
+}
+//---------------------------------------------------------------------------

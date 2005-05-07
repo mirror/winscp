@@ -246,8 +246,8 @@ object CopyParamsFrame: TCopyParamsFrame
     DesignSize = (
       501
       61)
-    object ExcludeFileMaskLabel: TLabel
-      Left = 82
+    object ExclusionFileMaskLabel: TLabel
+      Left = 90
       Top = 18
       Width = 25
       Height = 13
@@ -255,9 +255,9 @@ object CopyParamsFrame: TCopyParamsFrame
       FocusControl = ExcludeFileMaskCombo
     end
     object ExcludeFileMaskCombo: THistoryComboBox
-      Left = 120
+      Left = 136
       Top = 14
-      Width = 374
+      Width = 358
       Height = 21
       Anchors = [akLeft, akTop, akRight]
       ItemHeight = 13
@@ -277,10 +277,9 @@ object CopyParamsFrame: TCopyParamsFrame
     object NegativeExcludeCombo: TComboBox
       Left = 10
       Top = 14
-      Width = 68
+      Width = 76
       Height = 21
       Style = csDropDownList
-      Anchors = [akLeft, akTop, akRight]
       ItemHeight = 13
       TabOrder = 0
       Items.Strings = (

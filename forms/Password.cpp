@@ -141,3 +141,9 @@ void __fastcall TPasswordDialog::ApplicationShowHint(AnsiString & HintStr,
     HintInfo.HideTimeout = 2500;
   }
 }
+//---------------------------------------------------------------------------
+void __fastcall TPasswordDialog::HelpButtonClick(TObject * /*Sender*/)
+{
+  FormHelp(this);
+}
+//---------------------------------------------------------------------------

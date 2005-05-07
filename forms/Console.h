@@ -30,8 +30,10 @@ __published:
   THistoryComboBox *CommandEdit;
   TButton *ExecuteButton;
   TPathLabel *DirectoryLabel;
+  TButton *HelpButton;
   void __fastcall ExecuteButtonClick(TObject *Sender);
   void __fastcall CommandEditChange(TObject *Sender);
+  void __fastcall HelpButtonClick(TObject *Sender);
   
 private:
   TTerminal * FTerminal;

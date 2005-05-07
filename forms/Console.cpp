@@ -247,4 +247,9 @@ void __fastcall TConsoleDialog::CreateParams(TCreateParams & Params)
   Params.Style = Params.Style & ~WS_SYSMENU;
 }
 //---------------------------------------------------------------------------
+void __fastcall TConsoleDialog::HelpButtonClick(TObject * /*Sender*/)
+{
+  FormHelp(this);
+}
+//---------------------------------------------------------------------------
 

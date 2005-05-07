@@ -13,6 +13,7 @@
 
 #include "Rights.h"
 #include "CopyParams.h"
+#include <Menus.hpp>
 //---------------------------------------------------------------------------
 class TCopyDialog : public TForm
 {
@@ -30,10 +31,14 @@ __published:
   TCheckBox *QueueCheck;
   TCheckBox *QueueNoConfirmationCheck;
   TCheckBox *NewerOnlyCheck;
+  TButton *PresetsButton;
+  TButton *HelpButton;
   void __fastcall FormShow(TObject *Sender);
   void __fastcall FormCloseQuery(TObject *Sender, bool &CanClose);
   void __fastcall LocalDirectoryBrowseButtonClick(TObject *Sender);
   void __fastcall ControlChange(TObject *Sender);
+  void __fastcall PresetsButtonClick(TObject *Sender);
+  void __fastcall HelpButtonClick(TObject *Sender);
 private:
   bool FToRemote;
   TStrings * FFileList;
@@ -41,6 +46,8 @@ private:
   int FOptions;
   int FOutputOptions;
   TGUICopyParamType FParams;
+  TPopupMenu * FPresetsMenu;
+  AnsiString FPreset;
   AnsiString __fastcall GetDirectory();
   void __fastcall SetToRemote(bool value);
   THistoryComboBox * __fastcall GetDirectoryEdit();
@@ -53,11 +60,13 @@ private:
   void __fastcall SetOptions(int value);
   void __fastcall SetOutputOptions(int value);
   int __fastcall GetOutputOptions();
+  void __fastcall CopyParamClick(TObject * Sender);
 protected:
   void __fastcall UpdateControls();
   void __fastcall AdjustControls();
 public:
   __fastcall TCopyDialog(TComponent* Owner);
+  virtual __fastcall ~TCopyDialog();
   bool __fastcall Execute();
 
   __property bool ToRemote = { read = FToRemote, write = SetToRemote };

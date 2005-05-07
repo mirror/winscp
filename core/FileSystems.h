@@ -65,6 +65,7 @@ public:
   virtual void __fastcall CopyFile(const AnsiString FileName,
     const AnsiString NewName) = 0;
   virtual AnsiString __fastcall FileUrl(const AnsiString FileName) = 0;
+  virtual TStrings * __fastcall GetFixedPaths() = 0;
 
   __property AnsiString CurrentDirectory = { read = GetCurrentDirectory, write = SetCurrentDirectory };
   __property AnsiString ProtocolName = { read = GetProtocolName };

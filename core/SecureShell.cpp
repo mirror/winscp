@@ -9,6 +9,7 @@
 #include "Interface.h"
 #include "SecureShell.h"
 #include "TextsCore.h"
+#include "HelpCore.h"
 #include "Common.h"
 #include "ScpMain.h"
 #include "Security.h"
@@ -67,8 +68,8 @@ void __fastcall TSecureShell::Open()
   const char * InitError;
   char * RealHost;
 
-  FPasswordTried = false;
-  FPasswordTriedForKI = false;
+  FStoredPasswordTried = false;
+  FStoredPasswordTriedForKI = false;
   FReachedStatus = 0;
 
   {
@@ -183,6 +184,11 @@ AnsiString __fastcall TSecureShell::GetPassword()
   return (FPassword.IsEmpty() ? AnsiString() : 
     DecryptPassword(FPassword, SessionData->SessionName));
 }
+//---------------------------------------------------------------------
+bool __fastcall TSecureShell::GetStoredPasswordTried()
+{
+  return FStoredPasswordTried || FStoredPasswordTriedForKI;
+}
 //---------------------------------------------------------------------------
 TDateTime __fastcall TSecureShell::GetIdleInterval()
 {
@@ -193,7 +199,8 @@ TDateTime __fastcall TSecureShell::GetIdleInterval()
 bool __fastcall TSecureShell::PromptUser(const AnsiString Prompt,
   AnsiString & Response, bool IsPassword)
 {
-  assert(IsPassword);
+  USEDPARAM(IsPassword);
+  assert(IsPassword); // false only for username prompts
 
   bool Result;
   if (Prompt.Pos("Passphrase for key ") == 1)
@@ -219,11 +226,12 @@ bool __fastcall TSecureShell::PromptUser(const AnsiString Prompt,
   {
     LogEvent(FORMAT("Session password prompt (%s)", (Prompt)));
 
-    if (!SessionData->Password.IsEmpty() && !FPasswordTried)
+    if (!SessionData->Password.IsEmpty() && !FStoredPasswordTried)
     {
       LogEvent("Using stored password.");
       Result = true;
       Response = SessionData->Password;
+      FStoredPasswordTried = true;
     }
     else
     {
@@ -232,20 +240,19 @@ bool __fastcall TSecureShell::PromptUser(const AnsiString Prompt,
         FMTLOAD(PROMPT_SESSION_PASSWORD, (SessionData->SessionName)),
         pkPassword, Response);
     }
-    FPasswordTried = true;
   }
   else
   {
     // in other cases we assume TIS/Cryptocard/keyboard-interactive authentification prompt
-    LogEvent(FORMAT("%s prompt from server (%s)",
-      (IsPassword ? "Password" : "Normal", Prompt)));
+    LogEvent(FORMAT("%s prompt from server", (Prompt)));
 
-    if (!SessionData->Password.IsEmpty() && IsPassword &&
-        SessionData->AuthKIPassword && !FPasswordTriedForKI)
+    if (!SessionData->Password.IsEmpty() &&
+        SessionData->AuthKIPassword && !FStoredPasswordTriedForKI)
     {
       LogEvent("Responding with stored password.");
       Result = true;
       Response = SessionData->Password;
+      FStoredPasswordTriedForKI = true;
     }
     else
     {
@@ -263,7 +270,6 @@ bool __fastcall TSecureShell::PromptUser(const AnsiString Prompt,
 
       Result = DoPromptUser(UserPrompt, pkServerPrompt, Response);
     }
-    FPasswordTriedForKI = true;
   };
 
   if (Configuration->RememberPassword)
@@ -1057,9 +1063,11 @@ void __fastcall TSecureShell::VerifyHostKey(const AnsiString Host, int Port,
   
   if (Result != 0)
   {
+    TQueryParams Params;
+    Params.HelpKeyword = (Result == 1 ? HELP_UNKNOWN_KEY : HELP_DIFFERENT_KEY);
     int R = DoQueryUser(
-      FMTLOAD((Result == 1 ? UNKNOWN_KEY : DIFFERENT_KEY), (Fingerprint)),
-      qaYes | qaNo | qaCancel, NULL, qtWarning);
+      FMTLOAD((Result == 1 ? UNKNOWN_KEY2 : DIFFERENT_KEY2), (KeyType, Fingerprint)),
+      qaYes | qaNo | qaCancel, &Params, qtWarning);
 
     switch (R) {
       case qaYes:

@@ -6,7 +6,6 @@
 #include <ScpMain.h>
 #include <Queue.h>
 #include <TextsWin.h>
-#include <AssociatedStatusBar.hpp>
 #include <GUITools.h>
 #include "QueueController.h"
 //---------------------------------------------------------------------------

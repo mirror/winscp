@@ -54,13 +54,13 @@ private:
   void __fastcall SetType(char AType);
   void __fastcall SetTerminal(TTerminal * value);
   void __fastcall SetRights(TRights * value);
-  AnsiString __fastcall GetFullFileName();
+  AnsiString __fastcall GetFullFileName() const;
   int __fastcall GetIconIndex();
   bool __fastcall GetIsHidden();
   void __fastcall SetIsHidden(bool value);
-  bool __fastcall GetIsParentDirectory();
-  bool __fastcall GetIsThisDirectory();
-  bool __fastcall GetIsInaccesibleDirectory();
+  bool __fastcall GetIsParentDirectory() const;
+  bool __fastcall GetIsThisDirectory() const;
+  bool __fastcall GetIsInaccesibleDirectory() const;
   AnsiString __fastcall GetExtension();
   AnsiString __fastcall GetUserModificationStr();
 
@@ -70,7 +70,7 @@ protected:
 public:
   __fastcall TRemoteFile(TRemoteFile * ALinkedByFile = NULL);
   virtual __fastcall ~TRemoteFile();
-  TRemoteFile * __fastcall Duplicate();
+  TRemoteFile * __fastcall Duplicate(bool Standalone = true);
 
   void __fastcall ShiftTime(const TDateTime & Difference);
   void __fastcall Complete();
@@ -359,5 +359,7 @@ AnsiString __fastcall FromUnixPath(const AnsiString Path);
 AnsiString __fastcall ToUnixPath(const AnsiString Path);
 AnsiString __fastcall MinimizeName(const AnsiString FileName, int MaxLen, bool Unix);
 AnsiString __fastcall MakeFileList(TStrings * FileList);
+void __fastcall ReduceDateTimePrecision(TDateTime & DateTime,
+  TModificationFmt Precision);
 //---------------------------------------------------------------------------
 #endif

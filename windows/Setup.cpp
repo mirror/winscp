@@ -12,7 +12,9 @@
 #include <Exceptions.h>
 #include <Net.h>
 #include <TextsWin.h>
+#include <HelpWin.h>
 #include <TcpIp.hpp>
+#include <CompThread.hpp>
 #include "WinConfiguration.h"
 #include "WinInterface.h"
 #include "Tools.h"
@@ -555,7 +557,7 @@ void __fastcall TemporaryDirectoryCleanup()
 
         int Answer = MoreMessageDialog(
           FMTLOAD(CLEAN_TEMP_CONFIRM, (Folders->Count)), Folders,
-          qtWarning, qaYes | qaNo | qaRetry, 0, &Params);
+          qtWarning, qaYes | qaNo | qaRetry, HELP_CLEAN_TEMP_CONFIRM, &Params);
 
         if (Answer == qaNeverAskAgain)
         {
@@ -602,9 +604,115 @@ int __fastcall CalculateCompoundVersion(int MajorVer,
   return CompoundVer;
 }
 //---------------------------------------------------------------------------
-void __fastcall CheckForUpdates()
+AnsiString __fastcall VersionStrFromCompoundVersion(int Version)
 {
-  bool Found = false;
+  int MajorVer = Version / (1000*100*100);
+  int MinorVer = (Version % (1000*100*100)) / (1000*100);
+  int Release = (Version % (1000*100)) / (1000);
+  return FORMAT("%d.%d", (MajorVer, MinorVer)) + (Release ? "."+IntToStr(Release) : AnsiString());
+}
+//---------------------------------------------------------------------------
+void __fastcall QueryUpdates()
+{
+  bool VersionFound = false;
+  try
+  {
+    AnsiString Response;
+
+    TVSFixedFileInfo * FileInfo = Configuration->FixedApplicationInfo;
+    int CurrentCompoundVer = CalculateCompoundVersion(
+      HIWORD(FileInfo->dwFileVersionMS), LOWORD(FileInfo->dwFileVersionMS),
+      HIWORD(FileInfo->dwFileVersionLS), LOWORD(FileInfo->dwFileVersionLS));
+    AnsiString CurrentVersionStr =
+      FORMAT("%d.%d.%d.%d",
+        (HIWORD(FileInfo->dwFileVersionMS), LOWORD(FileInfo->dwFileVersionMS),
+         HIWORD(FileInfo->dwFileVersionLS), LOWORD(FileInfo->dwFileVersionLS)));
+
+    TUpdatesConfiguration Updates = WinConfiguration->Updates;
+    THttp * CheckForUpdatesHTTP = new THttp(Application);
+    try
+    {
+      AnsiString URL = LoadStr(UPDATES_URL) +
+        FORMAT("?v=%s&lang=%s", (CurrentVersionStr,
+          IntToHex(__int64(GUIConfiguration->Locale), 4)));
+      if (!Updates.ProxyHost.IsEmpty())
+      {
+        CheckForUpdatesHTTP->Proxy = FORMAT("%s:%d", (Updates.ProxyHost, Updates.ProxyPort));
+      }
+      CheckForUpdatesHTTP->URL = URL;
+      CheckForUpdatesHTTP->Action();
+      // sanity check
+      if (CheckForUpdatesHTTP->Stream->Size > 102400)
+      {
+        Abort();
+      }
+      Response.SetLength(static_cast<int>(CheckForUpdatesHTTP->Stream->Size));
+      CheckForUpdatesHTTP->Stream->Read(Response.c_str(), Response.Length());
+    }
+    __finally
+    {
+      delete CheckForUpdatesHTTP;
+    }
+
+    bool Changed = !Updates.HaveResults;
+    Updates.LastCheck = Now();
+    Updates.HaveResults = true;
+    TUpdatesData PrevResults = Updates.Results;
+    Updates.Results.Reset();
+    Updates.Results.ForVersion = CurrentCompoundVer;
+      
+    while (!Response.IsEmpty())
+    {
+      AnsiString Line = ::CutToChar(Response, '\n', false);
+      AnsiString Name = ::CutToChar(Line, '=', false);
+      if (AnsiSameText(Name, "Version"))
+      {
+        int MajorVer = StrToInt(::CutToChar(Line, '.', false));
+        int MinorVer = StrToInt(::CutToChar(Line, '.', false));
+        int Release = StrToInt(::CutToChar(Line, '.', false));
+        int Build = StrToInt(::CutToChar(Line, '.', false));
+        int NewVersion = CalculateCompoundVersion(MajorVer, MinorVer, Release, Build);
+        Changed |= (NewVersion != PrevResults.Version);
+        if (NewVersion <= CurrentCompoundVer)
+        {
+          NewVersion = 0;
+        }
+        Updates.Results.Version = NewVersion;
+        VersionFound = true;
+      }
+      else if (AnsiSameText(Name, "Message"))
+      {
+        Changed |= (PrevResults.Message != Line);
+        Updates.Results.Message = Line;
+      }
+      else if (AnsiSameText(Name, "Critical"))
+      {
+        bool NewCritical = (StrToIntDef(Line, 0) != 0);
+        Changed |= (PrevResults.Critical != NewCritical);
+        Updates.Results.Critical = NewCritical;
+      }
+    }
+
+    if (Changed)
+    {
+      Updates.ShownResults = false;
+    }
+
+    WinConfiguration->Updates = Updates;
+  }
+  catch(Exception & E)
+  {
+    throw ExtException(&E, LoadStr(CHECK_FOR_UPDATES_ERROR));
+  }
+  
+  if (!VersionFound)
+  {
+    throw Exception(LoadStr(CHECK_FOR_UPDATES_ERROR));
+  }
+}
+//---------------------------------------------------------------------------
+void __fastcall CheckForUpdates(bool CachedResults)
+{
   TCustomForm * ActiveForm = Screen->ActiveCustomForm;
   Busy(true);
   try
@@ -615,111 +723,137 @@ void __fastcall CheckForUpdates()
       ActiveForm->Enabled = false;
     }
 
-    try
+    if (SessionsCount == 0)
     {
-      AnsiString Response;
+      NetInitialize();
+    }
 
-      if (SessionsCount == 0)
+    bool Again = false;
+    do
+    {
+      TUpdatesConfiguration Updates = WinConfiguration->Updates;
+      bool Cached = !Again && Updates.HaveResults &&
+        (double(Updates.Period) > 0) && CachedResults;
+      if (!Cached)
       {
-        NetInitialize();
+        QueryUpdates();
+        // reread enw data
+        Updates = WinConfiguration->Updates;
       }
+      Again = false;
 
-      TVSFixedFileInfo * FileInfo = Configuration->FixedApplicationInfo;
-      int CurrentCompoundVer = CalculateCompoundVersion(
-        HIWORD(FileInfo->dwFileVersionMS), LOWORD(FileInfo->dwFileVersionMS),
-        HIWORD(FileInfo->dwFileVersionLS), LOWORD(FileInfo->dwFileVersionLS));
-      AnsiString CurrentVersionStr =
-        FORMAT("%d.%d.%d.%d",
-          (HIWORD(FileInfo->dwFileVersionMS), LOWORD(FileInfo->dwFileVersionMS),
-           HIWORD(FileInfo->dwFileVersionLS), LOWORD(FileInfo->dwFileVersionLS)));
-
-      THttp * CheckForUpdatesHTTP = new THttp(Application);
-      try
+      if (!Updates.ShownResults)
       {
-        AnsiString URL = LoadStr(UPDATES_URL) + FORMAT("?v=%s", (CurrentVersionStr));
-        CheckForUpdatesHTTP->URL = URL;
-        CheckForUpdatesHTTP->Action();
-        Response.SetLength(static_cast<int>(CheckForUpdatesHTTP->Stream->Size));
-        CheckForUpdatesHTTP->Stream->Read(Response.c_str(), Response.Length());
+        Updates.ShownResults = true;
+        WinConfiguration->Updates = Updates;
       }
-      __finally
-      {
-        delete CheckForUpdatesHTTP;
-        if (SessionsCount == 0)
-        {
-          NetFinalize();
-        }
-      }
-
-      int CompoundVer;
-      AnsiString VersionStr;
-      AnsiString ServerMessage;
-      
-      while (!Response.IsEmpty())
-      {
-        AnsiString Line = ::CutToChar(Response, '\n', false);
-        AnsiString Name = ::CutToChar(Line, '=', false);
-        if (AnsiSameText(Name, "Version"))
-        {
-          Found = true;
-          int MajorVer = StrToInt(::CutToChar(Line, '.', false));
-          int MinorVer = StrToInt(::CutToChar(Line, '.', false));
-          int Release = StrToInt(::CutToChar(Line, '.', false));
-          int Build = StrToInt(::CutToChar(Line, '.', false));
-          CompoundVer = CalculateCompoundVersion(MajorVer, MinorVer, Release, Build);
-
-          VersionStr =
-            FORMAT("%d.%d", (MajorVer, MinorVer)) + (Release ? "."+IntToStr(Release) : AnsiString());
-        }
-        else if (AnsiSameText(Name, "Message"))
-        {
-          ServerMessage = Line;
-        }
-      }
+      assert(Updates.HaveResults);
 
       AnsiString Message;
-      bool New;
-
-      New = (CurrentCompoundVer < CompoundVer);
-
+      bool New = (Updates.Results.Version > 0);
       if (New)
       {
-        Message = FMTLOAD(NEW_VERSION, (VersionStr));
+        Message = FMTLOAD(NEW_VERSION2,
+          (VersionStrFromCompoundVersion(Updates.Results.Version), "%s"));
       }
       else
       {
-        Message = LoadStr(NO_NEW_VERSION);
+        Message = LoadStr(NO_NEW_VERSION) + "%s";
       }
 
-      if (!ServerMessage.IsEmpty())
+      if (!Updates.Results.Message.IsEmpty())
       {
-        Message += "\n \n";
-        Message += FMTLOAD(UPDATE_MESSAGE,
-          (StringReplace(ServerMessage, "|", "\n", TReplaceFlags() << rfReplaceAll)));
+        Message = FORMAT(Message,
+          (FMTLOAD(UPDATE_MESSAGE,
+            (StringReplace(Updates.Results.Message, "|", "\n", TReplaceFlags() << rfReplaceAll)))));
+      }
+      else
+      {
+        Message = FORMAT(Message, (""));
       }
 
-      if ((MessageDialog(Message, qtInformation,
-            New ? qaOK | qaCancel : qaOK, 0) == qaOK) && New)
+      // add FLAGMASK(Cached, qaRetry) to enable "check again" button
+      // for cached results
+      int Answers = qaOK |
+        FLAGMASK(New, qaCancel);
+      TQueryButtonAlias Aliases[2];
+      Aliases[0].Button = qaRetry;
+      Aliases[0].Alias = LoadStr(CHECK_AGAIN_BUTTON);
+      Aliases[1].Button = qaOK;
+      Aliases[1].Alias = LoadStr(DOWNLOAD_BUTTON);
+      TMessageParams Params;
+      Params.Aliases = Aliases;
+      Params.AliasesCount = (New ? 2 : 1);
+      int Answer =
+        MessageDialog(Message, (Updates.Results.Critical ? qtWarning : qtInformation),
+          Answers, HELP_UPDATES, &Params);
+      switch (Answer)
       {
-        OpenBrowser(LoadStr(DOWNLOAD_URL));
+        case qaOK:
+          if (New)
+          {
+            OpenBrowser(LoadStr(DOWNLOAD_URL));
+          }
+          break;
+
+        case qaRetry:
+          Again = true;
+          break;
       }
     }
-    catch(Exception & E)
-    {
-      throw ExtException(&E, LoadStr(CHECK_FOR_UPDATES_ERROR));
-    }
+    while (Again);
   }
   __finally
   {
+    if (SessionsCount == 0)
+    {
+      NetFinalize();
+    }
+
     if (ActiveForm)
     {
       ActiveForm->Enabled = true;
     }
     Busy(false);
   }
-
-  if (!Found)
+}
+//---------------------------------------------------------------------------
+class TUpdateThread : public TCompThread
+{
+public:
+  __fastcall TUpdateThread();
+protected:
+  virtual void __fastcall Execute();
+};
+//---------------------------------------------------------------------------
+TUpdateThread * UpdateThread = NULL;
+//---------------------------------------------------------------------------
+__fastcall TUpdateThread::TUpdateThread() : TCompThread(false)
+{
+}
+//---------------------------------------------------------------------------
+void __fastcall TUpdateThread::Execute()
+{
+  try
   {
-    throw Exception(LoadStr(CHECK_FOR_UPDATES_ERROR));
+    QueryUpdates();
+  }
+  catch(...)
+  {
+    // ignore errors
+  }
+}
+//---------------------------------------------------------------------------
+void __fastcall StartUpdateThread()
+{
+  assert(UpdateThread == NULL);
+  UpdateThread = new TUpdateThread();
+}
+//---------------------------------------------------------------------------
+void __fastcall StopUpdateThread()
+{
+  if (UpdateThread != NULL)
+  {
+    SAFE_DESTROY(UpdateThread);
   }
 }

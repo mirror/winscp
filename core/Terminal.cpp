@@ -14,6 +14,7 @@
 #include "ScpFileSystem.h"
 #include "SftpFileSystem.h"
 #include "TextsCore.h"
+#include "HelpCore.h"
 //---------------------------------------------------------------------------
 #pragma package(smart_init)
 //---------------------------------------------------------------------------
@@ -677,7 +678,8 @@ int __fastcall TTerminal::ConfirmFileOverwrite(const AnsiString FileName,
 {
   int Answer;
   int AnswerForNewer =
-    (FileParams->SourceTimestamp > FileParams->DestTimestamp ? qaYes : qaNo);
+    (CompareFileTime(FileParams->SourceTimestamp, FileParams->DestTimestamp) > 0) ?
+    qaYes : qaNo;
   if (OperationProgress->YesToNewer)
   {
     Answer = AnswerForNewer;
@@ -1184,6 +1186,12 @@ bool __fastcall TTerminal::ProcessFilesEx(TStrings * FileList, TFileOperation Op
     Param, Side, true);
 }
 //---------------------------------------------------------------------------
+TStrings * __fastcall TTerminal::GetFixedPaths()
+{
+  assert(FFileSystem != NULL);
+  return FFileSystem->GetFixedPaths();
+}
+//---------------------------------------------------------------------------
 bool __fastcall TTerminal::IsRecycledFile(AnsiString FileName)
 {
   AnsiString Path = UnixExtractFilePath(FileName);
@@ -1263,6 +1271,9 @@ void __fastcall TTerminal::DoDeleteFile(const AnsiString FileName,
 //---------------------------------------------------------------------------
 bool __fastcall TTerminal::DeleteFiles(TStrings * FilesToDelete, bool * Recursive)
 {
+  // TODO: avoid resolving symlinks while reading subdirectories.
+  // Resolving does not work anyway for relative symlinks in subdirectories
+  // (at least for SFTP).
   return ProcessFiles(FilesToDelete, foDelete, DeleteFile, Recursive);
 }
 //---------------------------------------------------------------------------
@@ -1479,18 +1490,20 @@ void __fastcall TTerminal::CalculateFileSize(AnsiString FileName,
   assert(File);
   TCalculateSizeParams * AParams = static_cast<TCalculateSizeParams*>(Param);
 
-  if (FileName.IsEmpty() && File)
+  if (FileName.IsEmpty())
   {
     FileName = File->FileName;
   }
 
   if ((AParams->CopyParam == NULL) ||
-      AParams->CopyParam->AllowTransfer(FileName, osRemote))
+      AParams->CopyParam->AllowTransfer(UnixExcludeTrailingBackslash(File->FullFileName),
+        osRemote))
   {
     if (File->IsDirectory && !File->IsSymLink)
     {
       LogEvent(FORMAT("Getting size of directory \"%s\"", (FileName)));
-      DoCalculateDirectorySize(FileName, File, AParams);
+      // pass in full path so we get it back in file list for AllowTransfer() exclusion
+      DoCalculateDirectorySize(File->FullFileName, File, AParams);
     }
     else
     {
@@ -2320,7 +2333,7 @@ void __fastcall TTerminal::DoSynchronizeDirectory(const AnsiString LocalDirector
           if ((FileName != ".") && (FileName != "..") &&
               (FLAGCLEAR(SearchRec.Attr, faDirectory) ||
                FLAGCLEAR(Params, spNoRecurse) || FLAGSET(Params, spSubDirs)) &&
-              CopyParam->AllowTransfer(FileName, osLocal))
+              CopyParam->AllowTransfer(Data.LocalDirectory + FileName, osLocal))
           {
             TSynchronizeFileData * FileData = new TSynchronizeFileData;
             FileData->Time = SearchRec.Time;
@@ -2452,12 +2465,13 @@ void __fastcall TTerminal::DoSynchronizeDirectory(const AnsiString LocalDirector
         else
         {
           int CopyParams = (Params & spNoConfirmation) != 0 ? cpNoConfirmation : 0;
+          TQueryParams QueryParams(0, HELP_SYNCHRONIZE);
 
           if (Upload)
           {
             if ((FLAGSET(Params, spPreviewChanges) &&
                  (DoQueryUser(FMTLOAD(SYNCHRONIZE_UPLOAD, (LocalFileList->Count, LocalDirectory, RemoteDirectory)),
-                    LocalFileList, qaYes | qaNo, NULL) == qaNo)) ||
+                    LocalFileList, qaYes | qaNo, &QueryParams) == qaNo)) ||
                 !CopyToRemote(LocalFileList, RemoteDirectory, CopyParam, CopyParams))
             {
               Abort();
@@ -2472,7 +2486,7 @@ void __fastcall TTerminal::DoSynchronizeDirectory(const AnsiString LocalDirector
           if (DeleteLocal &&
               ((FLAGSET(Params, spPreviewChanges) &&
                 (DoQueryUser(FMTLOAD(SYNCHRONIZE_LOCAL_DELETE, (LocalFileList->Count, LocalDirectory)),
-                   LocalFileList, qaYes | qaNo, NULL) == qaNo)) ||
+                   LocalFileList, qaYes | qaNo, &QueryParams) == qaNo)) ||
                !DeleteLocalFiles(LocalFileList)))
           {
             Abort();
@@ -2481,7 +2495,7 @@ void __fastcall TTerminal::DoSynchronizeDirectory(const AnsiString LocalDirector
           if (Download &&
               ((FLAGSET(Params, spPreviewChanges) &&
                 (DoQueryUser(FMTLOAD(SYNCHRONIZE_DOWNLOAD, (Data.ModifiedRemoteFileList->Count, RemoteDirectory, LocalDirectory)),
-                   Data.ModifiedRemoteFileList, qaYes | qaNo, NULL) == qaNo)) ||
+                   Data.ModifiedRemoteFileList, qaYes | qaNo, &QueryParams) == qaNo)) ||
                !CopyToLocal(Data.ModifiedRemoteFileList, LocalDirectory, CopyParam, CopyParams)))
           {
             Abort();
@@ -2496,7 +2510,7 @@ void __fastcall TTerminal::DoSynchronizeDirectory(const AnsiString LocalDirector
 
             if ((FLAGSET(Params, spPreviewChanges) &&
                  (DoQueryUser(FMTLOAD(SYNCHRONIZE_REMOTE_DELETE, (Data.NewRemoteFileList->Count, RemoteDirectory)),
-                    Data.NewRemoteFileList, qaYes | qaNo, NULL) == qaNo)) ||
+                    Data.NewRemoteFileList, qaYes | qaNo, &QueryParams) == qaNo)) ||
                 !DeleteFiles(Data.NewRemoteFileList))
             {
               Abort();
@@ -2590,7 +2604,8 @@ void __fastcall TTerminal::SynchronizeFile(const AnsiString FileName,
 {
   TSynchronizeData * Data = static_cast<TSynchronizeData *>(Param);
 
-  if (Data->CopyParam->AllowTransfer(File->FileName, osRemote))
+  if (Data->CopyParam->AllowTransfer(
+        UnixExcludeTrailingBackslash(File->FullFileName), osRemote))
   {
     bool Modified = false;
     int LocalIndex = Data->LocalFileList->IndexOf(File->FileName);
@@ -2617,13 +2632,11 @@ void __fastcall TTerminal::SynchronizeFile(const AnsiString FileName,
         TDateTime LocalTime = SystemTimeToDateTime(SystemLastWriteTime);
         TDateTime RemoteTime = File->Modification;
 
-        UnifyDateTimePrecision(LocalTime, RemoteTime);
+        ReduceDateTimePrecision(LocalTime, File->ModificationFmt);
 
-        static TDateTime Second(0, 0, 1, 1); // 1 ms more solves the rounding issues
         bool LocalModified = false;
         if (FLAGCLEAR(Data->Params, spNotByTime) &&
-            (LocalTime < RemoteTime) &&
-            (RemoteTime - LocalTime > Second))
+            (CompareFileTime(LocalTime, RemoteTime) < 0))
         {
           if (FLAGCLEAR(Data->Params, spTimestamp) ||
               (Data->Mode == smBoth) || (Data->Mode == smLocal))
@@ -2636,8 +2649,7 @@ void __fastcall TTerminal::SynchronizeFile(const AnsiString FileName,
           }
         }
         else if (FLAGCLEAR(Data->Params, spNotByTime) &&
-                 (LocalTime > RemoteTime) &&
-                 (LocalTime - RemoteTime > Second))
+                 (CompareFileTime(LocalTime, RemoteTime) > 0))
         {
           if (FLAGCLEAR(Data->Params, spTimestamp) ||
               (Data->Mode == smBoth) || (Data->Mode == smRemote))
@@ -2982,6 +2994,21 @@ void __fastcall TTerminalList::FreeAndNullTerminal(TTerminal * & Terminal)
 TTerminal * __fastcall TTerminalList::GetTerminal(int Index)
 {
   return dynamic_cast<TTerminal *>(Items[Index]);
+}
+//---------------------------------------------------------------------------
+int __fastcall TTerminalList::GetActiveCount()
+{
+  int Result = 0;
+  TTerminal * Terminal;
+  for (int i = 0; i < Count; i++)
+  {
+    Terminal = Terminals[i];
+    if (Terminal->Active)
+    {
+      Result++;
+    }
+  }
+  return Result;
 }
 //---------------------------------------------------------------------------
 void __fastcall TTerminalList::Idle()

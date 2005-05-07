@@ -111,8 +111,8 @@ struct Config;
 class TSecureShell : public TObject
 {
 private:
-  bool FPasswordTried;
-  bool FPasswordTriedForKI;
+  bool FStoredPasswordTried;
+  bool FStoredPasswordTriedForKI;
   void * FSocket;
   TSessionData * FSessionData;
   bool FActive;
@@ -176,6 +176,7 @@ private:
   bool __fastcall Select(int Sec);
   void __fastcall PoolForData(unsigned int & Result);
   TDateTime __fastcall GetIdleInterval();
+  bool __fastcall GetStoredPasswordTried();
 
 protected:
   AnsiString StdError;
@@ -267,6 +268,7 @@ public:
   __property TObject * UserObject = { read = FUserObject, write = SetUserObject };
   __property AnsiString Password = { read = GetPassword };
   __property TDateTime IdleInterval = { read = GetIdleInterval };
+  __property bool StoredPasswordTried = { read = GetStoredPasswordTried };
 };
 //---------------------------------------------------------------------------
 #endif

@@ -49,6 +49,7 @@ void __fastcall TFileOperationProgressType::Clear()
   YesToNewer = false;
   NoToAll = false;
   SkipToAll = false;
+  AlternateResumeAlways = false;
   // to bypass check in ClearTransfer()
   TransferSize = 0;
   ClearTransfer();

@@ -222,11 +222,12 @@ begin
         if (SearchRec.Name <> '.') and (SearchRec.Name <> '..') and
            ((SearchRec.Attr and faDirectory) = faDirectory) then
         begin
-          if Assigned(OnFilter) then OnFilter(nil, SearchRec.Name, Add)
-            else Add := True;
+          FileName := Directory + SearchRec.Name;
+          Add := True;
+          if Assigned(OnFilter) then OnFilter(nil, FileName, Add);
+          
           if Add then
           begin
-            FileName := Directory + SearchRec.Name;
             if Tag then
             begin
               Index := Dirs.IndexOf(FileName);

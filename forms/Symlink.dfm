@@ -81,7 +81,7 @@ object SymlinkDialog: TSymlinkDialog
     end
   end
   object OkButton: TButton
-    Left = 228
+    Left = 144
     Top = 150
     Width = 75
     Height = 25
@@ -92,7 +92,7 @@ object SymlinkDialog: TSymlinkDialog
     TabOrder = 1
   end
   object CancelButton: TButton
-    Left = 312
+    Left = 228
     Top = 150
     Width = 75
     Height = 25
@@ -101,5 +101,15 @@ object SymlinkDialog: TSymlinkDialog
     Caption = 'Cancel'
     ModalResult = 2
     TabOrder = 2
+  end
+  object HelpButton: TButton
+    Left = 312
+    Top = 150
+    Width = 75
+    Height = 25
+    Anchors = [akRight, akBottom]
+    Caption = '&Help'
+    TabOrder = 3
+    OnClick = HelpButtonClick
   end
 end

@@ -212,7 +212,7 @@ __published:
   TTabSheet *SftpSheet;
   TXPGroupBox *SFTPBugsGroupBox;
   TLabel *Label10;
-  TLabel *Label16;
+  TLabel *Label36;
   TComboBox *SFTPBugSymlinkCombo;
   TTabSheet *KexSheet;
   TXPGroupBox *KexOptionsGroup;
@@ -237,6 +237,7 @@ __published:
   TComboBox *SFTPMaxVersionCombo;
   TComboBox *SFTPBugUtfCombo;
   TComboBox *SFTPBugSignedTSCombo;
+  TButton *HelpButton;
   void __fastcall DataChange(TObject *Sender);
   void __fastcall FormShow(TObject *Sender);
   void __fastcall SessionListViewSelectItem(TObject *Sender,
@@ -276,6 +277,9 @@ __published:
   void __fastcall LanguagesButtonClick(TObject *Sender);
   void __fastcall AuthGSSAPICheckClick(TObject *Sender);
   void __fastcall KexButtonClick(TObject *Sender);
+  void __fastcall HelpButtonClick(TObject *Sender);
+  void __fastcall FormKeyDown(TObject *Sender, WORD &Key,
+          TShiftState Shift);
 
 private:
   int NoUpdate;
@@ -318,7 +322,7 @@ protected:
   virtual void __fastcall Dispatch(void * Message);
   bool __fastcall AllowAlgDrag(TListBox * AlgListBox, int X, int Y);
   void __fastcall AlgMove(TListBox * AlgListBox, int Source, int Dest);
-  void __fastcall PrepareNavigationTree(TTreeView * Tree);
+  void __fastcall PrepareNavigationTree(TTreeView * Tree, bool ClearHints);
   void __fastcall SetOptions(int value);
   void __fastcall LocaleClick(TObject * Sender);
   void __fastcall LocaleGetClick(TObject * Sender);

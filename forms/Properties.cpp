@@ -5,12 +5,11 @@
 #include "WinInterface.h"
 #include "Properties.h"
 
-#include <AssociatedStatusBar.hpp> // FormatBytes()
-
 #include <VCLCommon.h>
 #include <Common.h>
 #include <Terminal.h>
 #include <TextsWin.h>
+#include <GUITools.h>
 //---------------------------------------------------------------------
 #pragma link "PathLabel"
 #pragma link "Rights"
@@ -282,18 +281,10 @@ void __fastcall TPropertiesDialog::LoadSize(__int64 FilesSize)
   else
   {
     SizeStr = FormatBytes(FilesSize);
-    if (FilesSize >= FormatBytesAbove)
+    AnsiString SizeUnorderedStr = FormatBytes(FilesSize, false);
+    if (SizeStr != SizeUnorderedStr)
     {
-      __int64 PrevFormatBytesAbove = FormatBytesAbove;
-      FormatBytesAbove = FilesSize + 1;
-      try
-      {
-        SizeStr = FORMAT("%s (%s)", (SizeStr, FormatBytes(FilesSize)));
-      }
-      __finally
-      {
-        FormatBytesAbove = PrevFormatBytesAbove;
-      }
+      SizeStr = FORMAT("%s (%s)", (SizeStr, SizeUnorderedStr)); 
     }
   }
   SizeLabel->Caption = SizeStr;
@@ -462,6 +453,11 @@ void __fastcall TPropertiesDialog::CalculateSizeButtonClick(
   Terminal->CalculateFilesSize(FileList, Size, 0);
   FSizeNotCalculated = false;
   LoadSize(Size);
+}
+//---------------------------------------------------------------------------
+void __fastcall TPropertiesDialog::HelpButtonClick(TObject * /*Sender*/)
+{
+  FormHelp(this);
 }
 //---------------------------------------------------------------------------
 

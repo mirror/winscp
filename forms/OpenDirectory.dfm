@@ -7,14 +7,14 @@ object OpenDirectoryDialog: TOpenDirectoryDialog
   BorderStyle = bsDialog
   Caption = 'Open directory'
   ClientHeight = 308
-  ClientWidth = 378
+  ClientWidth = 405
   Color = clBtnFace
   ParentFont = True
   OldCreateOrder = True
   Position = poMainFormCenter
   OnShow = FormShow
   DesignSize = (
-    378
+    405
     308)
   PixelsPerInch = 96
   TextHeight = 13
@@ -28,7 +28,7 @@ object OpenDirectoryDialog: TOpenDirectoryDialog
   object LocalDirectoryEdit: TIEComboBox
     Left = 8
     Top = 25
-    Width = 281
+    Width = 308
     Height = 21
     Anchors = [akLeft, akTop, akRight]
     ItemHeight = 13
@@ -39,7 +39,7 @@ object OpenDirectoryDialog: TOpenDirectoryDialog
   object RemoteDirectoryEdit: TIEComboBox
     Left = 8
     Top = 25
-    Width = 362
+    Width = 389
     Height = 21
     Anchors = [akLeft, akTop, akRight]
     ItemHeight = 13
@@ -49,7 +49,7 @@ object OpenDirectoryDialog: TOpenDirectoryDialog
     OnChange = DirectoryEditChange
   end
   object OKBtn: TButton
-    Left = 204
+    Left = 159
     Top = 274
     Width = 75
     Height = 25
@@ -60,7 +60,7 @@ object OpenDirectoryDialog: TOpenDirectoryDialog
     TabOrder = 5
   end
   object CancelBtn: TButton
-    Left = 292
+    Left = 239
     Top = 274
     Width = 75
     Height = 25
@@ -73,13 +73,13 @@ object OpenDirectoryDialog: TOpenDirectoryDialog
   object BookmarksGroup: TXPGroupBox
     Left = 8
     Top = 56
-    Width = 359
+    Width = 386
     Height = 209
     Anchors = [akLeft, akTop, akRight, akBottom]
     Caption = 'Bookmarks'
     TabOrder = 3
     DesignSize = (
-      359
+      386
       209)
     object Label1: TLabel
       Left = 16
@@ -92,7 +92,7 @@ object OpenDirectoryDialog: TOpenDirectoryDialog
     object BookmarksList: TListBox
       Left = 16
       Top = 38
-      Width = 239
+      Width = 266
       Height = 155
       Anchors = [akLeft, akTop, akRight, akBottom]
       DragMode = dmAutomatic
@@ -106,7 +106,7 @@ object OpenDirectoryDialog: TOpenDirectoryDialog
       OnStartDrag = BookmarksListStartDrag
     end
     object AddBookmarkButton: TButton
-      Left = 262
+      Left = 289
       Top = 38
       Width = 83
       Height = 25
@@ -116,7 +116,7 @@ object OpenDirectoryDialog: TOpenDirectoryDialog
       OnClick = AddBookmarkButtonClick
     end
     object RemoveBookmarkButton: TButton
-      Left = 262
+      Left = 289
       Top = 70
       Width = 83
       Height = 25
@@ -126,7 +126,7 @@ object OpenDirectoryDialog: TOpenDirectoryDialog
       OnClick = RemoveBookmarkButtonClick
     end
     object DownBookmarkButton: TButton
-      Left = 262
+      Left = 289
       Top = 168
       Width = 83
       Height = 25
@@ -136,7 +136,7 @@ object OpenDirectoryDialog: TOpenDirectoryDialog
       OnClick = BookmarkButtonClick
     end
     object UpBookmarkButton: TButton
-      Left = 262
+      Left = 289
       Top = 136
       Width = 83
       Height = 25
@@ -147,7 +147,7 @@ object OpenDirectoryDialog: TOpenDirectoryDialog
     end
   end
   object LocalDirectoryBrowseButton: TButton
-    Left = 293
+    Left = 320
     Top = 23
     Width = 75
     Height = 25
@@ -166,5 +166,15 @@ object OpenDirectoryDialog: TOpenDirectoryDialog
     ModalResult = 2
     TabOrder = 4
     OnClick = SwitchButtonClick
+  end
+  object HelpButton: TButton
+    Left = 320
+    Top = 274
+    Width = 75
+    Height = 25
+    Anchors = [akRight, akBottom]
+    Caption = '&Help'
+    TabOrder = 7
+    OnClick = HelpButtonClick
   end
 end

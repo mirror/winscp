@@ -424,7 +424,7 @@ type
     property DirColProperties: TDirViewColProperties read GetDirColProperties write SetDirColProperties;
     property PathComboBox;
     property PathLabel;
-    property StatusBar;
+    property OnUpdateStatusBar;
     property OnGetSelectFilter;
     property HeaderImages;
 
@@ -1135,6 +1135,10 @@ begin
   New(PItem);
   with PItem^ do
   begin
+    // must be set as soon as possible, at least before Caption is set,
+    // because if come column is "autosized" setting Caption invokes some callbacks
+    Item.Data := PItem;
+
     FileName := SRec.Name;
     FileExt := UpperCase(Copy(ExtractFileExt(Srec.Name), 2, Pred(ExtLen)));
     DisplayName := ItemDisplayName(FileName);
@@ -1160,8 +1164,6 @@ begin
     if Size > 0 then Inc(FFilesSize, Size);
     PIDL := nil;
 
-    Item.Data := PItem;
-
     if FileExt = 'LNK' then Item.OverlayIndex := 1;
   end;
   if SelectNewFiles then Item.Selected := True;
@@ -1182,6 +1184,7 @@ begin
     FindClose(SRec);
   with PItem^ do
   begin
+    Item.Data := PItem;
     FileName := '..';
     FileExt := '';
     DisplayName := '..';
@@ -1199,7 +1202,6 @@ begin
     Empty := True;
     IconEmpty := False;
     PIDL := nil;
-    Item.Data := PItem;
 
     if HasExtendedCOMCTL32 then ImageIndex := StdDirIcon
       else ImageIndex  := StdDirSelIcon;

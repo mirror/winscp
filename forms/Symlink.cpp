@@ -7,6 +7,7 @@
 #include <TextsWin.h>
 #include "Symlink.h"
 #include "VCLCommon.h"
+#include <WinInterface.h>
 //---------------------------------------------------------------------------
 #pragma package(smart_init)
 #pragma link "XPThemes"
@@ -122,6 +123,11 @@ void __fastcall TSymlinkDialog::FormShow(TObject * /*Sender*/)
 {
   Caption = LoadStr(Edit ? LINK_EDIT_CAPTION : LINK_ADD_CAPTION);
   UpdateControls();
+}
+//---------------------------------------------------------------------------
+void __fastcall TSymlinkDialog::HelpButtonClick(TObject * /*Sender*/)
+{
+  FormHelp(this);
 }
 //---------------------------------------------------------------------------
 

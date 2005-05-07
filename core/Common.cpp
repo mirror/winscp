@@ -773,6 +773,32 @@ AnsiString __fastcall FixedLenDateTimeFormat(const AnsiString & Format)
   return Result;
 }
 //---------------------------------------------------------------------------
+int __fastcall CompareFileTime(TDateTime T1, TDateTime T2)
+{
+  // "FAT" time precision
+  // 1 ms more solves the rounding issues (see also CustomDirView.pas)
+  static TDateTime Second(0, 0, 1, 1);
+  int Result;
+  if (T1 == T2)
+  {
+    // just optimalisation
+    Result = 0;
+  }
+  else if ((T1 < T2) && (T2 - T1 > Second))
+  {
+    Result = -1;
+  }
+  else if ((T1 > T2) && (T1 - T2 > Second))
+  {
+    Result = 1;
+  }
+  else
+  {
+    Result = 0;
+  }
+  return Result;
+}
+//---------------------------------------------------------------------------
 bool __fastcall RecursiveDeleteFile(const AnsiString FileName, bool ToRecycleBin)
 {
   SHFILEOPSTRUCT Data;
@@ -866,6 +892,19 @@ AnsiString __fastcall LoadStr(int Ident, unsigned int MaxLength)
   int Length = LoadString(MainModule->ResInstance, Ident, Result.c_str(), MaxLength);
   Result.SetLength(Length);
 
+  return Result;
+}
+//---------------------------------------------------------------------------
+AnsiString __fastcall LoadStrPart(int Ident, int Part)
+{
+  AnsiString Result;
+  AnsiString Str = LoadStr(Ident);
+
+  while (Part > 0)
+  {
+    Result = CutToChar(Str, '|', false);
+    Part--;
+  }
   return Result;
 }
 //---------------------------------------------------------------------------

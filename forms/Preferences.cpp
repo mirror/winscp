@@ -13,6 +13,7 @@
 #include "GUITools.h"
 #include "Tools.h"
 #include "TextsWin.h"
+#include "HelpWin.h"
 #include "WinInterface.h"
 #include "WinConfiguration.h"
 #include "Setup.h"
@@ -24,16 +25,18 @@
 #pragma link "UpDownEdit"
 #pragma link "IEComboBox"
 #pragma link "HistoryComboBox"
+#pragma link "PasswordEdit"
 #pragma resource "*.dfm"
 //---------------------------------------------------------------------
-bool __fastcall DoPreferencesDialog(TPreferencesMode APreferencesMode)
+bool __fastcall DoPreferencesDialog(TPreferencesMode APreferencesMode,
+  TPreferencesDialogData * DialogData)
 {
   bool Result;
   TPreferencesDialog * PreferencesDialog = new TPreferencesDialog(Application);
   try
   {
     PreferencesDialog->PreferencesMode = APreferencesMode;
-    Result = PreferencesDialog->Execute();
+    Result = PreferencesDialog->Execute(DialogData);
   }
   __finally
   {
@@ -43,8 +46,10 @@ bool __fastcall DoPreferencesDialog(TPreferencesMode APreferencesMode)
 }
 //---------------------------------------------------------------------
 __fastcall TPreferencesDialog::TPreferencesDialog(TComponent* AOwner)
-	: TForm(AOwner)
+  : TForm(AOwner)
 {
+  SetCorrectFormParent(this);
+
   FPreferencesMode = pmDefault;
   LoggingFrame->OnGetDefaultLogFileName = LoggingGetDefaultLogFileName;
   CopyParamsFrame->Direction = pdAll;
@@ -56,7 +61,8 @@ __fastcall TPreferencesDialog::TPreferencesDialog(TComponent* AOwner)
   FAfterFilenameEditDialog = false;
   FCustomCommands = new TCustomCommands();
   FCustomCommandChanging = false;
-  FCustomCommandDragDest = -1;
+  FListViewDragDest = -1;
+  FCopyParamList = new TCopyParamList();
   UseSystemSettings(this);
 
   InstallPathWordBreakProc(RandomSeedFileEdit);
@@ -70,10 +76,12 @@ __fastcall TPreferencesDialog::~TPreferencesDialog()
   LoggingFrame->OnGetDefaultLogFileName = NULL;
   delete FEditorFont;
   delete FCustomCommands;
+  delete FCopyParamList;
 }
 //---------------------------------------------------------------------
-bool __fastcall TPreferencesDialog::Execute()
+bool __fastcall TPreferencesDialog::Execute(TPreferencesDialogData * DialogData)
 {
+  FDialogData = DialogData;
   LoadConfiguration();
   CopyParamsFrame->BeforeExecute();
   bool Result = (ShowModal() == mrOk);
@@ -105,6 +113,7 @@ void __fastcall TPreferencesDialog::PrepareNavigationTree(TTreeView * Tree)
           if (PageControl->Pages[pi]->Enabled)
           {
             Tree->Items->Item[i]->Text = PageControl->Pages[pi]->Hint;
+            PageControl->Pages[pi]->Hint = "";
           }
           else
           {
@@ -154,7 +163,6 @@ void __fastcall TPreferencesDialog::LoadConfiguration()
   BOOLPROP(BeepOnFinish);
   BOOLPROP(TemporaryDirectoryCleanup);
   BOOLPROP(ConfirmTemporaryDirectoryCleanup);
-  #undef BOOLPROP
 
   BeepOnFinishAfterEdit->AsInteger =
     static_cast<double>(GUIConfiguration->BeepOnFinishAfter) * (24*60*60);
@@ -220,11 +228,11 @@ void __fastcall TPreferencesDialog::LoadConfiguration()
   FEditorFont->Charset = (TFontCharset)WinConfiguration->Editor.FontCharset;
   FEditorFont->Style = IntToFontStyles(WinConfiguration->Editor.FontStyle);
 
-  CopyParamsFrame->Params = GUIConfiguration->CopyParam;
-  ResumeOnButton->Checked = GUIConfiguration->CopyParam.ResumeSupport == rsOn;
-  ResumeSmartButton->Checked = GUIConfiguration->CopyParam.ResumeSupport == rsSmart;
-  ResumeOffButton->Checked = GUIConfiguration->CopyParam.ResumeSupport == rsOff;
-  ResumeThresholdEdit->Value = GUIConfiguration->CopyParam.ResumeThreshold / 1024;
+  CopyParamsFrame->Params = GUIConfiguration->DefaultCopyParam;
+  ResumeOnButton->Checked = GUIConfiguration->DefaultCopyParam.ResumeSupport == rsOn;
+  ResumeSmartButton->Checked = GUIConfiguration->DefaultCopyParam.ResumeSupport == rsSmart;
+  ResumeOffButton->Checked = GUIConfiguration->DefaultCopyParam.ResumeSupport == rsOff;
+  ResumeThresholdEdit->Value = GUIConfiguration->DefaultCopyParam.ResumeThreshold / 1024;
 
   TransferSheet->Enabled = WinConfiguration->ExpertMode;
   GeneralSheet->Enabled = (PreferencesMode != pmLogin) && WinConfiguration->ExpertMode;
@@ -246,8 +254,8 @@ void __fastcall TPreferencesDialog::LoadConfiguration()
   // Queue
   QueueTransferLimitEdit->AsInteger = GUIConfiguration->QueueTransfersLimit;
   QueueAutoPopupCheck->Checked = GUIConfiguration->QueueAutoPopup;
-  QueueCheck->Checked = GUIConfiguration->CopyParam.Queue;
-  QueueNoConfirmationCheck->Checked = GUIConfiguration->CopyParam.QueueNoConfirmation;
+  QueueCheck->Checked = GUIConfiguration->DefaultCopyParam.Queue;
+  QueueNoConfirmationCheck->Checked = GUIConfiguration->DefaultCopyParam.QueueNoConfirmation;
   RememberPasswordCheck->Checked = GUIConfiguration->QueueRememberPassword;
   if (WinConfiguration->QueueView.Show == qvShow)
   {
@@ -262,6 +270,50 @@ void __fastcall TPreferencesDialog::LoadConfiguration()
     QueueViewHideButton->Checked = true;
   }
 
+  // panels
+  if (WinConfiguration->PathInCaption == picFull)
+  {
+    PathInCaptionFullButton->Checked = true;
+  }
+  else if (WinConfiguration->PathInCaption == picShort)
+  {
+    PathInCaptionShortButton->Checked = true;
+  }
+  else
+  {
+    PathInCaptionNoneButton->Checked = true;
+  }
+
+  // updates
+  TUpdatesConfiguration Updates = WinConfiguration->Updates;
+  if (int(Updates.Period) <= 0)
+  {
+    UpdatesNeverButton->Checked = true; 
+  }
+  else if (int(Updates.Period) <= 1)
+  {
+    UpdatesDailyButton->Checked = true; 
+  }
+  else if (int(Updates.Period) <= 7)
+  {
+    UpdatesWeeklyButton->Checked = true; 
+  }
+  else
+  {
+    UpdatesMonthlyButton->Checked = true; 
+  }
+
+  UpdatesProxyCheck->Checked = !Updates.ProxyHost.IsEmpty();
+  UpdatesProxyHostEdit->Text =
+    Updates.ProxyHost.IsEmpty() ? AnsiString("proxy") : Updates.ProxyHost;
+  UpdatesProxyPortEdit->AsInteger = Updates.ProxyPort;
+
+  // presets
+  (*FCopyParamList) = *WinConfiguration->CopyParamList;
+  UpdateCopyParamListView();
+  BOOLPROP(CopyParamAutoSelectNotice);
+  #undef BOOLPROP
+
   UpdateControls();
 }
 //---------------------------------------------------------------------------
@@ -270,7 +322,7 @@ void __fastcall TPreferencesDialog::SaveConfiguration()
   Configuration->BeginUpdate();
   try
   {
-    TGUICopyParamType CopyParam = GUIConfiguration->CopyParam;
+    TGUICopyParamType CopyParam = GUIConfiguration->DefaultCopyParam;
 
     if (FPreferencesMode != pmLogin)
     {
@@ -299,7 +351,6 @@ void __fastcall TPreferencesDialog::SaveConfiguration()
     BOOLPROP(BeepOnFinish);
     BOOLPROP(TemporaryDirectoryCleanup);
     BOOLPROP(ConfirmTemporaryDirectoryCleanup);
-    #undef BOOLPROP
 
     GUIConfiguration->BeepOnFinishAfter =
       static_cast<double>(BeepOnFinishAfterEdit->Value / (24*60*60));
@@ -380,7 +431,50 @@ void __fastcall TPreferencesDialog::SaveConfiguration()
       WinConfiguration->QueueView.Show = qvHide;
     }
     
-    GUIConfiguration->CopyParam = CopyParam;
+    GUIConfiguration->DefaultCopyParam = CopyParam;
+    
+    // panels
+    if (PathInCaptionFullButton->Checked)
+    {
+       WinConfiguration->PathInCaption = picFull;
+    }
+    else if (PathInCaptionShortButton->Checked)
+    {
+      WinConfiguration->PathInCaption = picShort;
+    }
+    else
+    {
+      WinConfiguration->PathInCaption = picNone;
+    }
+
+    // updates
+    TUpdatesConfiguration Updates = WinConfiguration->Updates;
+    if (UpdatesNeverButton->Checked)
+    {
+      Updates.Period = 0;
+    }
+    else if (UpdatesDailyButton->Checked)
+    {
+      Updates.Period = 1;
+    }
+    else if (UpdatesWeeklyButton->Checked)
+    {
+      Updates.Period = 7;
+    }
+    else
+    {
+      Updates.Period = 30;
+    }
+
+    Updates.ProxyHost = UpdatesProxyCheck->Checked ? UpdatesProxyHostEdit->Text : AnsiString();
+    Updates.ProxyPort = UpdatesProxyPortEdit->AsInteger;
+
+    WinConfiguration->Updates = Updates;
+
+    // presets
+    WinConfiguration->CopyParamList = FCopyParamList;
+    BOOLPROP(CopyParamAutoSelectNotice);
+    #undef BOOLPROP
   }
   __finally
   {
@@ -415,6 +509,9 @@ void __fastcall TPreferencesDialog::FormShow(TObject * /*Sender*/)
     case pmCustomCommands: PageControl->ActivePage = CustomCommandsSheet; break;
     case pmQueue: PageControl->ActivePage = QueueSheet; break;
     case pmTransfer: PageControl->ActivePage = TransferSheet; break;
+    case pmLogging: PageControl->ActivePage = LogSheet; break;
+    case pmUpdates: PageControl->ActivePage = UpdatesSheet; break;
+    case pmPresets: PageControl->ActivePage = CopyParamListSheet; break;
     default: PageControl->ActivePage = PreferencesSheet; break;
   }
   PageControlChange(NULL);
@@ -444,6 +541,16 @@ void __fastcall TPreferencesDialog::UpdateControls()
   EnableControl(DownCommandButton, CommandSelected &&
     (CustomCommandsView->ItemIndex < CustomCommandsView->Items->Count - 1));
 
+  bool CopyParamSelected = (CopyParamListView->Selected != NULL);
+  EnableControl(EditCopyParamButton, CopyParamSelected);
+  EnableControl(DuplicateCopyParamButton, CopyParamSelected);
+  EnableControl(RemoveCopyParamButton, CopyParamSelected);
+  EnableControl(UpCopyParamButton, CopyParamSelected &&
+    (CopyParamListView->ItemIndex > 0));
+  EnableControl(DownCopyParamButton, CopyParamSelected &&
+    (CopyParamListView->ItemIndex < CopyParamListView->Items->Count - 1));
+  EnableControl(CopyParamAutoSelectNoticeCheck, FCopyParamList->AnyRule);
+
   EnableControl(DDExtEnabledButton, WinConfiguration->DDExtInstalled);
   EnableControl(DDExtEnabledLabel, WinConfiguration->DDExtInstalled);
   EnableControl(DDExtDisabledPanel, DDExtDisabledButton->Checked);
@@ -458,6 +565,9 @@ void __fastcall TPreferencesDialog::UpdateControls()
   EnableControl(MDIExternalEditorCheck,
     !ExternalEditorEdit->Text.IsEmpty() && !EditorSingleEditorOnCheck->Checked);
   EditorFontLabel->WordWrap = EditorWordWrapCheck->Checked;
+
+  EnableControl(UpdatesProxyHostEdit, UpdatesProxyCheck->Checked);
+  EnableControl(UpdatesProxyPortEdit, UpdatesProxyCheck->Checked);
 }
 //---------------------------------------------------------------------------
 void __fastcall TPreferencesDialog::EditorFontButtonClick(TObject * /*Sender*/)
@@ -537,7 +647,8 @@ void __fastcall TPreferencesDialog::IconButtonClick(TObject *Sender)
   {
     IconName = AppNameVersion;
     int Result = 
-      MessageDialog(LoadStr(CREATE_DESKTOP_ICON), qtConfirmation, qaYes | qaNo | qaCancel);
+      MessageDialog(LoadStr(CREATE_DESKTOP_ICON), qtConfirmation,
+        qaYes | qaNo | qaCancel, HELP_CREATE_ICON);
     switch (Result)
     {
       case qaYes:
@@ -556,7 +667,7 @@ void __fastcall TPreferencesDialog::IconButtonClick(TObject *Sender)
   else 
   {
     if (MessageDialog(LoadStr(CONFIRM_CREATE_ICON),
-          qtConfirmation, qaYes | qaNo, 0) == qaYes)
+          qtConfirmation, qaYes | qaNo, HELP_CREATE_ICON) == qaYes)
     {
       if (Sender == SendToHookButton)
       {
@@ -605,7 +716,7 @@ void __fastcall TPreferencesDialog::CustomCommandsViewData(TObject * /*Sender*/,
   Item->SubItems->Add(ParamsStr);
 }
 //---------------------------------------------------------------------------
-void __fastcall TPreferencesDialog::CustomCommandsViewSelectItem(
+void __fastcall TPreferencesDialog::ListViewSelectItem(
   TObject * /*Sender*/, TListItem * /*Item*/, bool /*Selected*/)
 {
   UpdateControls();
@@ -658,7 +769,8 @@ void __fastcall TPreferencesDialog::AddEditCommandButtonClick(TObject * Sender)
     Params = FCustomCommands->Params[Description];
   }
 
-  if (DoCustomCommandDialog(Description, Command, Params, FCustomCommands, Edit))
+  if (DoCustomCommandDialog(Description, Command, Params, FCustomCommands,
+        (Edit ? ccmEdit : ccmAdd), NULL))
   {
     int Index = CustomCommandsView->ItemIndex;
     AnsiString Record = FORMAT("%s=%s", (Description, Command));
@@ -716,42 +828,137 @@ void __fastcall TPreferencesDialog::UpDownCommandButtonClick(TObject * Sender)
     CustomCommandsView->ItemIndex + (Sender == UpCommandButton ? -1 : 1));
 }
 //---------------------------------------------------------------------------
-void __fastcall TPreferencesDialog::CustomCommandsViewStartDrag(
-      TObject * /*Sender*/, TDragObject *& /*DragObject*/)
+void __fastcall TPreferencesDialog::ListViewStartDrag(
+      TObject * Sender, TDragObject *& /*DragObject*/)
 {
-  FCustomCommandDragSource = CustomCommandsView->ItemIndex;
-  FCustomCommandDragDest = -1;
+  FListViewDragSource = dynamic_cast<TListView*>(Sender)->ItemIndex;
+  FListViewDragDest = -1;
 }
 //---------------------------------------------------------------------------
-bool __fastcall TPreferencesDialog::AllowCustomCommandsDrag(int X, int Y)
+bool __fastcall TPreferencesDialog::AllowListViewDrag(TObject * Sender, int X, int Y)
 {
-  TListItem * Item = CustomCommandsView->GetItemAt(X, Y);
-  FCustomCommandDragDest = Item ? Item->Index : -1;
-  return (FCustomCommandDragDest >= 0) && (FCustomCommandDragDest != FCustomCommandDragSource);
+  TListItem * Item = dynamic_cast<TListView*>(Sender)->GetItemAt(X, Y);
+  FListViewDragDest = Item ? Item->Index : -1;
+  return (FListViewDragDest >= 0) && (FListViewDragDest != FListViewDragSource);
 }
 //---------------------------------------------------------------------------
 void __fastcall TPreferencesDialog::CustomCommandsViewDragDrop(
-      TObject * /*Sender*/, TObject * Source, int X, int Y)
+      TObject * Sender, TObject * Source, int X, int Y)
 {
   if (Source == CustomCommandsView)
   {
-    if (AllowCustomCommandsDrag(X, Y))
+    if (AllowListViewDrag(Sender, X, Y))
     {
-      CustomCommandMove(FCustomCommandDragSource, FCustomCommandDragDest);
+      CustomCommandMove(FListViewDragSource, FListViewDragDest);
     }
   }
 }
 //---------------------------------------------------------------------------
-void __fastcall TPreferencesDialog::CustomCommandsViewDragOver(
-      TObject * /*Sender*/, TObject * Source, int /*X*/, int /*Y*/,
+void __fastcall TPreferencesDialog::ListViewDragOver(
+      TObject * Sender, TObject * Source, int /*X*/, int /*Y*/,
       TDragState /*State*/, bool & Accept)
 {
-  if (Source == CustomCommandsView)
+  if (Source == Sender)
   {
-    // cannot use AllowCustomCommandsDrag(X, Y) because of bug in VCL
+    // cannot use AllowListViewDrag(X, Y) because of bug in VCL
     // (when dropped on item itself, when it was dragged over another item before,
     // that another item remains highlighted forever)
     Accept = true;
+  }
+}
+//---------------------------------------------------------------------------
+void __fastcall TPreferencesDialog::CopyParamMove(int Source, int Dest)
+{
+  if (Source >= 0 && Source < FCopyParamList->Count &&
+      Dest >= 0 && Dest < FCopyParamList->Count)
+  {
+    FCopyParamList->Move(Source, Dest);
+    // workaround for bug in VCL
+    CopyParamListView->ItemIndex = -1;
+    CopyParamListView->ItemFocused = CopyParamListView->Selected;
+    CopyParamListView->ItemIndex = Dest;
+    UpdateCopyParamListView();
+    UpdateControls();
+  }
+}
+//---------------------------------------------------------------------------
+void __fastcall TPreferencesDialog::CopyParamListViewDragDrop(
+  TObject * Sender, TObject * Source, int X, int Y)
+{
+  if (Source == CopyParamListView)
+  {
+    if (AllowListViewDrag(Sender, X, Y))
+    {
+      CopyParamMove(FListViewDragSource, FListViewDragDest);
+    }
+  }
+}
+//---------------------------------------------------------------------------
+void __fastcall TPreferencesDialog::UpDownCopyParamButtonClick(TObject * Sender)
+{
+  CopyParamMove(CopyParamListView->ItemIndex,
+    CopyParamListView->ItemIndex + (Sender == UpCopyParamButton ? -1 : 1));
+}
+//---------------------------------------------------------------------------
+void __fastcall TPreferencesDialog::RemoveCopyParamButtonClick(
+  TObject * /*Sender*/)
+{
+  assert(CopyParamListView->ItemIndex >= 0 &&
+    CopyParamListView->ItemIndex < FCopyParamList->Count);
+  FCopyParamList->Delete(CopyParamListView->ItemIndex);
+  UpdateCopyParamListView();
+  UpdateControls();
+}
+//---------------------------------------------------------------------------
+void __fastcall TPreferencesDialog::AddEditCopyParamButtonClick(
+  TObject * Sender)
+{
+  TCopyParamPresetMode Mode;
+  if (Sender == EditCopyParamButton)
+  {
+    Mode = cpmEdit;
+  }
+  else if (Sender == DuplicateCopyParamButton)
+  {
+    Mode = cpmDuplicate;
+  }
+  else
+  {
+    Mode = cpmAdd;
+  }
+  int Index = CopyParamListView->ItemIndex;
+  TCopyParamRuleData * CopyParamRuleData =
+    (FDialogData != NULL ? FDialogData->CopyParamRuleData : NULL);
+  if (DoCopyParamPresetDialog(FCopyParamList, Index, Mode, CopyParamRuleData))
+  {
+    UpdateCopyParamListView();
+    CopyParamListView->ItemIndex = Index;
+    // when using duplicate button, focu remains on original item
+    CopyParamListView->ItemFocused = CopyParamListView->Selected;
+    UpdateControls();
+  }
+}
+//---------------------------------------------------------------------------
+void __fastcall TPreferencesDialog::CopyParamListViewDblClick(
+  TObject * /*Sender*/)
+{
+  if (EditCopyParamButton->Enabled)
+  {
+    AddEditCopyParamButtonClick(EditCopyParamButton);
+  }
+}
+//---------------------------------------------------------------------------
+void __fastcall TPreferencesDialog::CopyParamListViewKeyDown(
+  TObject * /*Sender*/, WORD & Key, TShiftState /*Shift*/)
+{
+  if (RemoveCopyParamButton->Enabled && (Key == VK_DELETE))
+  {
+    RemoveCopyParamButtonClick(NULL);
+  }
+
+  if (AddCopyParamButton->Enabled && (Key == VK_INSERT))
+  {
+    AddEditCopyParamButtonClick(AddCopyParamButton);
   }
 }
 //---------------------------------------------------------------------------
@@ -842,7 +1049,7 @@ void __fastcall TPreferencesDialog::RegisterAsUrlHandlerButtonClick(
   TObject * /*Sender*/)
 {
   if (MessageDialog(LoadStr(CONFIRM_REGISTER_URL),
-        qtConfirmation, qaYes | qaNo, 0) == qaYes)
+        qtConfirmation, qaYes | qaNo, HELP_REGISTER_URL) == qaYes)
   {
     RegisterAsUrlHandler();
   }
@@ -859,7 +1066,7 @@ void __fastcall TPreferencesDialog::AddSearchPathButtonClick(
 {
   AnsiString AppPath = ExtractFilePath(Application->ExeName);
   if (MessageDialog(FMTLOAD(CONFIRM_ADD_SEARCH_PATH, (AppPath)),
-        qtConfirmation, qaYes | qaNo, 0) == qaYes)
+        qtConfirmation, qaYes | qaNo, HELP_ADD_SEARCH_PATH) == qaYes)
   {
     AddSearchPath(AppPath);
   }
@@ -897,6 +1104,42 @@ void __fastcall TPreferencesDialog::EditorFontLabelDblClick(
   TObject * Sender)
 {
   EditorFontButtonClick(Sender);
+}
+//---------------------------------------------------------------------------
+void __fastcall TPreferencesDialog::UpdateCopyParamListView()
+{
+  CopyParamListView->Items->Count = FCopyParamList->Count;
+  AdjustListColumnsWidth(CopyParamListView);
+  CopyParamListView->Invalidate();
+}
+//---------------------------------------------------------------------------
+void __fastcall TPreferencesDialog::CopyParamListViewData(TObject * /*Sender*/,
+  TListItem * Item)
+{
+  int Index = Item->Index;
+  assert(Index >= 0 && Index <= FCopyParamList->Count);
+  Item->Caption = StringReplace(FCopyParamList->Names[Index], "&", "",
+    TReplaceFlags() << rfReplaceAll);
+  Item->SubItems->Add(BooleanToStr(FCopyParamList->Rules[Index] != NULL));
+}
+//---------------------------------------------------------------------------
+void __fastcall TPreferencesDialog::CopyParamListViewInfoTip(
+  TObject * /*Sender*/, TListItem * Item, AnsiString & InfoTip)
+{
+  int Index = Item->Index;
+  assert(Index >= 0 && Index <= FCopyParamList->Count);
+  const TCopyParamType * CopyParam = FCopyParamList->CopyParams[Index];
+  const TCopyParamRule * Rule = FCopyParamList->Rules[Index];
+  InfoTip = CopyParam->GetInfoStr("; ");
+  if (Rule != NULL)
+  {
+    InfoTip += "\n-\n" + Rule->GetInfoStr("; ");
+  }
+}
+//---------------------------------------------------------------------------
+void __fastcall TPreferencesDialog::HelpButtonClick(TObject * /*Sender*/)
+{
+  FormHelp(this, PageControl->ActivePage);
 }
 //---------------------------------------------------------------------------
 

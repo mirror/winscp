@@ -331,6 +331,7 @@ bool __fastcall TSCPFileSystem::IsCapable(int Capability) const
     case fcSymbolicLink:
     case fcResolveSymlink:
     case fcRename:
+    case fcRemoteMove:
     case fcRemoteCopy:
       return true;
 
@@ -1172,6 +1173,11 @@ AnsiString __fastcall TSCPFileSystem::FileUrl(const AnsiString FileName)
     (FileName[1] == '/' ? "" : "/") + FileName;
 }
 //---------------------------------------------------------------------------
+TStrings * __fastcall TSCPFileSystem::GetFixedPaths()
+{
+  return NULL;
+}
+//---------------------------------------------------------------------------
 // transfer protocol
 //---------------------------------------------------------------------------
 void __fastcall TSCPFileSystem::SCPResponse(bool * GotLastLine)
@@ -1505,7 +1511,7 @@ void __fastcall TSCPFileSystem::SCPSource(const AnsiString FileName,
     OperationProgress->TransferingFile = false;
 
     // Will we use ASCII of BINARY file tranfer?
-    OperationProgress->SetAsciiTransfer(CopyParam->UseAsciiTransfer(FileName));
+    OperationProgress->SetAsciiTransfer(CopyParam->UseAsciiTransfer(FileName, osLocal));
     FTerminal->LogEvent(
       AnsiString((OperationProgress->AsciiTransfer ? "Ascii" : "Binary")) +
         " transfer mode selected.");
@@ -1830,9 +1836,11 @@ void __fastcall TSCPFileSystem::CopyToLocal(TStrings * FilesToCopy,
           ARRAYOFCONST((Options, DelimitStr(FileName)))));
         SkipFirstLine();
 
-        // Filename is used only for error messaging
-        SCPSink(TargetDir, FileName, CopyParam, Success, OperationProgress,
-          Params, 0);
+        // Filename is used for error messaging and excluding files only
+        // Send in full path to allow path-based excluding
+        AnsiString FullFileName = UnixExcludeTrailingBackslash(File->FullFileName);
+        SCPSink(TargetDir, FullFileName, UnixExtractFilePath(FullFileName),
+          CopyParam, Success, OperationProgress, Params, 0);
         // operation succeded (no exception), so it's ok that
         // remote side closed SCP, but we continue with next file
         if (OperationProgress->Cancel == csRemoteAbort)
@@ -1939,7 +1947,8 @@ void __fastcall TSCPFileSystem::SCPSendError(const AnsiString Message, bool Fata
 }
 //---------------------------------------------------------------------------
 void __fastcall TSCPFileSystem::SCPSink(const AnsiString TargetDir,
-  const AnsiString FileName, const TCopyParamType * CopyParam, bool & Success,
+  const AnsiString FileName, const AnsiString SourceDir,
+  const TCopyParamType * CopyParam, bool & Success,
   TFileOperationProgressType * OperationProgress, int Params,
   int Level)
 {
@@ -1966,12 +1975,11 @@ void __fastcall TSCPFileSystem::SCPSink(const AnsiString TargetDir,
     // See (switch ... case 'T':)
     if (FileData.SetTime) FileData.SetTime--;
 
-    // In case of error occured before control record arrived
-    // (we used to set whole path here, but it was inconsistent with only-filename
-    // set later)
+    // In case of error occured before control record arrived.
+    // We can finally use full path here, as we get current path in FileName param
     // (we used to set the file into OperationProgress->FileName, but it collided
     // with progress outputing, particularly for scripting)
-    AnsiString ErrorFileName = UnixExtractFileName(FileName);
+    AnsiString ErrorFileName = FileName;
 
     try
     {
@@ -2077,7 +2085,7 @@ void __fastcall TSCPFileSystem::SCPSink(const AnsiString TargetDir,
           }
 
           OperationProgress->SetFile(OnlyFileName);
-          ErrorFileName = OnlyFileName;
+          ErrorFileName = SourceDir + OnlyFileName;
           OperationProgress->SetTransferSize(TSize);
         }
         catch (Exception &E)
@@ -2100,8 +2108,9 @@ void __fastcall TSCPFileSystem::SCPSink(const AnsiString TargetDir,
           FTerminal->FatalError(LoadStr(ATTEMPT_TO_WRITE_TO_PARENT_DIR));
         }
 
+        AnsiString SourceFullName = SourceDir + OperationProgress->FileName;
         if (FLAGCLEAR(Params, cpDelete) &&
-            !CopyParam->AllowTransfer(OperationProgress->FileName, osRemote))
+            !CopyParam->AllowTransfer(SourceFullName, osRemote))
         {
           FTerminal->LogEvent(FORMAT("File \"%s\" excluded from transfer",
             (ErrorFileName)));
@@ -2131,10 +2140,9 @@ void __fastcall TSCPFileSystem::SCPSink(const AnsiString TargetDir,
             );
             /* SCP: can we set the timestamp for directories ? */
           }
-          /* TODO 1 : Send whole path, CopyData.SourceFileName is not enough
-             (just error messaging)*/
-          SCPSink(DestFileName, OperationProgress->FileName, CopyParam,
-            Success, OperationProgress, Params, Level + 1);
+          AnsiString FullFileName = SourceDir + OperationProgress->FileName;
+          SCPSink(DestFileName, FullFileName, UnixIncludeTrailingBackslash(FullFileName),
+            CopyParam, Success, OperationProgress, Params, Level + 1);
           continue;
         }
           else
@@ -2219,7 +2227,8 @@ void __fastcall TSCPFileSystem::SCPSink(const AnsiString TargetDir,
             OperationProgress->SetLocalSize(OperationProgress->TransferSize);
 
             // Will we use ASCII of BINARY file tranfer?
-            OperationProgress->SetAsciiTransfer(CopyParam->UseAsciiTransfer(DestFileName));
+            OperationProgress->SetAsciiTransfer(
+              CopyParam->UseAsciiTransfer(SourceFullName, osRemote));
             FTerminal->LogEvent(AnsiString((OperationProgress->AsciiTransfer ? "Ascii" : "Binary")) +
               " transfer mode selected.");
 

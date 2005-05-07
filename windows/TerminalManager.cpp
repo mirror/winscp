@@ -46,6 +46,8 @@ __fastcall TTerminalManager::TTerminalManager() :
 
   assert(Application && !Application->OnException);
   Application->OnException = ApplicationException;
+  assert(Application->OnShowHint == NULL);
+  Application->OnShowHint = ApplicationShowHint;
 
   assert(Configuration && !Configuration->OnChange);
   Configuration->OnChange = ConfigurationChange;
@@ -68,6 +70,8 @@ __fastcall TTerminalManager::~TTerminalManager()
 
   assert(Application && (Application->OnException == ApplicationException));
   Application->OnException = NULL;
+  assert(Application->OnShowHint == ApplicationShowHint);
+  Application->OnShowHint = ApplicationShowHint;
 
   delete FQueues;
   delete FTerminalList;
@@ -432,7 +436,7 @@ void __fastcall TTerminalManager::SetActiveTerminal(TTerminal * value)
   }
 }
 //---------------------------------------------------------------------------
-void __fastcall TTerminalManager::UpdateAppTitle()
+AnsiString __fastcall TTerminalManager::UpdateAppTitle()
 {
   AnsiString NewTitle;
   if (ActiveTerminal)
@@ -448,8 +452,17 @@ void __fastcall TTerminalManager::UpdateAppTitle()
   {
     NewTitle = FProgressTitle + " - " + NewTitle;
   }
+  else if (ActiveTerminal && (ScpExplorer != NULL))
+  {
+    AnsiString Path = ScpExplorer->PathForCaption();
+    if (!Path.IsEmpty())
+    {
+      NewTitle = Path + " - " + NewTitle;
+    }
+  }
 
   Application->Title = NewTitle;
+  return NewTitle;
 }
 //---------------------------------------------------------------------------
 void __fastcall TTerminalManager::SaveTerminal(TTerminal * Terminal)
@@ -506,6 +519,22 @@ void __fastcall TTerminalManager::ApplicationException(TObject * /*Sender*/,
   ShowExtendedExceptionEx(ActiveTerminal, E);
 }
 //---------------------------------------------------------------------------
+void __fastcall TTerminalManager::ApplicationShowHint(AnsiString & HintStr,
+  bool & /*CanShow*/, THintInfo & HintInfo)
+{
+  TLabel * HintLabel = dynamic_cast<TLabel *>(HintInfo.HintControl);
+  if ((HintLabel != NULL) && (HintLabel->Caption == HintStr))
+  {
+    HintInfo.HintPos = HintLabel->ClientToScreen(TPoint(0, 0));
+    HintInfo.HintMaxWidth = HintLabel->Width;
+    HintInfo.HideTimeout = 100000; // "almost" never
+  }
+  else
+  {
+    HintInfo.HintMaxWidth = 300;
+  }
+}
+//---------------------------------------------------------------------------
 void __fastcall TTerminalManager::DeleteLocalFile(const AnsiString FileName)
 {
   if (!RecursiveDeleteFile(FileName, WinConfiguration->DeleteToRecycleBin))
@@ -518,26 +547,34 @@ void __fastcall TTerminalManager::TerminalQueryUser(TObject * /*Sender*/,
   const AnsiString Query, TStrings * MoreMessages, int Answers,
   const TQueryParams * Params, int & Answer, TQueryType Type, void * /*Arg*/)
 {
+  AnsiString HelpKeyword;
   TMessageParams MessageParams(Params);
   AnsiString AQuery = Query;
 
-  if ((Params != NULL) && FLAGSET(Params->Params, qpFatalAbort))
+  if (Params != NULL)
   {
-    AQuery = FMTLOAD(WARN_FATAL_ERROR, (AQuery));
+    HelpKeyword = Params->HelpKeyword;
 
-    if (!MessageParams.TimerMessage.IsEmpty())
+    if (FLAGSET(Params->Params, qpFatalAbort))
     {
-      MessageParams.TimerMessage = FMTLOAD(WARN_FATAL_ERROR, (MessageParams.TimerMessage));
+      AQuery = FMTLOAD(WARN_FATAL_ERROR, (AQuery));
+
+      if (!MessageParams.TimerMessage.IsEmpty())
+      {
+        MessageParams.TimerMessage = FMTLOAD(WARN_FATAL_ERROR, (MessageParams.TimerMessage));
+      }
     }
   }
 
   if (ScpExplorer)
   {
-    Answer = ScpExplorer->MoreMessageDialog(AQuery, MoreMessages, Type, Answers, 0, &MessageParams);
+    Answer = ScpExplorer->MoreMessageDialog(AQuery, MoreMessages, Type, Answers,
+      HelpKeyword, &MessageParams);
   }
   else
   {
-    Answer = MoreMessageDialog(AQuery, MoreMessages, Type, Answers, 0, &MessageParams);
+    Answer = MoreMessageDialog(AQuery, MoreMessages, Type, Answers, HelpKeyword,
+      &MessageParams);
   }
 }
 //---------------------------------------------------------------------------

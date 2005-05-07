@@ -105,7 +105,7 @@ typedef int __fastcall (__closure *TDirectoryModifiedEvent)
 enum TFSCapability { fcUserGroupListing, fcModeChanging, fcGroupChanging,
   fcOwnerChanging, fcAnyCommand, fcHardLink, fcSymbolicLink, fcResolveSymlink,
   fcTextMode, fcRename, fcNativeTextMode, fcNewerOnlyUpload, fcRemoteCopy,
-  fcTimestampChanging };
+  fcTimestampChanging, fcRemoteMove };
 enum TCurrentFSProtocol { cfsUnknown, cfsSCP, cfsSFTP };
 //---------------------------------------------------------------------------
 const cpDelete = 0x01;
@@ -261,6 +261,7 @@ protected:
     const TRemoteFile * File, void * Param);
   void __fastcall RecycleFile(AnsiString FileName, const TRemoteFile * File);
   bool __fastcall IsRecycledFile(AnsiString FileName);
+  TStrings * __fastcall GetFixedPaths();
 
   __property TFileOperationProgressType * OperationProgress = { read=FOperationProgress };
 
@@ -359,6 +360,7 @@ public:
   __property bool CommandSessionOpened = { read = GetCommandSessionOpened };
   __property TTerminal * CommandSession = { read = GetCommandSession };
   __property bool AutoReadDirectory = { read = FAutoReadDirectory, write = FAutoReadDirectory };
+  __property TStrings * FixedPaths = { read = GetFixedPaths };
 };
 //---------------------------------------------------------------------------
 class TSecondaryTerminal : public TTerminal
@@ -391,11 +393,13 @@ public:
   virtual void __fastcall Idle();
 
   __property TTerminal * Terminals[int Index]  = { read=GetTerminal };
+  __property int ActiveCount = { read = GetActiveCount };
 
 private:
   TConfiguration * FConfiguration;
 
   TTerminal * __fastcall GetTerminal(int Index);
+  int __fastcall GetActiveCount();
 };
 //---------------------------------------------------------------------------
 struct TCustomCommandParams

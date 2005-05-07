@@ -173,10 +173,13 @@ void __fastcall TOpenDirectoryDialog::LoadBookmarks()
 bool __fastcall TOpenDirectoryDialog::Execute()
 {
   bool Result;
+  AnsiString SessionKey;
   if (Terminal)
   {
     TBookmarkList * BookmarkList;
-    BookmarkList = WinConfiguration->Bookmarks[Terminal->SessionData->SessionKey];
+    // cache session key, in case terminal is closed while the window is open
+    SessionKey = Terminal->SessionData->SessionKey;
+    BookmarkList = WinConfiguration->Bookmarks[SessionKey];
     if (BookmarkList)
     {
       FBookmarkList->Assign(BookmarkList);
@@ -195,7 +198,7 @@ bool __fastcall TOpenDirectoryDialog::Execute()
   Result = (ShowModal() == mrOk);
   if (Terminal)
   {
-    WinConfiguration->Bookmarks[Terminal->SessionData->SessionKey] = FBookmarkList;
+    WinConfiguration->Bookmarks[SessionKey] = FBookmarkList;
   }
   return Result;
 }
@@ -406,6 +409,11 @@ void __fastcall TOpenDirectoryDialog::LocalDirectoryBrowseButtonClick(
 void __fastcall TOpenDirectoryDialog::SwitchButtonClick(TObject * /*Sender*/)
 {
   WinConfiguration->UseLocationProfiles = true;
+}
+//---------------------------------------------------------------------------
+void __fastcall TOpenDirectoryDialog::HelpButtonClick(TObject * /*Sender*/)
+{
+  FormHelp(this);
 }
 //---------------------------------------------------------------------------
 
