@@ -4,7 +4,7 @@ unit TBXOfficeXPTheme;
 // Copyright 2001-2004 Alex A. Denisov. All Rights Reserved
 // See TBX.chm for license and installation instructions
 //
-// $Id: TBXOfficeXPTheme.pas,v 1.1 2005/05/07 13:59:00 martinprikryl Exp $
+// $Id: TBXOfficeXPTheme.pas,v 1.2 2005/08/15 19:41:44 martinprikryl Exp $
 
 interface
 

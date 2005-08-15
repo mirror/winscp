@@ -7,7 +7,7 @@ unit TBXUxThemes;
 // Conversion of original visual styles API tmschema.h and
 // uxtheme.h (Copyright Microsoft Corporation 1991-2000)
 //
-// $Id: TBXUxThemes.pas,v 1.1 2005/05/07 13:59:00 martinprikryl Exp $
+// $Id: TBXUxThemes.pas,v 1.2 2005/08/15 19:41:44 martinprikryl Exp $
 
 interface
 
