@@ -4,7 +4,7 @@ unit TBXToolPals;
 // Copyright 2001-2004 Alex A. Denisov. All Rights Reserved
 // See TBX.chm for license and installation instructions
 //
-// $Id: TBXToolPals.pas,v 1.1 2005/12/20 22:18:53 martinprikryl Exp $
+// $Id: TBXToolPals.pas,v 1.2 2006/05/07 19:48:29 martinprikryl Exp $
 
 interface
 
