@@ -1654,6 +1654,10 @@ void __fastcall TSCPFileSystem::SCPSource(const AnsiString FileName,
                 AsciiBuf.Data + (unsigned int)OperationProgress->TransferedSize,
                 OperationProgress->TransferBlockSize());
               OperationProgress->AddTransfered(OperationProgress->TransferBlockSize());
+              if (OperationProgress->Cancel == csCancelTransfer)
+              {
+                throw Exception(USER_TERMINATED);
+              }
             }
           }
         }

@@ -590,7 +590,7 @@ bool __fastcall TIniFileStorage::DeleteValue(const AnsiString Name)
 //---------------------------------------------------------------------------
 int __fastcall TIniFileStorage::BinaryDataSize(const AnsiString Name)
 {
-  return FIniFile->ReadString(CurrentSection, Name, "").Length() / 2;
+  return ReadStringRaw(Name, "").Length() / 2;
 }
 //---------------------------------------------------------------------------
 bool __fastcall TIniFileStorage::ReadBool(const AnsiString Name, bool Default)
@@ -632,7 +632,7 @@ AnsiString __fastcall TIniFileStorage::ReadStringRaw(const AnsiString Name, Ansi
   Result = FIniFile->ReadString(Section, Name, Default);
   // TIniFile::ReadString has limit of 2 kB.
   // We could straithly use our routine, but call to legacy code is preserved
-  // until ours it proved to work and also to save memory overhead
+  // until ours is proved to work and also to save memory overhead
   if (Result.Length() == 2047)
   {
     char Buffer[10240];

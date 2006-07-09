@@ -1002,9 +1002,12 @@ int __fastcall ContinueAnswer(int Answers)
   {
     Result = qaOK;
   }
+  else if (FLAGSET(Answers, qaRetry))
+  {
+    Result = qaOK;
+  }
   else
   {
-    assert(false);
     Result = CancelAnswer(Answers);
   }
   return Result;

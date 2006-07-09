@@ -39,6 +39,11 @@ Boolean __fastcall ComparePaths(const AnsiString Path1, const AnsiString Path2)
   return AnsiSameText(IncludeTrailingBackslash(Path1), IncludeTrailingBackslash(Path2));
 }
 //---------------------------------------------------------------------------
+Boolean __fastcall CompareFileName(const AnsiString Path1, const AnsiString Path2)
+{
+  return AnsiSameText(ExtractShortPathName(Path1), ExtractShortPathName(Path2));
+}
+//---------------------------------------------------------------------------
 Boolean __fastcall UnixComparePaths(const AnsiString Path1, const AnsiString Path2)
 {
   return (UnixIncludeTrailingBackslash(Path1) == UnixIncludeTrailingBackslash(Path2));

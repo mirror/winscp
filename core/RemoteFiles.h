@@ -363,6 +363,7 @@ AnsiString __fastcall UnixExtractFilePath(const AnsiString Path);
 AnsiString __fastcall UnixExtractFileName(const AnsiString Path);
 AnsiString __fastcall UnixExtractFileExt(const AnsiString Path);
 Boolean __fastcall ComparePaths(const AnsiString Path1, const AnsiString Path2);
+Boolean __fastcall CompareFileName(const AnsiString Path1, const AnsiString Path2);
 Boolean __fastcall UnixComparePaths(const AnsiString Path1, const AnsiString Path2);
 bool __fastcall ExtractCommonPath(TStrings * Files, AnsiString & Path);
 bool __fastcall UnixExtractCommonPath(TStrings * Files, AnsiString & Path);
