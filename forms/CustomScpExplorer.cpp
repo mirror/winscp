@@ -5712,9 +5712,12 @@ void __fastcall TCustomScpExplorerForm::StatusBarPanelDblClick(
 //---------------------------------------------------------------------------
 void __fastcall TCustomScpExplorerForm::LockWindow()
 {
-  // workaround: for unknown reason, disabling window, while minimized,
+  // workaround:
+  // 1) for unknown reason, disabling window, while minimized,
   // prevents it from restoring, even if it was enabled again meanwhile
-  if (!IsIconic(Application->Handle))
+  // 2) when disabling the main window, while another has focus
+  // minimize is no longer possible ("keep up to date" dialog)
+  if (!IsIconic(Application->Handle) && (Screen->ActiveForm == this))
   {
     Enabled = false;
   }
