@@ -1713,8 +1713,7 @@ void __fastcall TManagementScript::DoConnect(const AnsiString & Session,
 {
   bool DefaultsOnly;
 
-  TSessionData * Data = FStoredSessions->ParseUrl(Session, Options, DefaultsOnly,
-    puDecodeUrlChars, NULL);
+  TSessionData * Data = FStoredSessions->ParseUrl(Session, Options, DefaultsOnly);
   try
   {
     if (CheckParams)
