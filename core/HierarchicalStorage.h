@@ -64,11 +64,11 @@ protected:
   bool FExplicit;
 
   AnsiString __fastcall GetCurrentSubKey();
-  inline AnsiString __fastcall GetCurrentSubKeyMunged();
+  AnsiString __fastcall GetCurrentSubKeyMunged();
   virtual void __fastcall SetAccessMode(TStorageAccessMode value);
   static AnsiString __fastcall IncludeTrailingBackslash(const AnsiString & S);
   static AnsiString __fastcall ExcludeTrailingBackslash(const AnsiString & S);
-  inline AnsiString __fastcall MungeSubKey(AnsiString Key, bool Path);
+  AnsiString __fastcall MungeSubKey(AnsiString Key, bool Path);
 };
 //---------------------------------------------------------------------------
 class TRegistryStorage : public THierarchicalStorage

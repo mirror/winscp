@@ -1756,6 +1756,21 @@ void __fastcall TManagementScript::DoConnect(const AnsiString & Session,
     }
 
     FTerminal = Terminal;
+
+    if (!Data->LocalDirectory.IsEmpty())
+    {
+      try
+      {
+        DoChangeLocalDirectory(Data->LocalDirectory);
+      }
+      catch(Exception & E)
+      {
+        if (!HandleExtendedException(&E))
+        {
+          throw;
+        }
+      }
+    }
   }
   __finally
   {
@@ -1801,6 +1816,14 @@ void __fastcall TManagementScript::DoClose(TTerminal * Terminal)
       FTerminal = NULL;
       PrintLine(LoadStr(SCRIPT_NO_SESSION));
     }
+  }
+}
+//---------------------------------------------------------------------------
+void __fastcall TManagementScript::DoChangeLocalDirectory(AnsiString Directory)
+{
+  if (!SetCurrentDir(Directory))
+  {
+    throw Exception(FMTLOAD(CHANGE_DIR_ERROR, (Directory)));
   }
 }
 //---------------------------------------------------------------------------
@@ -1864,11 +1887,7 @@ void __fastcall TManagementScript::LCdProc(TScriptProcParams * Parameters)
 {
   assert(Parameters->ParamCount == 1);
 
-  AnsiString Directory = Parameters->Param[1];
-  if (!SetCurrentDir(Directory))
-  {
-    throw Exception(FMTLOAD(CHANGE_DIR_ERROR, (Directory)));
-  }
+  DoChangeLocalDirectory(Parameters->Param[1]);
   PrintLine(GetCurrentDir());
 }
 //---------------------------------------------------------------------------

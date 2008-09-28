@@ -45,6 +45,10 @@ void __fastcall TConfiguration::Default()
 {
   TGuard Guard(FCriticalSection);
 
+  FDisablePasswordStoring = false;
+  FForceBanners = false;
+  FDisableAcceptingHostKeys = false;
+
   TRegistryStorage * AdminStorage;
   AdminStorage = new TRegistryStorage(RegistryStorageKey, HKEY_LOCAL_MACHINE);
   try
@@ -79,10 +83,6 @@ void __fastcall TConfiguration::Default()
   FLogFileAppend = true;
   FLogWindowLines = 100;
   FLogProtocol = 0;
-
-  FDisablePasswordStoring = false;
-  FForceBanners = false;
-  FDisableAcceptingHostKeys = false;
 
   Changed();
 }
