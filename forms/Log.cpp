@@ -68,7 +68,7 @@ void __fastcall FreeLogForm()
 }
 //---------------------------------------------------------------------------
 __fastcall TLogForm::TLogForm(TComponent* Owner)
-        : TForm(Owner)
+        : FFormRestored(False), TForm(Owner)
 {
   FLogMemo = NULL;
   FSessionLog = NULL;

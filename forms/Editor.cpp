@@ -370,8 +370,6 @@ protected:
   }
 };
 //---------------------------------------------------------------------------
-unsigned int TEditorForm::FInstances = 0;
-//---------------------------------------------------------------------------
 __fastcall TEditorForm::TEditorForm(TComponent* Owner)
   : TForm(Owner)
 {
@@ -398,27 +396,11 @@ __fastcall TEditorForm::TEditorForm(TComponent* Owner)
   FReplaceDialog = new TReplaceDialogEx(this);
   FReplaceDialog->OnFind = FindDialogFind;
   FReplaceDialog->OnReplace = FindDialogFind;
-
   UseSystemSettings(this);
 }
 //---------------------------------------------------------------------------
 __fastcall TEditorForm::~TEditorForm()
 {
-  assert(FInstances > 0);
-  FInstances--;
-  if (FInstance == 0)
-  {
-    AnsiString WindowParams = StoreForm(this);
-    // this is particularly to prevent saving the form state
-    // for the first time, keeping default positioning by a system
-    if (!FWindowParams.IsEmpty() && (FWindowParams != WindowParams))
-    {
-      TEditorConfiguration EditorConfiguration = WinConfiguration->Editor;
-      EditorConfiguration.WindowParams = StoreForm(this);
-      WinConfiguration->Editor = EditorConfiguration;
-    }
-  }
-
   // see FormClose for explanation
   if (!FCloseAnnounced)
   {
@@ -720,12 +702,6 @@ void __fastcall TEditorForm::FormShow(TObject * /*Sender*/)
   LoadFile();
 
   CutFormToDesktop(this);
-
-  assert(FWindowParams.IsEmpty());
-  if (FWindowParams.IsEmpty())
-  {
-    FWindowParams = StoreForm(this);
-  }
 }
 //---------------------------------------------------------------------------
 void __fastcall TEditorForm::LoadFile()
@@ -874,22 +850,6 @@ void __fastcall TEditorForm::DoWindowClose()
 //---------------------------------------------------------------------------
 void __fastcall TEditorForm::CreateParams(TCreateParams & Params)
 {
-  // this is called for the first time from parent's constructor.
-  // FFormRestored is set to false implicitly
-  if (!FFormRestored)
-  {
-    FInstance = FInstances;
-    FInstances++;
-
-    FFormRestored = true;
-    AnsiString WindowParams = WinConfiguration->Editor.WindowParams;
-
-    if ((FInstance == 0) && !WindowParams.IsEmpty())
-    {
-      RestoreForm(WindowParams, this);
-    }
-  }
-
   TForm::CreateParams(Params);
   Params.WndParent = GetDesktopWindow();
 }

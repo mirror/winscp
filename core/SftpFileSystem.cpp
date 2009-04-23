@@ -336,8 +336,8 @@ public:
     AddString(Value, Utf);
   }
 
-  void AddProperties(unsigned short * Rights, TRemoteToken * Owner,
-    TRemoteToken * Group, __int64 * MTime, __int64 * ATime,
+  void AddProperties(unsigned short * Rights, AnsiString * Owner,
+    AnsiString * Group, __int64 * MTime, __int64 * ATime,
     __int64 * Size, bool IsDirectory, int Version, bool Utf)
   {
     int Flags = 0;
@@ -345,20 +345,9 @@ public:
     {
       Flags |= SSH_FILEXFER_ATTR_SIZE;
     }
-    // both or neither
-    assert((Owner != NULL) == (Group != NULL));
-    if ((Owner != NULL) && (Group != NULL))
+    if ((Owner != NULL) || (Group != NULL))
     {
-      if (Version < 4)
-      {
-        assert(Owner->IDValid && Group->IDValid);
-        Flags |= SSH_FILEXFER_ATTR_UIDGID;
-      }
-      else
-      {
-        assert(Owner->NameValid && Group->NameValid);
-        Flags |= SSH_FILEXFER_ATTR_OWNERGROUP;
-      }
+      Flags |= SSH_FILEXFER_ATTR_OWNERGROUP;
     }
     if (Rights != NULL)
     {
@@ -389,20 +378,11 @@ public:
       AddInt64(*Size);
     }
 
-    if ((Owner != NULL) && (Group != NULL))
+    if ((Owner != NULL) || (Group != NULL))
     {
-      if (Version < 4)
-      {
-        assert(Owner->IDValid && Group->IDValid);
-        AddCardinal(Owner->ID);
-        AddCardinal(Group->ID);
-      }
-      else
-      {
-        assert(Owner->NameValid && Group->NameValid);
-        AddString(Owner->Name, Utf);
-        AddString(Group->Name, Utf);
-      }
+      assert(Version >= 4);
+      AddString(Owner != NULL ? *Owner : AnsiString(), Utf);
+      AddString(Group != NULL ? *Group : AnsiString(), Utf);
     }
 
     if (Rights != NULL)
@@ -429,14 +409,13 @@ public:
   }
 
   void AddProperties(const TRemoteProperties * Properties,
-    unsigned short BaseRights, bool IsDirectory, int Version, bool Utf,
-    TChmodSessionAction * Action)
+    unsigned short BaseRights, bool IsDirectory, int Version, bool Utf)
   {
     enum { valNone = 0, valRights = 0x01, valOwner = 0x02, valGroup = 0x04,
       valMTime = 0x08, valATime = 0x10 } Valid = valNone;
     unsigned short RightsNum = 0;
-    TRemoteToken Owner;
-    TRemoteToken Group;
+    AnsiString Owner;
+    AnsiString Group;
     __int64 MTime;
     __int64 ATime;
 
@@ -465,11 +444,6 @@ public:
           Rights.AddExecute();
         }
         RightsNum = Rights;
-
-        if (Action != NULL)
-        {
-          Action->Rights(Rights);
-        }
       }
 
       if (Properties->Valid.Contains(vpLastAccess))
@@ -602,14 +576,14 @@ public:
     // sets SSH_FILEXFER_ATTR_UIDGID for v4, but does not include the UID/GUID
     if ((Flags & SSH_FILEXFER_ATTR_UIDGID) && (Version < 4))
     {
-      File->Owner.ID = GetCardinal();
-      File->Group.ID = GetCardinal();
+      GetCardinal(); // skip UID
+      GetCardinal(); // skip GUID
     }
     if (Flags & SSH_FILEXFER_ATTR_OWNERGROUP)
     {
       assert(Version >= 4);
-      File->Owner.Name = GetString(Utf);
-      File->Group.Name = GetString(Utf);
+      File->Owner = GetString(Utf);
+      File->Group = GetString(Utf);
     }
     if (Flags & SSH_FILEXFER_ATTR_PERMISSIONS)
     {
@@ -1462,7 +1436,7 @@ protected:
            File->Rights->Unknown);
       bool MissingOwnerGroup =
         (FLAGSET(FFileSystem->FSupport->AttributeMask, SSH_FILEXFER_ATTR_OWNERGROUP) &&
-           !File->Owner.IsSet || !File->Group.IsSet);
+           File->Owner.IsEmpty() || File->Group.IsEmpty());
 
       Result = (MissingRights || MissingOwnerGroup);
       if (Result)
@@ -1708,7 +1682,11 @@ const TFileSystemInfo & __fastcall TSFTPFileSystem::GetFileSystemInfo(bool /*Ret
         }
         else
         {
-          Line = FORMAT("%s=%s", (Name, DisplayableStr(Value)));
+          if (!IsDisplayableStr(Value))
+          {
+            Value = "0x" + StrToHex(Value);
+          }
+          Line = FORMAT("%s=%s", (Name, Value));
         }
         FFileSystemInfo.AdditionalInfo += FORMAT("  %s\r\n", (Line));
       }
@@ -1810,16 +1788,11 @@ bool __fastcall TSFTPFileSystem::IsCapable(int Capability) const
       return !FSupport->Loaded ||
         FLAGSET(FSupport->AttributeMask, SSH_FILEXFER_ATTR_PERMISSIONS);
 
-    case fcGroupOwnerChangingByID:
-      return (FVersion <= 3);
-
     case fcOwnerChanging:
     case fcGroupChanging:
-      return
-        (FVersion <= 3) ||
-        ((FVersion >= 4) &&
-         (!FSupport->Loaded ||
-          FLAGSET(FSupport->AttributeMask, SSH_FILEXFER_ATTR_OWNERGROUP)));
+      return (FVersion >= 4) &&
+        (!FSupport->Loaded ||
+         FLAGSET(FSupport->AttributeMask, SSH_FILEXFER_ATTR_OWNERGROUP));
 
     case fcNativeTextMode:
       return (FVersion >= 4);
@@ -2118,8 +2091,12 @@ inline int __fastcall TSFTPFileSystem::PacketLength(char * LenBuf, int ExpectedT
     if (ExpectedType == SSH_FXP_VERSION)
     {
       AnsiString LenString(LenBuf, 4);
+      if (!IsDisplayableStr(LenString))
+      {
+        LenString = "0x" + StrToHex(LenString);
+      }
       Message = FMTLOAD(SFTP_PACKET_TOO_BIG_INIT_EXPLAIN,
-        (Message, DisplayableStr(LenString)));
+        (Message, LenString));
     }
     FTerminal->FatalError(NULL, Message);
   }
@@ -2460,16 +2437,9 @@ AnsiString __fastcall TSFTPFileSystem::Canonify(AnsiString Path)
   return Result;
 }
 //---------------------------------------------------------------------------
-AnsiString __fastcall TSFTPFileSystem::AbsolutePath(AnsiString Path, bool Local)
+AnsiString __fastcall TSFTPFileSystem::AbsolutePath(AnsiString Path)
 {
-  if (Local)
-  {
-    return LocalCanonify(Path);
-  }
-  else
-  {
-    return RealPath(Path, CurrentDirectory);
-  }
+  return RealPath(Path, CurrentDirectory);
 }
 //---------------------------------------------------------------------------
 AnsiString __fastcall TSFTPFileSystem::GetHomeDirectory()
@@ -2553,11 +2523,21 @@ void __fastcall TSFTPFileSystem::DoStartup()
 
   if (FVersion >= 3)
   {
+    AnsiString ExtensionName;
+    AnsiString ExtensionData;
+    AnsiString ExtensionDisplayData;
     while (Packet.GetNextData() != NULL)
     {
-      AnsiString ExtensionName = Packet.GetString();
-      AnsiString ExtensionData = Packet.GetString();
-      AnsiString ExtensionDisplayData = DisplayableStr(ExtensionData);
+      ExtensionName = Packet.GetString();
+      ExtensionData = Packet.GetString();
+      if (IsDisplayableStr(ExtensionData))
+      {
+        ExtensionDisplayData = ExtensionData;
+      }
+      else
+      {
+        ExtensionDisplayData = "0x" + StrToHex(ExtensionData);
+      }
 
       if (ExtensionName == SFTP_EXT_NEWLINE)
       {
@@ -2791,14 +2771,16 @@ void __fastcall TSFTPFileSystem::LookupUsersGroups()
 
   TSFTPPacket PacketOwners(SSH_FXP_EXTENDED);
   TSFTPPacket PacketGroups(SSH_FXP_EXTENDED);
+  TSFTPPacket * Packet;
+  TUsersGroupsList * List;
 
   TSFTPPacket * Packets[] = { &PacketOwners, &PacketGroups };
-  TRemoteTokenList * Lists[] = { &FTerminal->FUsers, &FTerminal->FGroups };
+  TUsersGroupsList * Lists[] = { FTerminal->FUsers, FTerminal->FGroups };
   char ListTypes[] = { OGQ_LIST_OWNERS, OGQ_LIST_GROUPS };
 
   for (int Index = 0; Index < LENOF(Packets); Index++)
   {
-    TSFTPPacket * Packet = Packets[Index];
+    Packet = Packets[Index];
     Packet->AddString(SFTP_EXT_OWNER_GROUP);
     Packet->AddByte(ListTypes[Index]);
     SendPacket(Packet);
@@ -2807,7 +2789,7 @@ void __fastcall TSFTPFileSystem::LookupUsersGroups()
 
   for (int Index = 0; Index < LENOF(Packets); Index++)
   {
-    TSFTPPacket * Packet = Packets[Index];
+    Packet = Packets[Index];
 
     ReceiveResponse(Packet, Packet, SSH_FXP_EXTENDED_REPLY, asOpUnsupported);
 
@@ -2818,18 +2800,21 @@ void __fastcall TSFTPFileSystem::LookupUsersGroups()
     }
     else
     {
-      TRemoteTokenList & List = *Lists[Index];
+      List = Lists[Index];
       unsigned long Count = Packet->GetCardinal();
 
-      List.Clear();
-      for (unsigned long Item = 0; Item < Count; Item++)
+      List->BeginUpdate();
+      try
       {
-        TRemoteToken Token(Packet->GetString(!FUtfNever));
-        List.Add(Token);
-        if (&List == &FTerminal->FGroups)
+        List->Clear();
+        for (unsigned long Item = 0; Item < Count; Item++)
         {
-          FTerminal->FMembership.Add(Token);
+          List->Add(Packet->GetString(!FUtfNever));
         }
+      }
+      __finally
+      {
+        List->EndUpdate();
       }
     }
   }
@@ -2980,9 +2965,12 @@ void __fastcall TSFTPFileSystem::ReadDirectory(TRemoteFileList * FileList)
               FTerminal->LogEvent(FORMAT("Read file '%s' from listing", (File->FileName)));
             }
             FileList->AddFile(File);
-
-            Total++;
           }
+
+          // Even if all files are ignored, do not threat listing as empty.
+          // Also, if the first file is ignored, we would call DoReadDirectoryProgress
+          // twice with 0, what may confuse handler, which uses 0 as indication of start.
+          Total++;
 
           if (Total % 10 == 0)
           {
@@ -3186,31 +3174,16 @@ void __fastcall TSFTPFileSystem::CustomReadFile(const AnsiString FileName,
   }
 }
 //---------------------------------------------------------------------------
-void __fastcall TSFTPFileSystem::DoDeleteFile(const AnsiString FileName, char Type)
-{
-  TSFTPPacket Packet(Type);
-  AnsiString RealFileName = LocalCanonify(FileName);
-  Packet.AddPathString(RealFileName, FUtfStrings);
-  SendPacketAndReceiveResponse(&Packet, &Packet, SSH_FXP_STATUS);
-}
-//---------------------------------------------------------------------------
 void __fastcall TSFTPFileSystem::DeleteFile(const AnsiString FileName,
-  const TRemoteFile * File, int Params, TRmSessionAction & Action)
+  const TRemoteFile * File, int Params)
 {
   char Type;
+  AnsiString RealFileName = LocalCanonify(FileName);
   if (File && File->IsDirectory && !File->IsSymLink)
   {
     if (FLAGCLEAR(Params, dfNoRecursive))
     {
-      try
-      {
-        FTerminal->ProcessDirectory(FileName, FTerminal->DeleteFile, &Params);
-      }
-      catch(...)
-      {
-        Action.Cancel();
-        throw;
-      }
+      FTerminal->ProcessDirectory(FileName, FTerminal->DeleteFile, &Params);
     }
     Type = SSH_FXP_RMDIR;
   }
@@ -3219,7 +3192,9 @@ void __fastcall TSFTPFileSystem::DeleteFile(const AnsiString FileName,
     Type = SSH_FXP_REMOVE;
   }
 
-  DoDeleteFile(FileName, Type);
+  TSFTPPacket Packet(Type);
+  Packet.AddPathString(RealFileName, FUtfStrings);
+  SendPacketAndReceiveResponse(&Packet, &Packet, SSH_FXP_STATUS);
 }
 //---------------------------------------------------------------------------
 void __fastcall TSFTPFileSystem::RenameFile(const AnsiString FileName,
@@ -3252,13 +3227,41 @@ void __fastcall TSFTPFileSystem::CopyFile(const AnsiString /*FileName*/,
   assert(false);
 }
 //---------------------------------------------------------------------------
-void __fastcall TSFTPFileSystem::CreateDirectory(const AnsiString DirName)
+void __fastcall TSFTPFileSystem::CreateDirectory(const AnsiString DirName,
+  const TRemoteProperties * Properties)
 {
   TSFTPPacket Packet(SSH_FXP_MKDIR);
   AnsiString CanonifiedName = Canonify(DirName);
   Packet.AddPathString(CanonifiedName, FUtfStrings);
-  Packet.AddProperties(NULL, 0, true, FVersion, FUtfStrings, NULL);
+  Packet.AddProperties(NULL, 0, true, FVersion, FUtfStrings);
   SendPacketAndReceiveResponse(&Packet, &Packet, SSH_FXP_STATUS);
+
+  // Explicitly set permissions after directory creation,
+  // permissions specified in SSH_FXP_MKDIR are ignored at least by OpenSSH.
+  // But do nothing unless there was any properties change really required
+  // (saves bandwidth, and some servers does not allow SSH_FXP_SETSTAT on dirs,
+  // e.g. Serv-u)
+  if ((Properties != NULL) && !Properties->Valid.Empty())
+  {
+    try
+    {
+      Packet.ChangeType(SSH_FXP_SETSTAT);
+      Packet.AddPathString(CanonifiedName, FUtfStrings);
+      Packet.AddProperties(Properties, 0, true, FVersion, FUtfStrings);
+      SendPacketAndReceiveResponse(&Packet, &Packet, SSH_FXP_STATUS);
+    }
+    catch(Exception & E)
+    {
+      if (FTerminal->Active)
+      {
+        throw ECommand(&E, FMTLOAD(CHANGE_PROPERTIES_ERROR, (DirName)));
+      }
+      else
+      {
+        throw;
+      }
+    }
+  }
 }
 //---------------------------------------------------------------------------
 void __fastcall TSFTPFileSystem::CreateLink(const AnsiString FileName,
@@ -3287,10 +3290,9 @@ void __fastcall TSFTPFileSystem::CreateLink(const AnsiString FileName,
 }
 //---------------------------------------------------------------------------
 void __fastcall TSFTPFileSystem::ChangeFileProperties(const AnsiString FileName,
-  const TRemoteFile * /*File*/, const TRemoteProperties * AProperties,
-  TChmodSessionAction & Action)
+  const TRemoteFile * /*File*/, const TRemoteProperties * Properties)
 {
-  assert(AProperties != NULL);
+  assert(Properties);
 
   TRemoteFile * File;
 
@@ -3301,40 +3303,15 @@ void __fastcall TSFTPFileSystem::ChangeFileProperties(const AnsiString FileName,
   {
     assert(File);
 
-    if (File->IsDirectory && !File->IsSymLink && AProperties->Recursive)
+    if (File->IsDirectory && !File->IsSymLink && Properties->Recursive)
     {
-      try
-      {
-        FTerminal->ProcessDirectory(FileName, FTerminal->ChangeFileProperties,
-          (void*)AProperties);
-      }
-      catch(...)
-      {
-        Action.Cancel();
-        throw;
-      }
-    }
-
-    // SFTP can change owner and group at the same time only, not individually.
-    // Fortunatelly we know current owner/group, so if only one is present,
-    // we can supplement the other.
-    TRemoteProperties Properties(*AProperties);
-    if (Properties.Valid.Contains(vpGroup) &&
-        !Properties.Valid.Contains(vpOwner))
-    {
-      Properties.Owner = File->Owner;
-      Properties.Valid << vpOwner;
-    }
-    else if (Properties.Valid.Contains(vpOwner) &&
-             !Properties.Valid.Contains(vpGroup))
-    {
-      Properties.Group = File->Group;
-      Properties.Valid << vpGroup;
+      FTerminal->ProcessDirectory(FileName, FTerminal->ChangeFileProperties,
+        (void*)Properties);
     }
 
     TSFTPPacket Packet(SSH_FXP_SETSTAT);
     Packet.AddPathString(RealFileName, FUtfStrings);
-    Packet.AddProperties(&Properties, *File->Rights, File->IsDirectory, FVersion, FUtfStrings, &Action);
+    Packet.AddProperties(Properties, *File->Rights, File->IsDirectory, FVersion, FUtfStrings);
     SendPacketAndReceiveResponse(&Packet, &Packet, SSH_FXP_STATUS);
   }
   __finally
@@ -3415,7 +3392,7 @@ void __fastcall TSFTPFileSystem::DoCalculateFilesChecksum(const AnsiString & Alg
       {
         OperationProgress->SetFile(File->FileName);
         TRemoteFileList * SubFiles =
-          FTerminal->CustomReadDirectoryListing(File->FullFileName, false);
+          FTerminal->ReadDirectoryListing(File->FullFileName, false);
 
         if (SubFiles != NULL)
         {
@@ -3817,16 +3794,12 @@ void __fastcall TSFTPFileSystem::SFTPSourceRobust(const AnsiString FileName,
   // the same in TFTPFileSystem
   bool Retry;
 
-  TUploadSessionAction Action(FTerminal->Log);
-
   do
   {
     Retry = false;
-    bool ChildError = false;
     try
     {
-      SFTPSource(FileName, TargetDir, CopyParam, Params, OperationProgress,
-        Flags, Action, ChildError);
+      SFTPSource(FileName, TargetDir, CopyParam, Params, OperationProgress, Flags);
     }
     catch(Exception & E)
     {
@@ -3834,10 +3807,6 @@ void __fastcall TSFTPFileSystem::SFTPSourceRobust(const AnsiString FileName,
       if (FTerminal->Active ||
           !FTerminal->QueryReopen(&E, ropNoReadDirectory, OperationProgress))
       {
-        if (!ChildError)
-        {
-          FTerminal->RollbackAction(Action, OperationProgress, &E);
-        }
         throw;
       }
     }
@@ -3845,7 +3814,6 @@ void __fastcall TSFTPFileSystem::SFTPSourceRobust(const AnsiString FileName,
     if (Retry)
     {
       OperationProgress->RollbackTransfer();
-      Action.Restart();
       // prevent overwrite and resume confirmations
       // (should not be set for directories!)
       Params |= cpNoConfirmation;
@@ -3858,12 +3826,9 @@ void __fastcall TSFTPFileSystem::SFTPSourceRobust(const AnsiString FileName,
 //---------------------------------------------------------------------------
 void __fastcall TSFTPFileSystem::SFTPSource(const AnsiString FileName,
   const AnsiString TargetDir, const TCopyParamType * CopyParam, int Params,
-  TFileOperationProgressType * OperationProgress, unsigned int Flags,
-  TUploadSessionAction & Action, bool & ChildError)
+  TFileOperationProgressType * OperationProgress, unsigned int Flags)
 {
   FTerminal->LogEvent(FORMAT("File: \"%s\"", (FileName)));
-
-  Action.FileName(ExpandUNCFileName(FileName));
 
   OperationProgress->SetFile(FileName);
 
@@ -3895,7 +3860,6 @@ void __fastcall TSFTPFileSystem::SFTPSource(const AnsiString FileName,
     {
       SFTPDirectorySource(IncludeTrailingBackslash(FileName), TargetDir,
         OpenParams.LocalFileAttrs, CopyParam, Params, OperationProgress, Flags);
-      Action.Cancel();
     }
     else
     {
@@ -3997,7 +3961,7 @@ void __fastcall TSFTPFileSystem::SFTPSource(const AnsiString FileName,
 
               if (!ResumeTransfer)
               {
-                DoDeleteFile(DestPartinalFullName, SSH_FXP_REMOVE);
+                DeleteFile(DestPartinalFullName);
               }
               else
               {
@@ -4057,8 +4021,6 @@ void __fastcall TSFTPFileSystem::SFTPSource(const AnsiString FileName,
         DestFileName = NewFileName;
       }
 
-      Action.Destination(DestFullName);
-
       bool TransferFinished = false;
       __int64 DestWriteOffset = 0;
       TSFTPPacket CloseRequest;
@@ -4066,26 +4028,21 @@ void __fastcall TSFTPFileSystem::SFTPSource(const AnsiString FileName,
       bool SetProperties = (CopyParam->PreserveTime || SetRights);
       TSFTPPacket PropertiesRequest(SSH_FXP_SETSTAT);
       TSFTPPacket PropertiesResponse;
-      TRights Rights;
       if (SetProperties)
       {
         PropertiesRequest.AddPathString(DestFullName, FUtfStrings);
+        unsigned short Rights = 0;
         if (CopyParam->PreserveRights)
         {
           Rights = CopyParam->RemoteFileRights(OpenParams.LocalFileAttrs);
         }
         else if (DoResume && DestFileExists)
         {
-          Rights = DestRights;
-        }
-        else
-        {
-          assert(!SetRights);
+          Rights = DestRights.NumberSet;
         }
 
-        unsigned short RightsNumber = Rights.NumberSet;
         PropertiesRequest.AddProperties(
-          SetRights ? &RightsNumber : NULL, NULL, NULL,
+          SetRights ? &Rights : NULL, NULL, NULL,
           CopyParam->PreserveTime ? &MTime : NULL,
           CopyParam->PreserveTime ? &ATime : NULL,
           NULL, false, FVersion, FUtfStrings);
@@ -4160,7 +4117,7 @@ void __fastcall TSFTPFileSystem::SFTPSource(const AnsiString FileName,
           // shortly after plain transfer completes (eq. !ResumeAllowed)
           if (!TransferFinished && !DoResume && (OpenParams.OverwriteMode == omOverwrite))
           {
-            DoDeleteFile(OpenParams.RemoteFileName, SSH_FXP_REMOVE);
+            DeleteFile(OpenParams.RemoteFileName);
           }
         }
       }
@@ -4178,7 +4135,7 @@ void __fastcall TSFTPFileSystem::SFTPSource(const AnsiString FileName,
             }
             else
             {
-              DoDeleteFile(DestFullName, SSH_FXP_REMOVE);
+              DeleteFile(DestFullName);
             }
           );
         }
@@ -4193,57 +4150,27 @@ void __fastcall TSFTPFileSystem::SFTPSource(const AnsiString FileName,
 
       if (SetProperties)
       {
-        std::auto_ptr<TTouchSessionAction> TouchAction;
-        if (CopyParam->PreserveTime)
+        // when resuming is enabled, the set properties request was not sent yet
+        if (DoResume)
         {
-          TouchAction.reset(new TTouchSessionAction(FTerminal->Log, DestFullName,
-            UnixToDateTime(MTime, FTerminal->SessionData->DSTMode)));
+          SendPacket(&PropertiesRequest);
         }
-        std::auto_ptr<TChmodSessionAction> ChmodAction;
-        // do record chmod only if it was explicitly requested,
-        // not when it was implicitly performed to apply timestamp
-        // of overwritten file to new file
-        if (CopyParam->PreserveRights)
-        {
-          ChmodAction.reset(new TChmodSessionAction(FTerminal->Log, DestFullName, Rights));
-        }
-        try
-        {
-          // when resuming is enabled, the set properties request was not sent yet
-          if (DoResume)
+        bool Resend = false;
+        FILE_OPERATION_LOOP(FMTLOAD(PRESERVE_TIME_PERM_ERROR, (DestFileName)),
+          TSFTPPacket DummyResponse;
+          TSFTPPacket * Response = &PropertiesResponse;
+          if (Resend)
           {
+            PropertiesRequest.Reuse();
             SendPacket(&PropertiesRequest);
+            // ReceiveResponse currently cannot receive twice into same packet,
+            // so DummyResponse is temporary workaround
+            Response = &DummyResponse;
           }
-          bool Resend = false;
-          FILE_OPERATION_LOOP(FMTLOAD(PRESERVE_TIME_PERM_ERROR, (DestFileName)),
-            TSFTPPacket DummyResponse;
-            TSFTPPacket * Response = &PropertiesResponse;
-            if (Resend)
-            {
-              PropertiesRequest.Reuse();
-              SendPacket(&PropertiesRequest);
-              // ReceiveResponse currently cannot receive twice into same packet,
-              // so DummyResponse is temporary workaround
-              Response = &DummyResponse;
-            }
-            Resend = true;
-            ReceiveResponse(&PropertiesRequest, Response, SSH_FXP_STATUS,
-              asOK | FLAGMASK(CopyParam->IgnorePermErrors, asPermDenied));
-          );
-        }
-        catch(Exception & E)
-        {
-          if (TouchAction.get() != NULL)
-          {
-            TouchAction->Rollback(&E);
-          }
-          if (ChmodAction.get() != NULL)
-          {
-            ChmodAction->Rollback(&E);
-          }
-          ChildError = true;
-          throw;
-        }
+          Resend = true;
+          ReceiveResponse(&PropertiesRequest, Response, SSH_FXP_STATUS,
+            asOK | FLAGMASK(CopyParam->IgnorePermErrors, asPermDenied));
+        );
       }
     }
   }
@@ -4572,39 +4499,34 @@ void __fastcall TSFTPFileSystem::SFTPDirectorySource(const AnsiString DirectoryN
       FindAttrs, SearchRec) == 0);
   );
 
-  try
+  while (FindOK && !OperationProgress->Cancel)
   {
-    while (FindOK && !OperationProgress->Cancel)
+    AnsiString FileName = DirectoryName + SearchRec.Name;
+    try
     {
-      AnsiString FileName = DirectoryName + SearchRec.Name;
-      try
+      if ((SearchRec.Name != ".") && (SearchRec.Name != ".."))
       {
-        if ((SearchRec.Name != ".") && (SearchRec.Name != ".."))
-        {
-          SFTPSourceRobust(FileName, DestFullName, CopyParam, Params, OperationProgress,
-            Flags & ~tfFirstLevel);
-        }
+        SFTPSourceRobust(FileName, DestFullName, CopyParam, Params, OperationProgress,
+          Flags & ~tfFirstLevel);
       }
-      catch (EScpSkipFile &E)
-      {
-        // If ESkipFile occurs, just log it and continue with next file
-        SUSPEND_OPERATION (
-          // here a message to user was displayed, which was not appropriate
-          // when user refused to overwrite the file in subdirectory.
-          // hopefuly it won't be missing in other situations.
-          if (!FTerminal->HandleException(&E)) throw;
-        );
-      }
-
-      FILE_OPERATION_LOOP (FMTLOAD(LIST_DIR_ERROR, (DirectoryName)),
-        FindOK = (FindNext(SearchRec) == 0);
+    }
+    catch (EScpSkipFile &E)
+    {
+      // If ESkipFile occurs, just log it and continue with next file
+      SUSPEND_OPERATION (
+        // here a message to user was displayed, which was not appropriate
+        // when user refused to overwrite the file in subdirectory.
+        // hopefuly it won't be missing in other situations.
+        if (!FTerminal->HandleException(&E)) throw;
       );
-    };
-  }
-  __finally
-  {
-    FindClose(SearchRec);
-  }
+    }
+
+    FILE_OPERATION_LOOP (FMTLOAD(LIST_DIR_ERROR, (DirectoryName)),
+      FindOK = (FindNext(SearchRec) == 0);
+    );
+  };
+
+  FindClose(SearchRec);
 
   /* TODO : Delete also read-only directories. */
   /* TODO : Show error message on failure. */
@@ -4681,16 +4603,12 @@ void __fastcall TSFTPFileSystem::SFTPSinkRobust(const AnsiString FileName,
   // the same in TFTPFileSystem
   bool Retry;
 
-  TDownloadSessionAction Action(FTerminal->Log);
-
   do
   {
     Retry = false;
-    bool ChildError = false;
     try
     {
-      SFTPSink(FileName, File, TargetDir, CopyParam, Params, OperationProgress,
-        Flags, Action, ChildError);
+      SFTPSink(FileName, File, TargetDir, CopyParam, Params, OperationProgress, Flags);
     }
     catch(Exception & E)
     {
@@ -4698,10 +4616,6 @@ void __fastcall TSFTPFileSystem::SFTPSinkRobust(const AnsiString FileName,
       if (FTerminal->Active ||
           !FTerminal->QueryReopen(&E, ropNoReadDirectory, OperationProgress))
       {
-        if (!ChildError)
-        {
-          FTerminal->RollbackAction(Action, OperationProgress, &E);
-        }
         throw;
       }
     }
@@ -4709,7 +4623,6 @@ void __fastcall TSFTPFileSystem::SFTPSinkRobust(const AnsiString FileName,
     if (Retry)
     {
       OperationProgress->RollbackTransfer();
-      Action.Restart();
       assert(File != NULL);
       if (!File->IsDirectory)
       {
@@ -4724,12 +4637,8 @@ void __fastcall TSFTPFileSystem::SFTPSinkRobust(const AnsiString FileName,
 void __fastcall TSFTPFileSystem::SFTPSink(const AnsiString FileName,
   const TRemoteFile * File, const AnsiString TargetDir,
   const TCopyParamType * CopyParam, int Params,
-  TFileOperationProgressType * OperationProgress, unsigned int Flags,
-  TDownloadSessionAction & Action, bool & ChildError)
+  TFileOperationProgressType * OperationProgress, unsigned int Flags)
 {
-
-  Action.FileName(FileName);
-
   AnsiString OnlyFileName = UnixExtractFileName(FileName);
 
   TFileMasks::TParams MaskParams;
@@ -4753,7 +4662,6 @@ void __fastcall TSFTPFileSystem::SFTPSink(const AnsiString FileName,
 
   if (File->IsDirectory)
   {
-    Action.Cancel();
     if (!File->IsSymLink)
     {
       FILE_OPERATION_LOOP (FMTLOAD(NOT_DIRECTORY_ERROR, (DestFullName)),
@@ -4950,8 +4858,6 @@ void __fastcall TSFTPFileSystem::SFTPSink(const AnsiString FileName,
         }
       }
       assert(LocalHandle);
-
-      Action.Destination(ExpandUNCFileName(DestFullName));
 
       DeleteLocalFile = true;
 
@@ -5194,13 +5100,11 @@ void __fastcall TSFTPFileSystem::SFTPSink(const AnsiString FileName,
 
   if (Params & cpDelete)
   {
-    ChildError = true;
     // If file is directory, do not delete it recursively, because it should be
     // empty already. If not, it should not be deleted (some files were
     // skipped or some new files were copied to it, while we were downloading)
     int Params = dfNoRecursive;
     FTerminal->DeleteFile(FileName, File, &Params);
-    ChildError = false;
   }
 }
 //---------------------------------------------------------------------------

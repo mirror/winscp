@@ -425,7 +425,7 @@ TStrings * __fastcall TScript::CreateFileList(TScriptProcParams * Parameters, in
           }
           if (FileList == NULL)
           {
-            FileList = FTerminal->CustomReadDirectoryListing(Directory, false);
+            FileList = FTerminal->ReadDirectoryListing(Directory, false);
             if (FileLists == NULL)
             {
               FileLists = new TStringList();
@@ -433,13 +433,12 @@ TStrings * __fastcall TScript::CreateFileList(TScriptProcParams * Parameters, in
             FileLists->AddObject(Directory, FileList);
           }
 
-          TFileMasks Mask;
-          Mask.SetMask(UnixExtractFileName(FileName));
+          AnsiString Mask = UnixExtractFileName(FileName);
           for (int i = 0; i < FileList->Count; i++)
           {
             TRemoteFile * File = FileList->Files[i];
             if (!File->IsThisDirectory && !File->IsParentDirectory &&
-                Mask.Matches(File->FileName))
+                TFileMasks::SingleMaskMatch(Mask, File->FileName))
             {
               Result->AddObject(FileDirectory + File->FileName,
                 FLAGSET(ListType, fltQueryServer) ? File->Duplicate() : NULL);
@@ -755,15 +754,18 @@ void __fastcall TScript::LsProc(TScriptProcParams * Parameters)
   CheckSession();
 
   AnsiString Directory;
-  TFileMasks Mask;
+  AnsiString Mask;
   if (Parameters->ParamCount > 0)
   {
     Directory = Parameters->Param[1];
-    AnsiString MaskStr = UnixExtractFileName(Directory);
-    if (TFileMasks::IsMask(MaskStr))
+    Mask = UnixExtractFileName(Directory);
+    if (TFileMasks::IsMask(Mask))
     {
-      Mask.SetMask(MaskStr);
       Directory = UnixExtractFilePath(Directory);
+    }
+    else
+    {
+      Mask = "";
     }
   }
 
@@ -772,7 +774,7 @@ void __fastcall TScript::LsProc(TScriptProcParams * Parameters)
     Directory = FTerminal->CurrentDirectory;
   }
 
-  TRemoteFileList * FileList = FTerminal->ReadDirectoryListing(Directory, Mask);
+  TRemoteFileList * FileList = FTerminal->ReadDirectoryListing(Directory, false);
   // on error user may select "skip", then we get NULL
   if (FileList != NULL)
   {
@@ -780,7 +782,11 @@ void __fastcall TScript::LsProc(TScriptProcParams * Parameters)
     {
       for (int i = 0; i < FileList->Count; i++)
       {
-        PrintLine(FileList->Files[i]->ListingStr);
+        TRemoteFile * File = FileList->Files[i];
+        if (Mask.IsEmpty() || TFileMasks::SingleMaskMatch(Mask, File->FileName))
+        {
+          PrintLine(FileList->Files[i]->ListingStr);
+        }
       }
     }
     __finally

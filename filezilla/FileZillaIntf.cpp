@@ -104,7 +104,7 @@ bool __fastcall TFileZillaIntf::Connect(const char * Host, int Port, const char 
   const char * Path, int ServerType, int Pasv, int TimeZoneOffset, int UTF8)
 {
   ASSERT(FFileZillaApi != NULL);
-  ASSERT((ServerType & FZ_SERVERTYPE_HIGHMASK) == FZ_SERVERTYPE_FTP);
+  ASSERT(ServerType == FZ_SERVERTYPE_FTP);
 
   t_server Server;
 
@@ -248,30 +248,6 @@ bool __fastcall TFileZillaIntf::PostMessage(WPARAM wParam, LPARAM lParam)
   return DoPostMessage(Type, wParam, lParam);
 }
 //---------------------------------------------------------------------------
-void __fastcall CopyContact(TFtpsCertificateData::TContact & Dest,
-  const t_SslCertData::t_Contact& Source)
-{
-  Dest.Organization = Source.Organization;
-  Dest.Unit = Source.Unit;
-  Dest.CommonName = Source.CommonName;
-  Dest.Mail = Source.Mail;
-  Dest.Country = Source.Country;
-  Dest.StateProvince = Source.StateProvince;
-  Dest.Town = Source.Town;
-  Dest.Other = Source.Other;
-}
-//---------------------------------------------------------------------------
-void __fastcall CopyValidityTime(TFtpsCertificateData::TValidityTime & Dest,
-  const t_SslCertData::t_validTime& Source)
-{
-  Dest.Year = Source.y;
-  Dest.Month = Source.M;
-  Dest.Day = Source.d;
-  Dest.Hour = Source.h;
-  Dest.Min = Source.m;
-  Dest.Sec = Source.s;
-}
-//---------------------------------------------------------------------------
 bool __fastcall TFileZillaIntf::HandleMessage(WPARAM wParam, LPARAM lParam)
 {
   bool Result;
@@ -294,43 +270,33 @@ bool __fastcall TFileZillaIntf::HandleMessage(WPARAM wParam, LPARAM lParam)
     case FZ_MSG_ASYNCREQUEST:
       if (FZ_MSG_PARAM(wParam) == FZ_ASYNCREQUEST_OVERWRITE)
       {
-        COverwriteRequestData * Data = (COverwriteRequestData *)lParam;
-        ASSERT(Data != NULL);
         int RequestResult;
         char FileName1[MAX_PATH];
-        strncpy(FileName1, Data->FileName1, sizeof(FileName1));
-        FileName1[sizeof(FileName1) - 1] = '\0';
-        Result = HandleAsynchRequestOverwrite(
-          FileName1, sizeof(FileName1), Data->FileName2, Data->path1, Data->path2,
-          Data->size1, Data->size2, Data->time1->GetTime(), Data->time2->GetTime(),
-          (Data->time1->GetHour() != 0) || (Data->time1->GetMinute() != 0),
-          (Data->time2->GetHour() != 0) || (Data->time2->GetMinute() != 0),
-          reinterpret_cast<void*>(Data->pTransferFile->nUserData), RequestResult);
+        COverwriteRequestData * Data = (COverwriteRequestData *)lParam;
+        try
+        {
+          ASSERT(Data != NULL);
+          strncpy(FileName1, Data->FileName1, sizeof(FileName1));
+          FileName1[sizeof(FileName1) - 1] = '\0';
+          Result = HandleAsynchRequestOverwrite(
+            FileName1, sizeof(FileName1), Data->FileName2, Data->path1, Data->path2,
+            Data->size1, Data->size2,
+            (Data->time1 != NULL) ? Data->time1->GetTime() : 0,
+            (Data->time2 != NULL) ? Data->time2->GetTime() : 0,
+            (Data->time1 != NULL) && ((Data->time1->GetHour() != 0) || (Data->time1->GetMinute() != 0)),
+            (Data->time2 != NULL) && ((Data->time2->GetHour() != 0) || (Data->time2->GetMinute() != 0)),
+            reinterpret_cast<void*>(Data->pTransferFile->nUserData), RequestResult);
+        }
+        catch(...)
+        {
+          FFileZillaApi->SetAsyncRequestResult(FILEEXISTS_SKIP, Data);
+          throw;
+        }
+
         if (Result)
         {
           Data->FileName1 = FileName1;
           Result = Check(FFileZillaApi->SetAsyncRequestResult(RequestResult, Data),
-            "setasyncrequestresult");
-        }
-      }
-      else if (FZ_MSG_PARAM(wParam) == FZ_ASYNCREQUEST_VERIFYCERT)
-      {
-        CVerifyCertRequestData * AData = (CVerifyCertRequestData *)lParam;
-        ASSERT(AData != NULL);
-        int RequestResult;
-        TFtpsCertificateData Data;
-        CopyContact(Data.Subject, AData->pCertData->subject);
-        CopyContact(Data.Issuer, AData->pCertData->issuer);
-        CopyValidityTime(Data.ValidFrom, AData->pCertData->validFrom);
-        CopyValidityTime(Data.ValidUntil, AData->pCertData->validUntil);
-        Data.Hash = AData->pCertData->hash;
-        Data.VerificationResult = AData->pCertData->verificationResult;
-        Data.VerificationDepth = AData->pCertData->verificationDepth;
-        
-        Result = HandleAsynchRequestVerifyCertificate(Data, RequestResult);
-        if (Result)
-        {
-          Result = Check(FFileZillaApi->SetAsyncRequestResult(RequestResult, AData),
             "setasyncrequestresult");
         }
       }
@@ -339,6 +305,7 @@ bool __fastcall TFileZillaIntf::HandleMessage(WPARAM wParam, LPARAM lParam)
         // FZ_ASYNCREQUEST_GSS_AUTHFAILED
         // FZ_ASYNCREQUEST_GSS_NEEDUSER
         // FZ_ASYNCREQUEST_GSS_NEEDPASS
+        // FZ_ASYNCREQUEST_VERIFYCERT
         ASSERT(FALSE);
         Result = false;
       }
@@ -401,10 +368,6 @@ bool __fastcall TFileZillaIntf::HandleMessage(WPARAM wParam, LPARAM lParam)
       Result = HandleReply(FZ_MSG_PARAM(wParam), lParam);
       break;
 
-    case FZ_MSG_CAPABILITIES:
-      Result = HandleCapabilities(lParam & FZ_CAPABILITIES_MFMT);
-      break;
-      
     case FZ_MSG_SOCKETSTATUS:
     case FZ_MSG_SECURESERVER:
     case FZ_MSG_QUITCOMPLETE:

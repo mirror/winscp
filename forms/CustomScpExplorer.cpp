@@ -280,8 +280,6 @@ __fastcall TCustomScpExplorerForm::~TCustomScpExplorerForm()
     SAFE_DESTROY(FDelayedDeletionTimer);
   }
   SAFE_DESTROY(FDelayedDeletionList);
-  // sometimes we do not get DDEnd so the list is not released
-  SAFE_DESTROY(FDDFileList);
 
   assert(FSynchronizeController == NULL);
 
@@ -1734,7 +1732,7 @@ void __fastcall TCustomScpExplorerForm::EditNew(TOperationSide Side)
     }
 
     TExecuteFileBy ExecuteFileBy = efDefaultEditor;
-    const TEditorData * ExternalEditor = NULL;
+    const TEditorPreferences * ExternalEditor = NULL;
     TFileMasks::TParams MaskParams; // size not known
     ExecuteFileNormalize(ExecuteFileBy, ExternalEditor, TargetFileName,
       false, MaskParams);
@@ -1745,24 +1743,24 @@ void __fastcall TCustomScpExplorerForm::EditNew(TOperationSide Side)
 }
 //---------------------------------------------------------------------------
 bool __fastcall TCustomScpExplorerForm::RemoteExecuteForceText(
-  TExecuteFileBy ExecuteFileBy, const TEditorData * ExternalEditor)
+  TExecuteFileBy ExecuteFileBy, const TEditorPreferences * ExternalEditor)
 {
   assert((ExecuteFileBy == efExternalEditor) ==
-    ((ExternalEditor != NULL) && (ExternalEditor->Editor == edExternal)));
+    ((ExternalEditor != NULL) && (ExternalEditor->Data.Editor == edExternal)));
   assert(ExecuteFileBy != efDefaultEditor);
 
   return
     ((ExecuteFileBy == efInternalEditor)) ||
-    ((ExecuteFileBy == efExternalEditor) && ExternalEditor->ExternalEditorText);
+    ((ExecuteFileBy == efExternalEditor) && ExternalEditor->Data.ExternalEditorText);
 }
 //---------------------------------------------------------------------------
 void __fastcall TCustomScpExplorerForm::CustomExecuteFile(TOperationSide Side,
   TExecuteFileBy ExecuteFileBy, AnsiString FileName, AnsiString OriginalFileName,
-  const TEditorData * ExternalEditor, AnsiString LocalRootDirectory)
+  const TEditorPreferences * ExternalEditor, AnsiString LocalRootDirectory)
 {
   assert(!WinConfiguration->DisableOpenEdit);
   assert((ExecuteFileBy == efExternalEditor) ==
-    ((ExternalEditor != NULL) && (ExternalEditor->Editor == edExternal)));
+    ((ExternalEditor != NULL) && (ExternalEditor->Data.Editor == edExternal)));
   assert(ExecuteFileBy != efDefaultEditor);
 
   Side = GetSide(Side);
@@ -1803,7 +1801,7 @@ void __fastcall TCustomScpExplorerForm::CustomExecuteFile(TOperationSide Side,
     if (ExecuteFileBy == efExternalEditor)
     {
       AnsiString Program, Params, Dir;
-      Data.Command = ExternalEditor->ExternalEditor;
+      Data.Command = ExternalEditor->Data.ExternalEditor;
       ReformatFileNameCommand(Data.Command);
       SplitCommand(Data.Command, Program, Params, Dir);
       Params = ExpandFileNameCommand(Params, FileName);
@@ -1822,10 +1820,8 @@ void __fastcall TCustomScpExplorerForm::CustomExecuteFile(TOperationSide Side,
     }
 
     if ((Side == osLocal) ||
-        ((ExecuteFileBy == efShell) &&
-         !WinConfiguration->Editor.SDIShellEditor) ||
         ((ExecuteFileBy == efExternalEditor) &&
-         !ExternalEditor->SDIExternalEditor))
+         ExternalEditor->Data.MDIExternalEditor))
     {
       // no need for handle
       if (Process != NULL)
@@ -1838,7 +1834,7 @@ void __fastcall TCustomScpExplorerForm::CustomExecuteFile(TOperationSide Side,
     {
       if (Process == NULL)
       {
-        throw ExtException(LoadStr(OPEN_FILE_NO_PROCESS2), "", HELP_OPEN_FILE_NO_PROCESS);
+        throw Exception(LoadStr(OPEN_FILE_NO_PROCESS2));
       }
     }
 
@@ -1883,7 +1879,6 @@ void __fastcall TCustomScpExplorerForm::TemporarilyDownloadFiles(
   // do not forget to add additional options to ExecutedFileChanged, FAR and SS
   CopyParam.FileNameCase = ncNoChange;
   CopyParam.PreserveReadOnly = false;
-  CopyParam.ResumeSupport = rsOff;
   CopyParam.ReplaceInvalidChars = true;
   CopyParam.FileMask = "";
   if (AllFiles)
@@ -1937,38 +1932,31 @@ void __fastcall TCustomScpExplorerForm::TemporarilyDownloadFiles(
 }
 //---------------------------------------------------------------------------
 void __fastcall TCustomScpExplorerForm::ExecuteFileNormalize(
-  TExecuteFileBy & ExecuteFileBy, const TEditorData *& ExternalEditor,
+  TExecuteFileBy & ExecuteFileBy, const TEditorPreferences *& ExternalEditor,
   const AnsiString & FileName, bool Local, const TFileMasks::TParams & MaskParams)
 {
   if (ExecuteFileBy == efDefaultEditor)
   {
-    const TEditorPreferences * Editor =
-      WinConfiguration->DefaultEditorForFile(FileName, Local, MaskParams);
-    if ((Editor == NULL) || (Editor->Data->Editor == edInternal))
+    ExternalEditor = WinConfiguration->DefaultEditorForFile(FileName, Local, MaskParams);
+    if ((ExternalEditor == NULL) || (ExternalEditor->Data.Editor == edInternal))
     {
       ExecuteFileBy = efInternalEditor;
-      ExternalEditor = NULL;
-    }
-    else if (Editor->Data->Editor == edOpen)
-    {
-      ExecuteFileBy = efShell;
       ExternalEditor = NULL;
     }
     else
     {
       ExecuteFileBy = efExternalEditor;
-      ExternalEditor = Editor->Data;
     }
   }
 }
 //---------------------------------------------------------------------------
 void __fastcall TCustomScpExplorerForm::ExecuteFile(TOperationSide Side,
-  TExecuteFileBy ExecuteFileBy, const TEditorData * ExternalEditor,
+  TExecuteFileBy ExecuteFileBy, const TEditorPreferences * ExternalEditor,
   bool AllSelected, bool OnFocused)
 {
   assert(!WinConfiguration->DisableOpenEdit);
   assert((ExecuteFileBy == efExternalEditor) ==
-    ((ExternalEditor != NULL) && (ExternalEditor->Editor == edExternal)));
+    ((ExternalEditor != NULL) && (ExternalEditor->Data.Editor == edExternal)));
 
   Side = GetSide(Side);
 
@@ -2081,7 +2069,6 @@ void __fastcall TCustomScpExplorerForm::ExecutedFileChanged(const AnsiString Fil
     // do not forget to add additional options to TemporarilyDownloadFiles, FAR and SS
     CopyParam.FileNameCase = ncNoChange;
     CopyParam.PreserveRights = false;
-    CopyParam.ResumeSupport = rsOff;
     // so i do not need to worry if masking algorithm works in all cases
     // ("" means "copy file name", no masking is actually done)
     if (ExtractFileName(FileName) == Data.OriginalFileName)
@@ -2171,14 +2158,14 @@ void __fastcall TCustomScpExplorerForm::ExecutedFileEarlyClosed(
       for (int i = 0; i < EditorList->Count; i++)
       {
         const TEditorPreferences * Editor = EditorList->Editors[i];
-        if ((Editor->Data->Editor == edExternal) &&
-            (Editor->Data->ExternalEditor == Data.Command))
+        if ((Editor->Data.Editor == edExternal) &&
+            (Editor->Data.ExternalEditor == Data.Command))
         {
           AnyFound = true;
-          if (Editor->Data->SDIExternalEditor)
+          if (!Editor->Data.MDIExternalEditor)
           {
             AnyNonMDI = true;
-            if (Editor->Data->DetectMDIExternalEditor)
+            if (Editor->Data.DetectMDIExternalEditor)
             {
               AnyDetect = true;
             }
@@ -2215,10 +2202,11 @@ void __fastcall TCustomScpExplorerForm::ExecutedFileEarlyClosed(
         TMessageParams Params;
         if (AnyFound)
         {
-          // there is at least one instance of the editor
+          // there is at least one instance of the editor with enabled
+          // MDI autodetection
           Params.Params |= mpNeverAskAgainCheck;
         }
-        int Answer = MessageDialog(FMTLOAD(EDITOR_EARLY_CLOSED2, (Data.OriginalFileName)), qtWarning,
+        int Answer = MessageDialog(FMTLOAD(EDITOR_EARLY_CLOSED, (Data.OriginalFileName)), qtWarning,
           qaYes | qaNo, HELP_EDITOR_EARLY_CLOSED, &Params);
         switch (Answer)
         {
@@ -2239,20 +2227,20 @@ void __fastcall TCustomScpExplorerForm::ExecutedFileEarlyClosed(
         for (int i = 0; i < EditorList->Count; i++)
         {
           const TEditorPreferences * Editor = EditorList->Editors[i];
-          if ((Editor->Data->Editor == edExternal) &&
-              (Editor->Data->ExternalEditor == Data.Command) &&
-              ((EnableMDI && Editor->Data->SDIExternalEditor) ||
-               (DisableDetect && Editor->Data->DetectMDIExternalEditor)))
+          if ((Editor->Data.Editor == edExternal) &&
+              (Editor->Data.ExternalEditor == Data.Command) &&
+              ((EnableMDI && !Editor->Data.MDIExternalEditor) ||
+               (DisableDetect && Editor->Data.DetectMDIExternalEditor)))
           {
             Changed = true;
             TEditorPreferences * UpdatedEditor = new TEditorPreferences(*Editor);
             if (EnableMDI)
             {
-              UpdatedEditor->GetData()->SDIExternalEditor = false;
+              UpdatedEditor->Data.MDIExternalEditor = true;
             }
             if (DisableDetect)
             {
-              UpdatedEditor->GetData()->DetectMDIExternalEditor = false;
+              UpdatedEditor->Data.DetectMDIExternalEditor = false;
             }
             EditorList->Change(i, UpdatedEditor);
           }
@@ -2577,96 +2565,32 @@ void __fastcall TCustomScpExplorerForm::SetProperties(TOperationSide Side, TStri
 {
   if (Side == osRemote)
   {
-    TRemoteTokenList * GroupList = NULL;
-    TRemoteTokenList * UserList = NULL;
+    TRemoteProperties CurrentProperties;
 
-    try
+    if (Terminal->LoadFilesProperties(FileList))
     {
-      TRemoteProperties CurrentProperties;
-
-      if (Terminal->LoadFilesProperties(FileList))
-      {
-        RemoteDirView->Invalidate();
-      }
-
-      bool CapableGroupChanging = Terminal->IsCapable[fcGroupChanging];
-      bool CapableOwnerChanging = Terminal->IsCapable[fcOwnerChanging];
-      if (CapableGroupChanging || CapableOwnerChanging)
-      {
-        if (CapableGroupChanging)
-        {
-          GroupList = Terminal->Groups->Duplicate();
-        }
-        if (CapableOwnerChanging)
-        {
-          UserList = Terminal->Users->Duplicate();
-        }
-        TRemoteDirectory * Files = Terminal->Files;
-        int Count = Files->Count;
-        if (Count > 100)
-        {
-          Count = 100;
-        }
-        for (int Index = 0; Index < Count; Index++)
-        {
-          TRemoteFile * File = Files->Files[Index];
-          if (CapableGroupChanging)
-          {
-            GroupList->AddUnique(File->Group);
-          }
-          if (CapableOwnerChanging)
-          {
-            UserList->AddUnique(File->Owner);
-          }
-        }
-
-        // if we haven't collected tokens for all file sin current directory,
-        // make sure we collect all at elast for all selected files.
-        // (note that so far the files in FileList has to be from current direcotry)
-        if (Count < Files->Count)
-        {
-          for (int Index = 0; Index < FileList->Count; Index++)
-          {
-            TRemoteFile * File = (TRemoteFile *)(FileList->Objects[Index]);
-            if (CapableGroupChanging)
-            {
-              GroupList->AddUnique(File->Group);
-            }
-            if (CapableOwnerChanging)
-            {
-              UserList->AddUnique(File->Owner);
-            }
-          }
-        }
-      }
-
-      CurrentProperties = TRemoteProperties::CommonProperties(FileList);
-
-      int Flags = 0;
-      if (Terminal->IsCapable[fcModeChanging]) Flags |= cpMode;
-      if (CapableOwnerChanging) Flags |= cpOwner;
-      if (CapableGroupChanging) Flags |= cpGroup;
-
-      TCalculateChecksumEvent CalculateChecksumEvent = NULL;
-      if (Terminal->IsCapable[fcCalculatingChecksum])
-      {
-        CalculateChecksumEvent = CalculateChecksum;
-      }
-
-      TRemoteProperties NewProperties = CurrentProperties;
-      if (DoPropertiesDialog(FileList, RemoteDirView->PathName,
-          GroupList, UserList, &NewProperties, Flags,
-          Terminal->IsCapable[fcGroupOwnerChangingByID],
-          CalculateSize, CalculateChecksumEvent))
-      {
-        NewProperties = TRemoteProperties::ChangedProperties(CurrentProperties, NewProperties);
-        Terminal->ChangeFilesProperties(FileList, &NewProperties);
-      }
+      RemoteDirView->Invalidate();
     }
-    __finally
+    CurrentProperties = TRemoteProperties::CommonProperties(FileList);
+
+    int Flags = 0;
+    if (Terminal->IsCapable[fcModeChanging]) Flags |= cpMode;
+    if (Terminal->IsCapable[fcOwnerChanging]) Flags |= cpOwner;
+    if (Terminal->IsCapable[fcGroupChanging]) Flags |= cpGroup;
+
+    TCalculateChecksumEvent CalculateChecksumEvent = NULL;
+    if (Terminal->IsCapable[fcCalculatingChecksum])
     {
-      delete GroupList;
-      delete UserList;
+      CalculateChecksumEvent = CalculateChecksum;
+    }
+
+    TRemoteProperties NewProperties = CurrentProperties;
+    if (DoPropertiesDialog(FileList, RemoteDirView->PathName,
+        Terminal->Groups, Terminal->Users, &NewProperties, Flags,
+        CalculateSize, CalculateChecksumEvent))
+    {
+      NewProperties = TRemoteProperties::ChangedProperties(CurrentProperties, NewProperties);
+      Terminal->ChangeFilesProperties(FileList, &NewProperties);
     }
   }
   else
@@ -3344,6 +3268,15 @@ void __fastcall TCustomScpExplorerForm::DoSynchronize(
         PParams |= TTerminal::spNoRecurse | TTerminal::spUseCache |
           TTerminal::spDelayProgress | TTerminal::spSubDirs;
       }
+      else
+      {
+        // if keepuptodate is non-recursive,
+        // full sync before has to be non-recursive as well
+        if (FLAGCLEAR(Params.Options, soRecurse))
+        {
+          PParams |= TTerminal::spNoRecurse;
+        }
+      }
       Synchronize(LocalDirectory, RemoteDirectory, smRemote, CopyParam,
         PParams, Checklist, Options);
     }
@@ -3770,33 +3703,9 @@ TStrings * __fastcall TCustomScpExplorerForm::CreateVisitedDirectories(TOperatio
 void __fastcall TCustomScpExplorerForm::DoOpenDirectoryDialog(
   TOpenDirectoryMode Mode, TOperationSide Side)
 {
-  bool Continue = true;
-  if (Mode == odAddBookmark)
-  {
-    TMessageParams Params(mpNeverAskAgainCheck);
-    Params.NewerAskAgainTitle = LoadStr(ADD_BOOKMARK_SHARED);
-    Params.NewerAskAgainCheckedInitially = WinConfiguration->UseSharedBookmarks;
-
-    int Answer =
-      MessageDialog(FMTLOAD(ADD_BOOKMARK_CONFIRM, (DirView(Side)->PathName)),
-        qtConfirmation, qaYes | qaNo, HELP_ADD_BOOKMARK_CONFIRM, &Params);
-    if (Answer == qaNeverAskAgain)
-    {
-      Continue = true;
-      WinConfiguration->UseSharedBookmarks = true;
-    }
-    else if (Answer == qaYes)
-    {
-      Continue = true;
-      WinConfiguration->UseSharedBookmarks = false;
-    }
-    else
-    {
-      Continue = false;
-    }
-  }
-
-  if (Continue)
+  if (Mode != odAddBookmark ||
+      (MessageDialog(FMTLOAD(ADD_BOOKMARK_CONFIRM, (DirView(Side)->PathName)),
+        qtConfirmation, qaYes | qaNo, HELP_ADD_BOOKMARK_CONFIRM) == qaYes))
   {
     TStrings * VisitedDirectories = CreateVisitedDirectories(Side);
     try
@@ -3979,51 +3888,6 @@ void __fastcall TCustomScpExplorerForm::ExecuteCurrentFile()
   __finally
   {
     FForceExecution = false;
-  }
-}
-//---------------------------------------------------------------------------
-void __fastcall TCustomScpExplorerForm::ExecuteCurrentFileWith()
-{
-  TEditorData ExternalEditor;
-  ExternalEditor.Editor = edExternal;
-  bool Remember = false;
-
-  if (DoEditorPreferencesDialog(&ExternalEditor, Remember, epmAdHoc,
-        (GetSide(osCurrent) == osRemote)))
-  {
-    if (Remember)
-    {
-      TEditorList * EditorList = new TEditorList;
-      try
-      {
-        *EditorList = *WinConfiguration->EditorList;
-
-        bool Found = false;
-        int i = 0;
-        while (!Found && (i < EditorList->Count))
-        {
-          const TEditorPreferences * Editor = EditorList->Editors[i];
-          if ((Editor->Data->Editor == edExternal) &&
-              (Editor->Data->ExternalEditor == ExternalEditor.ExternalEditor))
-          {
-            Found = true;
-          }
-          i++;
-        }
-
-        if (!Found)
-        {
-          EditorList->Add(new TEditorPreferences(ExternalEditor));
-          WinConfiguration->EditorList = EditorList;
-        }
-      }
-      __finally
-      {
-        delete EditorList;
-      }
-    }
-
-    ExecuteFile(osCurrent, efExternalEditor, &ExternalEditor, true, false);
   }
 }
 //---------------------------------------------------------------------------
@@ -4363,34 +4227,37 @@ void __fastcall TCustomScpExplorerForm::DoShow()
 void __fastcall TCustomScpExplorerForm::PopupTrayBalloon(TTerminal * Terminal,
   const AnsiString & Str, TQueryType Type, Exception * E, unsigned int Seconds)
 {
-  bool Do;
-  AnsiString Message;
-  if (E == NULL)
+  if (WinConfiguration->BalloonNotifications &&
+      (dynamic_cast<EAbort*>(E) == NULL))
   {
-    Message = Str;
-    Do = true;
-  }
-  else
-  {
-    Do = ExceptionMessage(E, Message);
-  }
-
-  if (Do && WinConfiguration->BalloonNotifications)
-  {
-    const ResourceString * Captions[] = { &_SMsgDlgConfirm, &_SMsgDlgWarning,
-      &_SMsgDlgError, &_SMsgDlgInformation, NULL };
-    AnsiString Title = LoadResourceString(Captions[Type]);
-    if (Terminal != NULL)
+    AnsiString Message;
+    if (E == NULL)
     {
-      Title = FORMAT("%s - %s",
-        (TTerminalManager::Instance()->TerminalTitle(Terminal), Title));
+      Message = Str;
+    }
+    else
+    {
+      assert(Str.IsEmpty());
+      Message = E->Message;
     }
 
-    if (Seconds == 0)
+    if (!Message.IsEmpty())
     {
-      Seconds = WinConfiguration->NotificationsTimeout;
+      const ResourceString * Captions[] = { &_SMsgDlgConfirm, &_SMsgDlgWarning,
+        &_SMsgDlgError, &_SMsgDlgInformation, NULL };
+      AnsiString Title = LoadResourceString(Captions[Type]);
+      if (Terminal != NULL)
+      {
+        Title = FORMAT("%s - %s",
+          (TTerminalManager::Instance()->TerminalTitle(Terminal), Title));
+      }
+
+      if (Seconds == 0)
+      {
+        Seconds = WinConfiguration->NotificationsTimeout;
+      }
+      FTrayIcon->PopupBalloon(Title, Message, Type, Seconds * 1000);
     }
-    FTrayIcon->PopupBalloon(Title, Message, Type, Seconds * 1000);
   }
 }
 //---------------------------------------------------------------------------
@@ -4472,13 +4339,18 @@ void __fastcall TCustomScpExplorerForm::Notify(TTerminal * Terminal,
   AnsiString Message, TQueryType Type,
   bool Important, TNotifyEvent OnClick, Exception * E)
 {
-  if ((E == NULL) ||
-      ExceptionMessage(E, Message))
+  if (dynamic_cast<EAbort*>(E) == NULL)
   {
     unsigned int Seconds = WinConfiguration->NotificationsTimeout;
     if (Important)
     {
       Seconds *= 5;
+    }
+
+    if (E != NULL)
+    {
+      assert(Message.IsEmpty());
+      Message = E->Message;
     }
 
     AnsiString NoteMessage(Message);
@@ -4795,7 +4667,7 @@ void __fastcall TCustomScpExplorerForm::RemoteFileControlDDTargetDrop()
   {
     TTransferOperationParam Param;
     Param.DragDrop = true;
-    // when move from remote side is disabled, we allow copying inside the remote
+    // when move from remote side is disabled, we allow coying inside the remote
     // panel, but we interpret is as moving (we also slip in the move cursor)
     if ((FLastDropEffect == DROPEFFECT_MOVE) ||
         (!WinConfiguration->DDAllowMoveInit && (FLastDropEffect == DROPEFFECT_COPY) &&
@@ -4996,18 +4868,6 @@ void __fastcall TCustomScpExplorerForm::PanelExportStore(TOperationSide /*Side*/
   else
   {
     assert(false);
-  }
-}
-//---------------------------------------------------------------------------
-void __fastcall TCustomScpExplorerForm::Filter(TOperationSide Side)
-{
-  TCustomDirView * DirView = this->DirView(Side);
-  TFileFilter Filter;
-  DefaultFileFilter(Filter);
-  Filter.Masks = DirView->Mask;
-  if (DoFilterMaskDialog(DirView, &Filter))
-  {
-    DirView->Mask = TFileMasks::NormalizeMask(Filter.Masks);
   }
 }
 //---------------------------------------------------------------------------
@@ -5294,8 +5154,6 @@ void __fastcall TCustomScpExplorerForm::RemoteFileControlDDDragDetect(
   TObject * /*Sender*/, int /*grfKeyState*/, const TPoint & /*DetectStart*/,
   const TPoint & /*Point*/, TDragDetectStatus /*DragStatus*/)
 {
-  // sometimes we do not get DDEnd so the list is not released
-  SAFE_DESTROY(FDDFileList);
   FDDFileList = new TStringList();
   FDragTempDir = WinConfiguration->TemporaryDir();
   FDDTotalSize = 0;
@@ -5341,9 +5199,8 @@ void __fastcall TCustomScpExplorerForm::DirViewMatchMask(
 {
   TFileMasks::TParams MaskParams;
   MaskParams.Size = Size;
-  // this does not re-parse the mask if it is the same as the last time
-  FDirViewMatchMask = Masks;
-  Matches = FDirViewMatchMask.Matches(FileName, Directory, AnsiString(""), &MaskParams);
+  TFileMasks M(Masks);
+  Matches = M.Matches(FileName, Directory, AnsiString(""), &MaskParams);
 }
 //---------------------------------------------------------------------------
 void __fastcall TCustomScpExplorerForm::RemoteDirViewGetOverlay(
@@ -5397,32 +5254,12 @@ void __fastcall TCustomScpExplorerForm::FileListFromClipboard()
 AnsiString __fastcall TCustomScpExplorerForm::FileStatusBarText(
   const TStatusFileInfo & FileInfo)
 {
-  AnsiString Result =
+  return
     FMTLOAD(FILE_INFO_FORMAT,
       (FormatBytes(FileInfo.SelectedSize),
        FormatBytes(FileInfo.FilesSize),
        FormatFloat("#,##0", FileInfo.SelectedCount),
        FormatFloat("#,##0", FileInfo.FilesCount)));
-
-  if ((FileInfo.HiddenCount > 0) || (FileInfo.FilteredCount > 0))
-  {
-    AnsiString Ex;
-    if (FileInfo.HiddenCount > 0)
-    {
-      Ex = FMTLOAD(FILE_INFO_HIDDEN, (FileInfo.HiddenCount));
-    }
-    if (FileInfo.FilteredCount > 0)
-    {
-      if (!Ex.IsEmpty())
-      {
-        Ex += " + ";
-      }
-      Ex += FMTLOAD(FILE_INFO_FILTERED, (FileInfo.FilteredCount));
-    }
-    Result = FMTLOAD(FILE_INFO_FORMAT_EX, (Result, Ex));
-  }
-
-  return Result;
 }
 //---------------------------------------------------------------------------
 void __fastcall TCustomScpExplorerForm::UpdateFileStatusBar(

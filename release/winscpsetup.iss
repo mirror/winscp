@@ -7,7 +7,7 @@
 #define WebForum WebRoot+"forum/"
 #define WebDocumentation WebRoot+"eng/docs/"
 #define WebPuTTY "http://www.chiark.greenend.org.uk/~sgtatham/putty/"
-#define Year 2008
+#define Year 2009
 #define EnglishLang "English"
 #define SetupTypeData "SetupType"
 #define InnoSetupReg "Software\Microsoft\Windows\CurrentVersion\Uninstall\" + AppId + "_is1"
@@ -367,7 +367,7 @@ var
   Upgrade: Boolean;
   MissingTranslations: string;
 
-function IsLang(Lang: string): Boolean;
+function IsLang(Lang: String): Boolean;
 begin
   Result := (Lang = ActiveLanguage);
 end;
@@ -386,7 +386,7 @@ begin
   end;
 end;
 
-function LanguageName(Lang: string; Unknown: string): string;
+function LanguageName(Lang: String; Unknown: String): String;
 begin
   #sub EmitLang2
   if Lang = '{#Languages[LangI*4]}' then Result := '{#Languages[LangI*4+1]}'
@@ -398,7 +398,7 @@ begin
   Result := Unknown;
 end;
 
-function ContainsLanguage(Lang: string): Boolean;
+function ContainsLanguage(Lang: String): Boolean;
 begin
   #sub EmitLang3
     #if Languages[LangI*4+3] == 1
@@ -491,7 +491,6 @@ end;
 
 procedure InitializeWizard;
 var
-  DefaultLang: Boolean;
   UserInterface: Cardinal;
   AdvancedTabs: Cardinal;
   UpdatesPeriod: Cardinal;
@@ -499,10 +498,8 @@ var
   SetupTypePage: TWizardPage;
   Caption: TLabel;
   HelpButton: TButton;
-  S: string;
+  S: String;
 begin
-  DefaultLang := (ActiveLanguage = '{#DefaultLang}');
-
   Upgrade :=
     RegQueryStringValue(HKLM, '{#InnoSetupReg}', '{#InnoSetupAppPathReg}', S) or
     RegQueryStringValue(HKCU, '{#InnoSetupReg}', '{#InnoSetupAppPathReg}', S)
@@ -572,7 +569,7 @@ begin
   Caption.WordWrap := True;
   if not Upgrade then
   begin
-    if DefaultLang then
+    if ActiveLanguage = '{#DefaultLang}' then
       S := ExpandConstant('{cm:TypicalType2Eng}')
     else
       S := FmtMessage(ExpandConstant('{cm:TypicalType2Intl}'), [LanguageName(ActiveLanguage, 'Unknown')]);
@@ -661,7 +658,7 @@ begin
   Caption.Parent := InterfacePage.Surface;
 
   CommanderRadioButton := TRadioButton.Create(InterfacePage);
-  CommanderRadioButton.Caption := ExpandConstant('{cm:NortonCommanderInterfaceB}');
+  CommanderRadioButton.Caption := ExpandConstant('{cm:NortonCommanderInterface}');
   CommanderRadioButton.Checked := (UserInterface = 0);
   CommanderRadioButton.Left := ScaleX(4);
   CommanderRadioButton.Width := InterfacePage.SurfaceWidth -
@@ -684,7 +681,7 @@ begin
   Caption.OnClick := @CaptionClick;
 
   ExplorerRadioButton := TRadioButton.Create(InterfacePage);
-  ExplorerRadioButton.Caption := ExpandConstant('{cm:ExplorerInterfaceB}');
+  ExplorerRadioButton.Caption := ExpandConstant('{cm:ExplorerInterface}');
   ExplorerRadioButton.Checked := (UserInterface <> 0);
   ExplorerRadioButton.Left := ScaleX(4);
   ExplorerRadioButton.Width := InterfacePage.SurfaceWidth -
@@ -725,7 +722,7 @@ end;
 
 procedure RegisterPreviousData(PreviousDataKey: Integer);
 var
-  S: string;
+  S: String;
 begin
   if TypicalTypeButton.Checked then S := 'typical'
     else S := 'custom';
@@ -767,10 +764,10 @@ begin
 end;
 
 function UpdateReadyMemo(Space, NewLine, MemoUserInfoInfo, MemoDirInfo,
-  MemoTypeInfo, MemoComponentsInfo, MemoGroupInfo, MemoTasksInfo: string): string;
+  MemoTypeInfo, MemoComponentsInfo, MemoGroupInfo, MemoTasksInfo: String): String;
 var
-  S: string;
-  S2: string;
+  S: String;
+  S2: String;
 begin
   S := '';
 
@@ -799,8 +796,8 @@ begin
 
   S := S + ExpandConstant('{cm:UserSettingsOverview}') + NewLine;
   S := S + Space;
-  if CommanderRadioButton.Checked then S2 := ExpandConstant('{cm:NortonCommanderInterfaceB}')
-    else S2 := ExpandConstant('{cm:ExplorerInterfaceB}');
+  if CommanderRadioButton.Checked then S2 := ExpandConstant('{cm:NortonCommanderInterface}')
+    else S2 := ExpandConstant('{cm:ExplorerInterface}');
   StringChange(S2, '&', '');
   S := S + S2;
   S := S + NewLine;

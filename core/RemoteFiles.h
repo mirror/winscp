@@ -2,9 +2,6 @@
 #ifndef RemoteFilesH
 #define RemoteFilesH
 //---------------------------------------------------------------------------
-#include <vector>
-#include <map>
-//---------------------------------------------------------------------------
 enum TModificationFmt { mfNone, mfMDHM, mfMDY, mfFull };
 //---------------------------------------------------------------------------
 #define SYMLINKSTR " -> "
@@ -20,76 +17,18 @@ class TRights;
 class TRemoteFileList;
 class THierarchicalStorage;
 //---------------------------------------------------------------------------
-class TRemoteToken
-{
-public:
-  __fastcall TRemoteToken();
-  explicit __fastcall TRemoteToken(const AnsiString & Name);
-
-  void __fastcall Clear();
-
-  bool __fastcall operator ==(const TRemoteToken & rht) const;
-  bool __fastcall operator !=(const TRemoteToken & rht) const;
-  TRemoteToken & __fastcall operator =(const TRemoteToken & rht);
-
-  int __fastcall Compare(const TRemoteToken & rht) const;
-
-  __property AnsiString Name = { read = FName, write = FName };
-  __property bool NameValid = { read = GetNameValid };
-  __property unsigned int ID = { read = FID, write = SetID };
-  __property bool IDValid = { read = FIDValid };
-  __property bool IsSet  = { read = GetIsSet };
-  __property AnsiString LogText = { read = GetLogText };
-  __property AnsiString DisplayText = { read = GetDisplayText };
-
-private:
-  AnsiString FName;
-  unsigned int FID;
-  bool FIDValid;
-
-  void __fastcall SetID(unsigned int value);
-  bool __fastcall GetNameValid() const;
-  bool __fastcall GetIsSet() const;
-  AnsiString __fastcall GetDisplayText() const;
-  AnsiString __fastcall GetLogText() const;
-};
-//---------------------------------------------------------------------------
-class TRemoteTokenList
-{
-public:
-  TRemoteTokenList * __fastcall Duplicate() const;
-  void __fastcall Clear();
-  void __fastcall Add(const TRemoteToken & Token);
-  void __fastcall AddUnique(const TRemoteToken & Token);
-  bool __fastcall Exists(const AnsiString & Name) const;
-  const TRemoteToken * Find(unsigned int ID) const;
-  const TRemoteToken * Find(const AnsiString & Name) const;
-  void __fastcall Log(TTerminal * Terminal, const char * Title);
-
-  int __fastcall Count() const;
-  const TRemoteToken * __fastcall Token(int Index) const;
-
-private:
-  typedef std::vector<TRemoteToken> TTokens;
-  typedef std::map<AnsiString, size_t> TNameMap;
-  typedef std::map<unsigned int, size_t> TIDMap;
-  TTokens FTokens;
-  TNameMap FNameMap;
-  TIDMap FIDMap;
-};
-//---------------------------------------------------------------------------
 class TRemoteFile : public TPersistent
 {
 private:
   TRemoteFileList * FDirectory;
-  TRemoteToken FOwner;
+  AnsiString FOwner;
   TModificationFmt FModificationFmt;
   __int64 FSize;
   AnsiString FFileName;
   Integer FINodeBlocks;
   TDateTime FModification;
   TDateTime FLastAccess;
-  TRemoteToken FGroup;
+  AnsiString FGroup;
   Integer FIconIndex;
   Boolean FIsSymLink;
   TRemoteFile * FLinkedFile;
@@ -146,8 +85,8 @@ public:
   __property TRemoteFileList * Directory = { read = FDirectory, write = FDirectory };
   __property AnsiString RightsStr = { read = GetRightsStr };
   __property __int64 Size = { read = FSize, write = FSize };
-  __property TRemoteToken Owner = { read = FOwner, write = FOwner };
-  __property TRemoteToken Group = { read = FGroup, write = FGroup };
+  __property AnsiString Owner = { read = FOwner, write = FOwner };
+  __property AnsiString Group = { read = FGroup, write = FGroup };
   __property AnsiString FileName = { read = FFileName, write = FFileName };
   __property int INodeBlocks = { read = FINodeBlocks };
   __property TDateTime Modification = { read = FModification, write = SetModification };
@@ -407,13 +346,12 @@ public:
   bool Recursive;
   TRights Rights;
   bool AddXToDirectories;
-  TRemoteToken Group;
-  TRemoteToken Owner;
+  AnsiString Group;
+  AnsiString Owner;
   __int64 Modification; // unix time
   __int64 LastAccess; // unix time
 
   __fastcall TRemoteProperties();
-  __fastcall TRemoteProperties(const TRemoteProperties & rhp);
   bool __fastcall operator ==(const TRemoteProperties & rhp) const;
   bool __fastcall operator !=(const TRemoteProperties & rhp) const;
   void __fastcall Default();
@@ -443,8 +381,10 @@ AnsiString __fastcall FromUnixPath(const AnsiString Path);
 AnsiString __fastcall ToUnixPath(const AnsiString Path);
 AnsiString __fastcall MinimizeName(const AnsiString FileName, int MaxLen, bool Unix);
 AnsiString __fastcall MakeFileList(TStrings * FileList);
-void __fastcall ReduceDateTimePrecision(TDateTime & DateTime,
+TDateTime __fastcall ReduceDateTimePrecision(TDateTime DateTime,
   TModificationFmt Precision);
+TModificationFmt __fastcall LessDateTimePrecision(
+  TModificationFmt Precision1, TModificationFmt Precision2);
 AnsiString __fastcall UserModificationStr(TDateTime DateTime,
   TModificationFmt Precision);
 int __fastcall FakeFileImageIndex(AnsiString FileName, unsigned long Attrs = 0,

@@ -172,6 +172,9 @@ type
     FWinControlList,
     FGroupBoxList,
     FButtonControlList,
+    // MP
+    FCheckBoxList,
+    FButtonList,
     FSpeedButtonList,
     FSplitterList,
     FTrackBarList,
@@ -191,7 +194,7 @@ type
     FOnControlMessage: TControlMessageEvent;
     FOnAllowSubclassing: TAllowSubclassingEvent;
     procedure AnimateWindowProc(Control: TControl; var Message: TMessage);
-    procedure ButtonControlWindowProc(Control: TControl; var Message: TMessage);
+    procedure ButtonControlWindowProc(Control: TControl; var Message: TMessage; { MP } List: TWindowProcList);
     {$ifdef CheckListSupport}
       procedure CheckListBoxWindowProc(Control: TControl; var Message: TMessage);
     {$endif CheckListSupport}
@@ -214,6 +217,10 @@ type
 
     procedure PreAnimateWindowProc(var Message: TMessage);
     procedure PreButtonControlWindowProc(var Message: TMessage);
+    // MP BEGIN
+    procedure PreCheckBoxWindowProc(var Message: TMessage);
+    procedure PreButtonWindowProc(var Message: TMessage);
+    // MP END
     {$ifdef CheckListSupport}
       procedure PreCheckListBoxWindowProc(var Message: TMessage);
     {$endif CheckListSupport}
@@ -729,6 +736,10 @@ begin
   FTabSheetList := TWindowProcList.Create(Self, PreTabSheetWindowProc, TTabSheet);
   FGroupBoxList := TWindowProcList.Create(Self, PreGroupBoxWindowProc, TCustomGroupBox);
   FButtonControlList := TWindowProcList.Create(Self, PreButtonControlWindowProc, TButtonControl);
+  // MP BEGIN
+  FCheckBoxList := TWindowProcList.Create(Self, PreCheckBoxWindowProc, TCheckBox);
+  FButtonList := TWindowProcList.Create(Self, PreButtonWindowProc, TButton);
+  // MP END
   FSpeedButtonList := TWindowProcList.Create(Self, PreSpeedButtonWindowProc, TSpeedButton);
   FSplitterList := TWindowProcList.Create(Self, PreSplitterWindowProc, TSplitter);
   FTrackBarList := TWindowProcList.Create(Self, PreTrackBarWindowProc, TTrackBar);
@@ -792,6 +803,10 @@ begin
   FTrackBarList.Free;
   FSpeedButtonList.Free;
   FSplitterList.Free;
+  // MP BEGIN
+  FButtonList.Free;
+  FCheckBoxList.Free;
+  // MP END
   FButtonControlList.Free;
   FListViewList.Free;
   FTabSheetList.Free;
@@ -870,7 +885,8 @@ end;
 
 //----------------------------------------------------------------------------------------------------------------------
 
-procedure TThemeManager.ButtonControlWindowProc(Control: TControl; var Message: TMessage);
+procedure TThemeManager.ButtonControlWindowProc(Control: TControl; var Message: TMessage;
+  { MP } List: TWindowProcList);
 
 var
   Details: TThemedElementDetails;
@@ -886,7 +902,8 @@ begin
         WM_KEYDOWN:
           begin
             UpdateUIState(Control, TWMKey(Message).CharCode);
-            FButtonControlList.DispatchMessage(Control, Message);
+            // MP
+            List.DispatchMessage(Control, Message);
           end;
         WM_ERASEBKGND:
           Message.Result := 1;
@@ -916,7 +933,8 @@ begin
             // Hot tracking for owner drawn buttons seems to be unsupported by Windows. So we have to work around that.
             if Control is TBitBtn then
               Control.Invalidate;
-            FButtonControlList.DispatchMessage(Control, Message);
+            // MP
+            List.DispatchMessage(Control, Message);
           end;
         CN_DRAWITEM: // Painting for owner drawn buttons.
           with TWMDrawItem(Message) do
@@ -933,14 +951,17 @@ begin
             if (Control is TBitBtn) or (Control is TSpeedButton) then
               DrawBitBtn(TBitBtn(Control), DrawItemStruct^)
             else
-              FButtonControlList.DispatchMessage(Control, Message);
+              // MP
+              List.DispatchMessage(Control, Message);
           end;
       else
-        FButtonControlList.DispatchMessage(Control, Message);
+        // MP
+        List.DispatchMessage(Control, Message);
       end;
     end
     else
-      FButtonControlList.DispatchMessage(Control, Message);
+      // MP
+      List.DispatchMessage(Control, Message);
   end;
 end;
 
@@ -1355,7 +1376,7 @@ begin
         WM_KEYDOWN:
           begin
             UpdateUIState(Control, TWMKey(Message).CharCode);
-            FListViewList.DispatchMessage(Control, Message);
+            FGroupBoxList.DispatchMessage(Control, Message);
           end;
       end;
     end;
@@ -2061,8 +2082,32 @@ procedure TThemeManager.PreButtonControlWindowProc(var Message: TMessage);
 
 begin
   Assert(Assigned(MainManager));
-  MainManager.ButtonControlWindowProc(TControl(Self), Message);
+  MainManager.ButtonControlWindowProc(TControl(Self), Message, { MP }MainManager.FButtonControlList);
 end;
+
+//----------------------------------------------------------------------------------------------------------------------
+
+// MP BEGIN
+procedure TThemeManager.PreCheckBoxWindowProc(var Message: TMessage);
+
+// Read more about this code in PreAnimateWindowProc.
+
+begin
+  Assert(Assigned(MainManager));
+  MainManager.ButtonControlWindowProc(TControl(Self), Message, MainManager.FCheckBoxList);
+end;
+
+//----------------------------------------------------------------------------------------------------------------------
+
+procedure TThemeManager.PreButtonWindowProc(var Message: TMessage);
+
+// Read more about this code in PreAnimateWindowProc.
+
+begin
+  Assert(Assigned(MainManager));
+  MainManager.ButtonControlWindowProc(TControl(Self), Message, MainManager.FButtonList);
+end;
+// MP END
 
 //----------------------------------------------------------------------------------------------------------------------
 
@@ -2536,7 +2581,15 @@ var
       // whose background is drawn by Windows and which can be transparent. There aren't many which qualify, though.
       if (Control is TWinControl) and ThemeServices.ThemesEnabled then
       begin
-        TWinControl(Control).HandleNeeded;
+        // MP BEGIN
+        try
+          TWinControl(Control).HandleNeeded;
+        except
+          // if allocating handle fails, just do not fix the control and continue
+          // strangelly happens irregularly for buttons
+          Continue;
+        end;
+        // MP END
         EnableThemeDialogTexture(TWinControl(Control).Handle, ETDT_ENABLETAB);
       end;
 
@@ -2643,6 +2696,23 @@ begin
     end
     else
     begin
+      // MP BEGIN
+      // Including checkboxes and buttons to button-control list makes it strangely fail
+      // for some dialogs (irregularly). Introducing separate list for
+      // them solves the problem
+      if Control is TCheckBox then
+      begin
+        if (toSubclassButtons in FOptions) or not Inserting then
+          List := FCheckBoxList;
+      end
+        else
+      if Control is TButton then
+      begin
+        if (toSubclassButtons in FOptions) or not Inserting then
+          List := FButtonList;
+      end
+        else
+      // MP END
       if Control is TButtonControl then
       begin
         if (toSubclassButtons in FOptions) or not Inserting then
@@ -2899,17 +2969,17 @@ var
 
   //--------------- Local functions --------------------------------------------
 
-  procedure InvalidateStaticText(Control: TWinControl);
+  procedure InvalidateBuggyControls(Control: TWinControl);
 
   var
     I: Integer;
 
   begin
-    if Control is TCustomStaticText then
+    if (Control is TCustomStaticText) or (Control is TButtonControl) then
       Control.Invalidate;
     for I := 0 to Control.ControlCount - 1 do
       if Control.Controls[I] is TWinControl then
-        InvalidateStaticText(Control.Controls[I] as TWinControl);
+        InvalidateBuggyControls(Control.Controls[I] as TWinControl);
   end;
 
   //--------------- End local functions ----------------------------------------
@@ -2927,7 +2997,8 @@ begin
 
           // For no appearent reason does TCustomStaticText not correctly redraw when the accelerator underline
           // is enabled. So we have manually invalide all instances of TCustomStaticText.
-          InvalidateStaticText(Form);
+          // The same for TButtonControls on Windows Vista.
+          InvalidateBuggyControls(Form);
         end;
     end;
 end;
@@ -2949,6 +3020,10 @@ begin
     FAnimateList.Clear;
     FTrackBarList.Clear;
     FSpeedButtonList.Clear;
+    // MP BEGIN
+    FCheckBoxList.Clear;
+    FButtonList.Clear;
+    // MP END
     FButtonControlList.Clear;
     FTabSheetList.Clear;
     FWinControlList.Clear;

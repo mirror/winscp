@@ -11,515 +11,6 @@
 //---------------------------------------------------------------------------
 #pragma package(smart_init)
 //---------------------------------------------------------------------------
-AnsiString __fastcall XmlEscape(AnsiString Str)
-{
-  for (int i = 1; i <= Str.Length(); i++)
-  {
-    const char * Repl = NULL;
-    switch (Str[i])
-    {
-      case '&':
-        Repl = "amp;";
-        break;
-
-      case '>':
-        Repl = "gt;";
-        break;
-
-      case '<':
-        Repl = "lt;";
-        break;
-
-      case '"':
-        Repl = "quot;";
-        break;
-
-      case '\r':
-        Str.Delete(i, 1);
-        i--;
-        break;
-    }
-
-    if (Repl != NULL)
-    {
-      Str[i] = '&';
-      Str.Insert(Repl, i + 1);
-      i += strlen(Repl);
-    }
-  }
-  Str = AnsiToUtf8(Str);
-  return Str;
-}
-//---------------------------------------------------------------------------
-AnsiString __fastcall XmlTimestamp(const TDateTime & DateTime)
-{
-  return FormatDateTime("yyyy'-'mm'-'dd'T'hh':'nn':'ss'.'zzz'Z'", ConvertTimestampToUTC(DateTime));
-}
-//---------------------------------------------------------------------------
-AnsiString __fastcall XmlTimestamp()
-{
-  return XmlTimestamp(Now());
-}
-//---------------------------------------------------------------------------
-#pragma warn -inl
-class TSessionActionRecord
-{
-public:
-  __fastcall TSessionActionRecord(TSessionLog * Log, TLogAction Action) :
-    FLog(Log),
-    FAction(Action),
-    FState(Opened),
-    FRecursive(false),
-    FErrorMessages(NULL),
-    FNames(new TStringList()),
-    FValues(new TStringList()),
-    FFileList(NULL)
-  {
-    FLog->AddPendingAction(this);
-  }
-
-  __fastcall ~TSessionActionRecord()
-  {
-    delete FErrorMessages;
-    delete FNames;
-    delete FValues;
-    delete FFileList;
-  }
-
-  void __fastcall Restart()
-  {
-    FState = Opened;
-    FRecursive = false;
-    delete FErrorMessages;
-    FErrorMessages = NULL;
-    delete FFileList;
-    FFileList = NULL;
-    FNames->Clear();
-    FValues->Clear();
-  }
-
-  bool __fastcall Record()
-  {
-    bool Result = (FState != Opened);
-    if (Result)
-    {
-      if ((FLog->FLoggingActions) && (FState != Cancelled))
-      {
-        const char * Name = ActionName();
-        AnsiString Attrs;
-        if (FRecursive)
-        {
-          Attrs = " recursive=\"true\"";
-        }
-        FLog->Add(llAction, FORMAT("  <%s%s>", (Name,  Attrs)));
-        for (int Index = 0; Index < FNames->Count; Index++)
-        {
-          AnsiString Value = FValues->Strings[Index];
-          if (Value.IsEmpty())
-          {
-            FLog->Add(llAction, FORMAT("    <%s />", (FNames->Strings[Index])));
-          }
-          else
-          {
-            FLog->Add(llAction, FORMAT("    <%s value=\"%s\" />",
-              (FNames->Strings[Index], XmlEscape(Value))));
-          }
-        }
-        if (FFileList != NULL)
-        {
-          FLog->Add(llAction, "    <files>");
-          for (int Index = 0; Index < FFileList->Count; Index++)
-          {
-            TRemoteFile * File = FFileList->Files[Index];
-
-            FLog->Add(llAction, "      <file>");
-            FLog->Add(llAction, FORMAT("        <filename value=\"%s\" />", (XmlEscape(File->FileName))));
-            FLog->Add(llAction, FORMAT("        <type value=\"%s\" />", (XmlEscape(File->Type))));
-            if (!File->IsDirectory)
-            {
-              FLog->Add(llAction, FORMAT("        <size value=\"%s\" />", (IntToStr(File->Size))));
-            }
-            FLog->Add(llAction, FORMAT("        <modification value=\"%s\" />", (XmlTimestamp(File->Modification))));
-            FLog->Add(llAction, FORMAT("        <permissions value=\"%s\" />", (XmlEscape(File->Rights->Text))));
-            FLog->Add(llAction, "      </file>");
-          }
-          FLog->Add(llAction, "    </files>");
-        }
-        if (FState == RolledBack)
-        {
-          if (FErrorMessages != NULL)
-          {
-            FLog->Add(llAction, "    <result success=\"false\">");
-            for (int Index = 0; Index < FErrorMessages->Count; Index++)
-            {
-              FLog->Add(llAction,
-                FORMAT("      <message>%s</message>", (XmlEscape(FErrorMessages->Strings[Index]))));
-            }
-            FLog->Add(llAction, "    </result>");
-          }
-          else
-          {
-            FLog->Add(llAction, "    <result success=\"false\" />");
-          }
-        }
-        else
-        {
-          FLog->Add(llAction, "    <result success=\"true\" />");
-        }
-        FLog->Add(llAction, FORMAT("  </%s>", (Name)));
-      }
-      delete this;
-    }
-    return Result;
-  }
-
-  void __fastcall Commit()
-  {
-    Close(Committed);
-  }
-
-  void __fastcall Rollback(Exception * E)
-  {
-    assert(FErrorMessages == NULL);
-    FErrorMessages = new TStringList();
-    if (!E->Message.IsEmpty())
-    {
-      FErrorMessages->Add(E->Message);
-    }
-    ExtException * EE = dynamic_cast<ExtException *>(E);
-    if ((EE != NULL) && (EE->MoreMessages != NULL))
-    {
-      FErrorMessages->AddStrings(EE->MoreMessages);
-    }
-    if (FErrorMessages->Count == 0)
-    {
-      delete FErrorMessages;
-      FErrorMessages = NULL;
-    }
-    Close(RolledBack);
-  }
-
-  void __fastcall Cancel()
-  {
-    Close(Cancelled);
-  }
-
-  void __fastcall FileName(const AnsiString & FileName)
-  {
-    Parameter("filename", FileName);
-  }
-
-  void __fastcall Destination(const AnsiString & Destination)
-  {
-    Parameter("destination", Destination);
-  }
-
-  void __fastcall Rights(const TRights & Rights)
-  {
-    Parameter("permissions", Rights.Text);
-  }
-
-  void __fastcall Modification(const TDateTime & DateTime)
-  {
-    Parameter("modification", XmlTimestamp(DateTime));
-  }
-
-  void __fastcall Recursive()
-  {
-    FRecursive = true;
-  }
-
-  void __fastcall Command(const AnsiString & Command)
-  {
-    Parameter("command", Command);
-  }
-
-  void __fastcall AddOutput(AnsiString Output, bool StdError)
-  {
-    const char * Name = (StdError ? "erroroutput" : "output");
-    int Index = FNames->IndexOf(Name);
-    if (Index >= 0)
-    {
-      FValues->Strings[Index] = FValues->Strings[Index] + "\r\n" + Output;
-    }
-    else
-    {
-      Parameter(Name, Output);
-    }
-  }
-
-  void __fastcall FileList(TRemoteFileList * FileList)
-  {
-    if (FFileList == NULL)
-    {
-      FFileList = new TRemoteFileList();
-    }
-    FileList->DuplicateTo(FFileList);
-  }
-
-protected:
-  enum TState { Opened, Committed, RolledBack, Cancelled };
-
-  inline void __fastcall Close(TState State)
-  {
-    assert(FState == Opened);
-    FState = State;
-    FLog->RecordPendingActions();
-  }
-
-  const char * __fastcall ActionName()
-  {
-    switch (FAction)
-    {
-      case laUpload: return "upload";
-      case laDownload: return "download";
-      case laTouch: return "touch";
-      case laChmod: return "chmod";
-      case laMkdir: return "mkdir";
-      case laRm: return "rm";
-      case laMv: return "mv";
-      case laCall: return "call";
-      case laLs: return "ls";
-      default: assert(false); return "";
-    }
-  }
-
-  void __fastcall Parameter(const AnsiString & Name, const AnsiString & Value = "")
-  {
-    FNames->Add(Name);
-    FValues->Add(Value);
-  }
-
-private:
-  TSessionLog * FLog;
-  TLogAction FAction;
-  TState FState;
-  bool FRecursive;
-  TStrings * FErrorMessages;
-  TStrings * FNames;
-  TStrings * FValues;
-  TRemoteFileList * FFileList;
-};
-#pragma warn .inl
-//---------------------------------------------------------------------------
-//---------------------------------------------------------------------------
-__fastcall TSessionAction::TSessionAction(TSessionLog * Log, TLogAction Action)
-{
-  if (Log->FLoggingActions)
-  {
-    FRecord = new TSessionActionRecord(Log, Action);
-  }
-  else
-  {
-    FRecord = NULL;
-  }
-}
-//---------------------------------------------------------------------------
-__fastcall TSessionAction::~TSessionAction()
-{
-  if (FRecord != NULL)
-  {
-    Commit();
-  }
-}
-//---------------------------------------------------------------------------
-void __fastcall TSessionAction::Restart()
-{
-  if (FRecord != NULL)
-  {
-    FRecord->Restart();
-  }
-}
-//---------------------------------------------------------------------------
-void __fastcall TSessionAction::Commit()
-{
-  if (FRecord != NULL)
-  {
-    TSessionActionRecord * Record = FRecord;
-    FRecord = NULL;
-    Record->Commit();
-  }
-}
-//---------------------------------------------------------------------------
-void __fastcall TSessionAction::Rollback(Exception * E)
-{
-  if (FRecord != NULL)
-  {
-    TSessionActionRecord * Record = FRecord;
-    FRecord = NULL;
-    Record->Rollback(E);
-  }
-}
-//---------------------------------------------------------------------------
-void __fastcall TSessionAction::Cancel()
-{
-  if (FRecord != NULL)
-  {
-    TSessionActionRecord * Record = FRecord;
-    FRecord = NULL;
-    Record->Cancel();
-  }
-}
-//---------------------------------------------------------------------------
-//---------------------------------------------------------------------------
-__fastcall TFileSessionAction::TFileSessionAction(TSessionLog * Log, TLogAction Action) :
-  TSessionAction(Log, Action)
-{
-};
-//---------------------------------------------------------------------------
-__fastcall TFileSessionAction::TFileSessionAction(
-    TSessionLog * Log, TLogAction Action, const AnsiString & AFileName) :
-  TSessionAction(Log, Action)
-{
-  FileName(AFileName);
-};
-//---------------------------------------------------------------------------
-void __fastcall TFileSessionAction::FileName(const AnsiString & FileName)
-{
-  if (FRecord != NULL)
-  {
-    FRecord->FileName(FileName);
-  }
-}
-//---------------------------------------------------------------------------
-//---------------------------------------------------------------------------
-__fastcall TFileLocationSessionAction::TFileLocationSessionAction(
-    TSessionLog * Log, TLogAction Action) :
-  TFileSessionAction(Log, Action)
-{
-};
-//---------------------------------------------------------------------------
-__fastcall TFileLocationSessionAction::TFileLocationSessionAction(
-    TSessionLog * Log, TLogAction Action, const AnsiString & FileName) :
-  TFileSessionAction(Log, Action, FileName)
-{
-};
-//---------------------------------------------------------------------------
-void __fastcall TFileLocationSessionAction::Destination(const AnsiString & Destination)
-{
-  if (FRecord != NULL)
-  {
-    FRecord->Destination(Destination);
-  }
-}
-//---------------------------------------------------------------------------
-//---------------------------------------------------------------------------
-__fastcall TUploadSessionAction::TUploadSessionAction(TSessionLog * Log) :
-  TFileLocationSessionAction(Log, laUpload)
-{
-};
-//---------------------------------------------------------------------------
-//---------------------------------------------------------------------------
-__fastcall TDownloadSessionAction::TDownloadSessionAction(TSessionLog * Log) :
-  TFileLocationSessionAction(Log, laDownload)
-{
-};
-//---------------------------------------------------------------------------
-//---------------------------------------------------------------------------
-__fastcall TChmodSessionAction::TChmodSessionAction(
-    TSessionLog * Log, const AnsiString & FileName) :
-  TFileSessionAction(Log, laChmod, FileName)
-{
-}
-//---------------------------------------------------------------------------
-void __fastcall TChmodSessionAction::Recursive()
-{
-  if (FRecord != NULL)
-  {
-    FRecord->Recursive();
-  }
-}
-//---------------------------------------------------------------------------
-__fastcall TChmodSessionAction::TChmodSessionAction(
-    TSessionLog * Log, const AnsiString & FileName, const TRights & ARights) :
-  TFileSessionAction(Log, laChmod, FileName)
-{
-  Rights(ARights);
-}
-//---------------------------------------------------------------------------
-void __fastcall TChmodSessionAction::Rights(const TRights & Rights)
-{
-  if (FRecord != NULL)
-  {
-    FRecord->Rights(Rights);
-  }
-}
-//---------------------------------------------------------------------------
-__fastcall TTouchSessionAction::TTouchSessionAction(
-    TSessionLog * Log, const AnsiString & FileName, const TDateTime & Modification) :
-  TFileSessionAction(Log, laTouch, FileName)
-{
-  if (FRecord != NULL)
-  {
-    FRecord->Modification(Modification);
-  }
-}
-//---------------------------------------------------------------------------
-__fastcall TMkdirSessionAction::TMkdirSessionAction(
-    TSessionLog * Log, const AnsiString & FileName) :
-  TFileSessionAction(Log, laMkdir, FileName)
-{
-}
-//---------------------------------------------------------------------------
-__fastcall TRmSessionAction::TRmSessionAction(
-    TSessionLog * Log, const AnsiString & FileName) :
-  TFileSessionAction(Log, laRm, FileName)
-{
-}
-//---------------------------------------------------------------------------
-void __fastcall TRmSessionAction::Recursive()
-{
-  if (FRecord != NULL)
-  {
-    FRecord->Recursive();
-  }
-}
-//---------------------------------------------------------------------------
-__fastcall TMvSessionAction::TMvSessionAction(TSessionLog * Log,
-    const AnsiString & FileName, const AnsiString & ADestination) :
-  TFileLocationSessionAction(Log, laMv, FileName)
-{
-  Destination(ADestination);
-}
-//---------------------------------------------------------------------------
-__fastcall TCallSessionAction::TCallSessionAction(TSessionLog * Log,
-    const AnsiString & Command, const AnsiString & Destination) :
-  TSessionAction(Log, laCall)
-{
-  if (FRecord != NULL)
-  {
-    FRecord->Command(Command);
-    FRecord->Destination(Destination);
-  }
-}
-//---------------------------------------------------------------------------
-void __fastcall TCallSessionAction::AddOutput(const AnsiString & Output, bool StdError)
-{
-  if (FRecord != NULL)
-  {
-    FRecord->AddOutput(Output, StdError);
-  }
-}
-//---------------------------------------------------------------------------
-__fastcall TLsSessionAction::TLsSessionAction(TSessionLog * Log,
-    const AnsiString & Destination) :
-  TSessionAction(Log, laLs)
-{
-  if (FRecord != NULL)
-  {
-    FRecord->Destination(Destination);
-  }
-}
-//---------------------------------------------------------------------------
-void __fastcall TLsSessionAction::FileList(TRemoteFileList * FileList)
-{
-  if (FRecord != NULL)
-  {
-    FRecord->FileList(FileList);
-  }
-}
-//---------------------------------------------------------------------------
-//---------------------------------------------------------------------------
 TSessionInfo::TSessionInfo()
 {
   LoginTime = Now();
@@ -545,18 +36,12 @@ __fastcall TSessionLog::TSessionLog(TSessionUI* UI, TSessionData * SessionData,
   FTopIndex = -1;
   FCurrentLogFileName = "";
   FCurrentFileName = "";
-  FLoggingActions = false;
-  FClosed = false;
-  FPendingActions = new TList();
+  ReflectSettings();
 }
 //---------------------------------------------------------------------------
 __fastcall TSessionLog::~TSessionLog()
 {
-  assert(FPendingActions->Count == 0);
-  delete FPendingActions;
-  FClosed = true;
-  ReflectSettings();
-  assert(FFile == NULL);
+  CloseLogFile();
   delete FCriticalSection;
 }
 //---------------------------------------------------------------------------
@@ -612,12 +97,9 @@ void __fastcall TSessionLog::DoAddToSelf(TLogLineType Type, const AnsiString & L
 
     if (FFile != NULL)
     {
-      if (Type != llAction)
-      {
-        AnsiString Timestamp = FormatDateTime(" yyyy-mm-dd hh:nn:ss.zzz ", Now());
-        fputc(LogLineMarks[Type], (FILE *)FFile);
-        fwrite(Timestamp.c_str(), Timestamp.Length(), 1, (FILE *)FFile);
-      }
+      AnsiString Timestamp = FormatDateTime(" yyyy-mm-dd hh:nn:ss.zzz ", Now());
+      fputc(LogLineMarks[Type], (FILE *)FFile);
+      fwrite(Timestamp.c_str(), Timestamp.Length(), 1, (FILE *)FFile);
       // use fwrite instead of fprintf to make sure that even
       // non-ascii data (unicode) gets in.
       fwrite(Line.c_str(), Line.Length(), 1, (FILE *)FFile);
@@ -631,7 +113,7 @@ void __fastcall TSessionLog::DoAdd(TLogLineType Type, AnsiString Line,
 {
   AnsiString Prefix;
 
-  if ((Type != llAction) && !Name.IsEmpty())
+  if (!Name.IsEmpty())
   {
     Prefix = "[" + Name + "] ";
   }
@@ -645,7 +127,7 @@ void __fastcall TSessionLog::DoAdd(TLogLineType Type, AnsiString Line,
 void __fastcall TSessionLog::Add(TLogLineType Type, const AnsiString & Line)
 {
   assert(FConfiguration);
-  if (Logging && (FConfiguration->LogActions == (Type == llAction)))
+  if (Logging)
   {
     try
     {
@@ -700,33 +182,7 @@ void __fastcall TSessionLog::ReflectSettings()
 {
   TGuard Guard(FCriticalSection);
 
-  bool ALogging =
-    !FClosed &&
-    ((FParent != NULL) || FConfiguration->Logging) &&
-    ((FParent == NULL) || !FConfiguration->LogActions);
-
-  bool LoggingActions = ALogging && FConfiguration->LogActions;
-  if (LoggingActions && !FLoggingActions)
-  {
-    FLoggingActions = true;
-    FLogging = ALogging;
-    Add(llAction, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
-    Add(llAction, FORMAT("<session xmlns=\"http://winscp.net/schema/session/1.0\" name=\"%s\" start=\"%s\">",
-      (XmlEscape(FSessionData->SessionName), XmlTimestamp())));
-    StateChange();
-  }
-  else if (!LoggingActions && FLoggingActions)
-  {
-    FLoggingActions = false;
-    Add(llAction, "</session>");
-    FLogging = ALogging;
-    StateChange();
-  }
-  else if (FLogging != ALogging)
-  {
-    FLogging = ALogging;
-    StateChange();
-  }
+  FLogging = (FParent != NULL) || FConfiguration->Logging;
 
   // if logging to file was turned off or log file was change -> close current log file
   if ((FFile != NULL) &&
@@ -736,6 +192,15 @@ void __fastcall TSessionLog::ReflectSettings()
   }
 
   DeleteUnnecessary();
+}
+//---------------------------------------------------------------------------
+void __fastcall TSessionLog::SetParent(TSessionLog * value)
+{
+  if (FParent != value)
+  {
+    FParent = value;
+    ReflectSettings();
+  }
 }
 //---------------------------------------------------------------------------
 bool __fastcall TSessionLog::LogToFile()
@@ -873,7 +338,7 @@ void TSessionLog::DeleteUnnecessary()
 //---------------------------------------------------------------------------
 void __fastcall TSessionLog::AddStartupInfo()
 {
-  if (Logging && !FConfiguration->LogActions)
+  if (Logging)
   {
     if (FParent != NULL)
     {
@@ -989,27 +454,7 @@ void __fastcall TSessionLog::DoAddStartupInfo(TSessionData * Data)
     }
     if (Data->FSProtocol == fsFTP)
     {
-      AnsiString Ftps;
-      switch (Data->Ftps)
-      {
-        case ftpsImplicit:
-          Ftps = "Implicit SSL/TLS";
-          break;
-
-        case ftpsExplicitSsl:
-          Ftps = "Explicit SSL";
-          break;
-
-        case ftpsExplicitTls:
-          Ftps = "Explicit TLS";
-          break;
-
-        default:
-          assert(Data->Ftps == ftpsNone);
-          Ftps = "None";
-          break;
-      }
-      ADF("FTP: FTPS: %s; Passive: %s", (Ftps, BooleanToEngStr(Data->FtpPasvMode)));
+      ADF("FTP: Passive: %s", (BooleanToEngStr(Data->FtpPasvMode)));
     }
     ADF("Local directory: %s, Remote directory: %s, Update: %s, Cache: %s",
       ((Data->LocalDirectory.IsEmpty() ? AnsiString("default") : Data->LocalDirectory),
@@ -1055,18 +500,4 @@ void __fastcall TSessionLog::Clear()
 
   FTopIndex += Count;
   TStringList::Clear();
-}
-//---------------------------------------------------------------------------
-void __fastcall TSessionLog::AddPendingAction(TSessionActionRecord * Action)
-{
-  FPendingActions->Add(Action);
-}
-//---------------------------------------------------------------------------
-void __fastcall TSessionLog::RecordPendingActions()
-{
-  while ((FPendingActions->Count > 0) &&
-         static_cast<TSessionActionRecord *>(FPendingActions->Items[0])->Record())
-  {
-    FPendingActions->Delete(0);
-  }
 }

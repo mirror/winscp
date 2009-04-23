@@ -56,7 +56,6 @@ const
   MaxWaitTimeOut = 10; {TFileDeleteThread: wait nn seconds for deleting files or directories}
 {$ENDIF}
   FileAttr = SysUtils.faAnyFile and (not SysUtils.faVolumeID);
-  ExtLen = 4;      {Length of extension including '.' => '.EXE'}
   SpecialExtensions = 'EXE,LNK,ICO,ANI,CUR,PIF,JOB,CPL';
   ExeExtension = 'EXE';
   MinDate = $21;    {01.01.1980}
@@ -78,8 +77,6 @@ type
   TClipboardOperation = (cboNone, cboCut, cboCopy);
   TFileNameDisplay = (fndStored, fndCap, fndNoCap, fndNice);
 
-  TExtStr = string[ExtLen];
-
   {Record for each file item:}
   PFileRec = ^TFileRec;
   TFileRec = record
@@ -90,7 +87,7 @@ type
     IsParentDir: Boolean;
     FileName: string;
     Displayname: string;
-    FileExt: TExtStr;
+    FileExt: string;
     TypeName: string;
     ImageIndex: Integer;
     Size: Int64;
@@ -102,7 +99,7 @@ type
   {Record for fileinfo caching:}
   PInfoCache = ^TInfoCache;
   TInfoCache = record
-    FileExt: TExtStr;
+    FileExt: string;
     TypeName: ShortString;
     ImageIndex: Integer;
   end;
@@ -205,8 +202,6 @@ type
     FDrawLinkOverlay: Boolean;
     SelectNewFiles: Boolean;
     FSelfDropDuplicates: Boolean;
-    FHiddenCount: Integer;
-    FFilteredCount: Integer;
 
     {File selection properties:}
     FSelArchive: TSelAttr;
@@ -263,6 +258,7 @@ type
     {$ENDIF}
 
     procedure Delete(Item: TListItem); override;
+    procedure SetMask(Value: string); override;
     procedure DDError(ErrorNo: TDDError);
     function GetCanUndoCopyMove: Boolean; virtual;
     {Shell namespace functions:}
@@ -322,8 +318,6 @@ type
     procedure SetShowHiddenFiles(Value: Boolean); override;
     procedure WMDestroy(var Msg: TWMDestroy); message WM_DESTROY;
     function SecondaryColumnHeader(Index: Integer; var AliasOnly: Boolean): Integer; override;
-    function HiddenCount: Integer; override;
-    function FilteredCount: Integer; override;
 
   public
     {Runtime, readonly properties:}
@@ -540,7 +534,7 @@ type
 procedure Register;
 
 {Returns True, if the specified extension matches one of the extensions in ExtList:}
-function MatchesFileExt(Ext: TExtStr; const FileExtList: string): Boolean;
+function MatchesFileExt(Ext: string; const FileExtList: string): Boolean;
 
 var
   LastClipBoardOperation: TClipBoardOperation;
@@ -556,7 +550,7 @@ uses
   ShellAPI, ComObj,
   ActiveX, ImgList,
   ShellDialogs, IEDriveInfo,
-  FileChanges, Math;
+  MaskSearch, FileChanges, Math;
 
 procedure Register;
 begin
@@ -571,9 +565,9 @@ begin
     else Result := fEqual;
 end; {CompareInfoCacheItems}
 
-function MatchesFileExt(Ext: TExtStr; const FileExtList: string): Boolean;
+function MatchesFileExt(Ext: string; const FileExtList: string): Boolean;
 begin
-  Result := (Length(Ext) >= Pred(ExtLen)) and (Pos(Ext, FileExtList) <> 0);
+  Result := (Length(Ext) = 3) and (Pos(Ext, FileExtList) <> 0);
 end; {MatchesFileExt}
 
 function FileTimeToDateTime(FileTime: TFileTime): TDateTime;
@@ -598,6 +592,33 @@ begin
 {$WARNINGS ON}
   end;
 end;
+
+{function ResolveLink(const Path: string): string;
+var
+  Link: IShellLink;
+  Storage: IPersistFile;
+  FileData: TWin32FindData;
+  Buf: Array[0..MAX_PATH] of Char;
+  WidePath: WideString;
+begin
+  OleCheck(CoCreateInstance( CLSID_ShellLink, nil, CLSCTX_INPROC_SERVER,
+    IShellLink, Link));
+  OleCheck(Link.QueryInterface(IPersistFile, Storage));
+
+  WidePath := Path;
+  if Succeeded(Storage.Load(@WidePath[1], STGM_READ)) and
+     Succeeded(Link.Resolve(GetActiveWindow, SLR_NOUPDATE)) and
+     Succeeded(Link.GetPath(Buf, sizeof(Buf), FileData, SLGP_UNCPRIORITY)) then
+  begin
+    Result := Buf;
+  end
+    else
+  begin
+    raise Exception(Format(SResolveLinkError, [Path]));
+  end;
+  Storage := nil;
+  Link:= nil;
+end;}
 
 {$IFNDEF NO_THREADS}
 
@@ -926,8 +947,6 @@ begin
   FDrawLinkOverlay := True;
   DragOnDriveIsMove := True;
   FSelfDropDuplicates := False;
-  FHiddenCount := 0;
-  FFilteredCount := 0;
 
   FFileOperator := TFileOperator.Create(Self);
   FFileOperator.ProgressTitle := coFileOperatorTitle;
@@ -1135,16 +1154,6 @@ begin
   AliasOnly := False;
 end;
 
-function TDirView.HiddenCount: Integer;
-begin
-  Result := FHiddenCount;
-end;
-
-function TDirView.FilteredCount: Integer;
-begin
-  Result := FFilteredCount;
-end;
-
 function TDirView.AddItem(SRec: SysUtils.TSearchRec): TListItem;
 var
   PItem: PFileRec;
@@ -1159,7 +1168,7 @@ begin
     Item.Data := PItem;
 
     FileName := SRec.Name;
-    FileExt := UpperCase(Copy(ExtractFileExt(Srec.Name), 2, Pred(ExtLen)));
+    FileExt := UpperCase(ExtractFileExt(Srec.Name));
     DisplayName := ItemDisplayName(FileName);
 {$WARNINGS OFF}
     Attr := SRec.FindData.dwFileAttributes;
@@ -1244,12 +1253,12 @@ var
   FileRec: PFileRec;
   FileInfo: TSHFileInfo;
   FileSel: Boolean;
+  MaskList: TStringList;
   DosError: Integer;
   AttrIncludeMask: Integer;
   AttrExcludeMask: Integer;
   FileTimeFrom: LongWord;
   FileTimeTo: LongWord;
-  FSize: Int64;
 
   procedure AddToMasks(Attr: TSelAttr; Mask: Word);
   begin
@@ -1279,8 +1288,8 @@ begin
 
   if AddParentDir then AddParentDirItem;
 
-  FHiddenCount := 0;
-  FFilteredCount := 0;
+  MaskList := TStringList.Create;
+  BuildMask(Mask, MaskList);
 
   AttrIncludeMask := 0;
   AttrExcludeMask := 0;
@@ -1292,91 +1301,87 @@ begin
   FileTimeFrom := LongWord(FSelFileDateFrom) shl 16 or FSelFileTimeFrom;
   FileTimeTo   := LongWord(FSelFileDateTo)   shl 16 or FSelFileTimeTo;
 
-  if SUCCEEDED(iRecycleFolder.EnumObjects(Self.Handle,
-    SHCONTF_FOLDERS or SHCONTF_NONFOLDERS or SHCONTF_INCLUDEHIDDEN, EnumList)) then
-  begin
-     while (EnumList.Next(1, PCurrList, Fetched) = S_OK) and not AbortLoading do
-     begin
-       if Assigned(PCurrList) then
-       try
-         FQPIDL := PIDL_Concatenate(PIDLRecycle, PCurrList);
-
-         {Physical filename:}
-         SetLength(FullPath, MAX_PATH);
-         if shGetPathFromIDList(FQPIDL, PChar(FullPath)) then
-           SetLength(FullPath, StrLen(PChar(FullPath)));
-
-         {Filesize, attributes and -date:}
-         DosError := FindFirst(FullPath, faAnyFile, SRec);
-         FindClose(Srec);
-         SRec.Name := ExtractFilePath(FullPath) + SRec.Name;
-
-         {Displayname:}
-         GetShellDisplayName(iRecycleFolder, PCurrList, SHGDN_FORPARSING, DisplayName);
-
-         FileSel := (DosError = 0);
-         if FileSel and not (Bool(SRec.Attr and faDirectory)) then
-         begin
-           if (AttrIncludeMask <> 0) then
-             FileSel := Srec.Attr and AttrIncludeMask >= AttrIncludeMask;
-           if FileSel and (AttrExcludeMask <> 0) then
-              FileSel := AttrExcludeMask and Srec.Attr = 0;
-
-           FSize := SizeFromSRec(SRec);
-           FileSel :=
-            FileSel and
-            ((Mask = '') or FileNameMatchesMasks(DisplayName, False, FSize, Mask)) and
-            (FSize >= FSelFileSizeFrom) and
-            ((FSelFileSizeTo = 0) or
-             (FSize <= FSelFileSizeTo)) and
-            (LongWord(SRec.Time) >= FileTimeFrom) and
-            (LongWord(SRec.Time) <= FileTimeTo);
-         end;
-
-         if Assigned(FOnAddFile) then
-           FOnAddFile(Self, SRec, FileSel);
-
-         if FileSel then
-         begin
-           {Filetype and icon:}
-           SHGetFileInfo(PChar(FQPIDL), 0, FileInfo, SizeOf(FileInfo),
-            SHGFI_PIDL or SHGFI_TYPENAME or SHGFI_SYSICONINDEX);
-
-           NewItem := AddItem(Srec);
-           NewItem.Caption := DisplayName;
-           FileRec := NewItem.Data;
-           FileRec^.Empty := False;
-           FileRec^.IconEmpty := False;
-           FileRec^.DisplayName := DisplayName;
-           FileRec^.PIDL := FQPIDL;
-           FileRec^.TypeName := FileInfo.szTypeName;
-           if FileRec^.Typename = EmptyStr then
-             FileRec^.TypeName := Format(STextFileExt, [FileRec.FileExt]);
-           FileRec^.ImageIndex := FileInfo.iIcon;
-
-{$IFNDEF NO_THREADS}
-           if ShowSubDirSize and FileRec^.isDirectory then
-             FSubDirScanner.Add(TSubDirScanner.Create(Self, NewItem));
-{$ENDIF}
-         end
-           else
-         begin
-           if (AttrExcludeMask and Srec.Attr and SysUtils.faHidden) <> 0 then
-             Inc(FHiddenCount)
-           else
-             Inc(FFilteredCount);
-           FreePIDL(FQPIDL);
-         end;
-
-         FreePIDL(PCurrList);
-       except
+  try
+    if SUCCEEDED(iRecycleFolder.EnumObjects(Self.Handle,
+      SHCONTF_FOLDERS or SHCONTF_NONFOLDERS or SHCONTF_INCLUDEHIDDEN, EnumList)) then
+    begin
+       while (EnumList.Next(1, PCurrList, Fetched) = S_OK) and not AbortLoading do
+       begin
          if Assigned(PCurrList) then
          try
+           FQPIDL := PIDL_Concatenate(PIDLRecycle, PCurrList);
+
+           {Physical filename:}
+           SetLength(FullPath, MAX_PATH);
+           if shGetPathFromIDList(FQPIDL, PChar(FullPath)) then
+             SetLength(FullPath, StrLen(PChar(FullPath)));
+
+           {Filesize, attributes and -date:}
+           DosError := FindFirst(FullPath, faAnyFile, SRec);
+           FindClose(Srec);
+           SRec.Name := ExtractFilePath(FullPath) + SRec.Name;
+
+           {Displayname:}
+           GetShellDisplayName(iRecycleFolder, PCurrList, SHGDN_FORPARSING, DisplayName);
+
+           FileSel := (DosError = 0);
+           if FileSel and not (Bool(SRec.Attr and faDirectory)) then
+           begin
+             if (AttrIncludeMask <> 0) then
+               FileSel := Srec.Attr and AttrIncludeMask >= AttrIncludeMask;
+             if FileSel and (AttrExcludeMask <> 0) then
+                FileSel := AttrExcludeMask and Srec.Attr = 0;
+
+             FileSel :=
+              FileSel and
+              (FileMatches(DisplayName, MaskList) and
+              (SRec.Size >= FSelFileSizeFrom) and
+              ((FSelFileSizeTo = 0) or
+               (SRec.Size <= FSelFileSizeTo)) and
+              (LongWord(SRec.Time) >= FileTimeFrom) and
+              (LongWord(SRec.Time) <= FileTimeTo));
+           end;
+
+           if Assigned(FOnAddFile) then
+            FOnAddFile(Self, SRec, FileSel);
+
+           if FileSel then
+           begin
+             {Filetype and icon:}
+             SHGetFileInfo(PChar(FQPIDL), 0, FileInfo, SizeOf(FileInfo),
+              SHGFI_PIDL or SHGFI_TYPENAME or SHGFI_SYSICONINDEX);
+
+             NewItem := AddItem(Srec);
+             NewItem.Caption := DisplayName;
+             FileRec := NewItem.Data;
+             FileRec^.Empty := False;
+             FileRec^.IconEmpty := False;
+             FileRec^.DisplayName := DisplayName;
+             FileRec^.PIDL := FQPIDL;
+             FileRec^.TypeName := FileInfo.szTypeName;
+             if FileRec^.Typename = EmptyStr then
+               FileRec^.TypeName := Format(STextFileExt, [FileRec.FileExt]);
+             FileRec^.ImageIndex := FileInfo.iIcon;
+
+{$IFNDEF NO_THREADS}
+             if ShowSubDirSize and FileRec^.isDirectory then
+               FSubDirScanner.Add(TSubDirScanner.Create(Self, NewItem));
+{$ENDIF}
+           end
+            else FreePIDL(FQPIDL);
+
            FreePIDL(PCurrList);
          except
+           if Assigned(PCurrList) then
+           try
+             FreePIDL(PCurrList);
+           except
+           end;
          end;
-       end;
-     end; {While EnumList ...}
+       end; {While EnumList ...}
+    end;
+  finally
+    MaskList.Free;
   end;
 end; {LoadFromRecycleBin}
 
@@ -1455,7 +1460,7 @@ begin
     ((Filter.FileSizeTo = 0) or (FileRec^.Size <= Filter.FileSizeTo)) and
     ((Filter.ModificationFrom = 0) or (Modification >= Filter.ModificationFrom)) and
     ((Filter.ModificationTo = 0) or (Modification <= Filter.ModificationTo)) and
-    ((Filter.Masks = '') or
+    ((Length(Filter.Masks) = 0) or
      FileNameMatchesMasks(FileRec^.FileName, FileRec^.IsDirectory,
        FileRec^.Size, Filter.Masks));
 end;
@@ -1502,7 +1507,12 @@ procedure TDirView.LoadFiles;
 var
   SRec: SysUtils.TSearchRec;
   DosError: Integer;
+  TempMask: string;
+  ActMask: string;
+  ScanRun: Integer;
   FileSel: Boolean;
+  FileList: TStringList;
+  Dummy: Integer;
   FSize: Int64;
   {$IFNDEF NO_THREADS}
   NewItem: TListItem;
@@ -1526,9 +1536,6 @@ var
   end;
 
 begin
-  FHiddenCount := 0;
-  FFilteredCount := 0;
-
   AttrIncludeMask := 0;
   AttrExcludeMask := 0;
   AddToMasks(FSelArchive, SysUtils.faArchive);
@@ -1539,6 +1546,7 @@ begin
   FileTimeFrom := LongWord(fSelFileDateFrom) shl 16 or fSelFileTimeFrom;
   FileTimeTo   := LongWord(fSelFileDateTo)   shl 16 or fSelFileTimeTo;
 
+  ScanRun := 0;
   try
     if Length(FPath) > 0 then
     begin
@@ -1576,13 +1584,20 @@ begin
       {$ENDIF}
       begin
         FParentFolder := GetShellFolder(PathName);
+        TempMask := Mask;
+        FileList := TStringList.Create;
 
-
-        DosError := SysUtils.FindFirst(IncludeTrailingPathDelimiter(FPath) + '*.*',
-          FileAttr, SRec);
-        while (DosError = 0) and (not AbortLoading) do
+        while (Length(TempMask) > 0) and (not AbortLoading) do
         begin
-          if (SRec.Attr and faDirectory) = 0 then
+          ActMask := GetNextMask(TempMask);
+          Inc(ScanRun);
+
+          if Assigned(FileList) and (Length(TempMask) > 0) then
+            FileList.Sort;
+
+          DosError := SysUtils.FindFirst(IncludeTrailingPathDelimiter(FPath) + ActMask,
+            FileAttr, SRec);
+          while (DosError = 0) and (not AbortLoading) do
           begin
             FileSel := True;
             FSize := SizeFromSRec(SRec);
@@ -1592,7 +1607,7 @@ begin
               FileSel := ((AttrExcludeMask and Srec.Attr) = 0);
 
             if FileSel and
-              ((Mask = '') or FileNameMatchesMasks(SRec.Name, False, FSize, Mask)) and
+              ((SRec.Attr and faDirectory) = 0) and
               (FSize >= FSelFileSizeFrom) and
               ((FSelFileSizeTo = 0) or (FSize <= FSelFileSizeTo)) and
               (LongWord(SRec.Time) >= FileTimeFrom) and
@@ -1603,20 +1618,21 @@ begin
 
               if FileSel then
               begin
-                AddItem(SRec);
+                if (ScanRun = 1) or
+                   ((ScanRun > 1) and not FileList.Find(SRec.Name, Dummy)) then
+                begin
+                  AddItem(SRec);
+                  if Length(TempMask) > 0 then
+                  begin
+                    FileList.Add(SRec.Name);
+                  end;
+                end;
               end;
-            end
-              else
-            begin
-             if (AttrExcludeMask and Srec.Attr and SysUtils.faHidden) <> 0 then
-               Inc(FHiddenCount)
-             else
-               Inc(FFilteredCount);
             end;
+            DosError := FindNext(SRec);
           end;
-          DosError := FindNext(SRec);
-        end;
-        SysUtils.FindClose(SRec);
+          SysUtils.FindClose(SRec);
+        end; {Length (TempMask) > 0}
 
         if AddParentDir and (Length(FPath) > 2) then
         begin
@@ -1658,11 +1674,6 @@ begin
                 if ShowSubDirSize then
                   FSubDirScanner.Add(TSubDirScanner.Create(Self, NewItem));
                 {$ENDIF}
-              end
-                else
-              begin
-                if (AttrExcludeMask and Srec.Attr and SysUtils.faHidden) <> 0 then
-                  Inc(FHiddenCount);
               end;
             end;
             DosError := FindNext(SRec);
@@ -1687,12 +1698,16 @@ begin
             end;
           {$ENDIF}
         end; {If FShowDirectories}
+
+        if Assigned(FileList) then
+          FileList.Free;
       end; {not isRecycleBin}
     end
       else FIsRecycleBin := False;
 
   finally
     //if Assigned(Animate) then Animate.Free;
+    SetLength(ActMask, 0);
     FInfoCacheList.Sort(CompareInfoCacheItems);
   end; {Finally}
 end;
@@ -1723,6 +1738,8 @@ var
   PUpdate: Boolean;
   PEFile: PEFileRec;
   SaveCursor: TCursor;
+  TempMask: string;
+  ActMask: string;
   FileTimeFrom: LongWord;
   FileTimeTo: LongWord;
   AttrIncludeMask: Integer;
@@ -1788,9 +1805,7 @@ begin
 
         PUpdate := False;
         AnyUpdate := False;
-
-        FHiddenCount := 0;
-        FFilteredCount := 0;
+        TempMask := Mask;
 
         AttrIncludeMask := 0;
         AttrExcludeMask := 0;
@@ -1818,11 +1833,16 @@ begin
           end;
           EItems.Sort;
 
-          DosError := SysUtils.FindFirst(IncludeTrailingPathDelimiter(FPath) + '*.*',
-            FileAttr, SRec);
-          while DosError = 0 do
+          {Search new or changed files:}
+          while Length(TempMask) > 0 do
           begin
-            if (SRec.Attr and faDirectory) = 0 then
+            ActMask := GetNextMask(TempMask);
+
+            if Length(TempMask) > 0 then FItems.Sort;
+
+            DosError := SysUtils.FindFirst(IncludeTrailingPathDelimiter(FPath) + ActMask,
+              FileAttr, SRec);
+            while DosError = 0 do
             begin
               FileSel := True;
               if (AttrIncludeMask <> 0) then
@@ -1830,16 +1850,12 @@ begin
               if FileSel and (AttrExcludeMask <> 0) then
                 FileSel := ((AttrExcludeMask and Srec.Attr) = 0);
 
-              FSize := SizeFromSRec(SRec);
-              FileSel :=
-                FileSel and
-                ((Mask = '') or FileNameMatchesMasks(SRec.Name, False, FSize, Mask)) and
-                (FSize >= FSelFileSizeFrom) and
-                ((FSelFileSizeTo = 0) or (FSize <= FSelFileSizeTo)) and
+              if FileSel and
+                ((SRec.Attr and faDirectory) = 0) and
+                (SRec.Size >= FSelFileSizeFrom) and
+                ((FSelFileSizeTo = 0) or (SRec.Size <= FSelFileSizeTo)) and
                 (LongWord(SRec.Time) >= FileTimeFrom) and
-                (LongWord(SRec.Time) <= FileTimeTo);
-
-              if FileSel then
+                (LongWord(SRec.Time) <= FileTimeTo) then
               begin
                 ItemIndex := -1;
                 if not EItems.Find(SRec.Name, ItemIndex) then
@@ -1851,11 +1867,11 @@ begin
                     New(PSrec);
                     PSRec^ := SRec;
                     NewItems.AddObject(SRec.Name, Pointer(PSrec));
-                    FItems.Add(Srec.Name);
-                  end
+                  end;
                 end
                   else
                 begin
+                  FSize := SizeFromSRec(SRec);
                   with PEFileRec(EItems.Objects[ItemIndex])^ do
 {$WARNINGS OFF}
                   if (iSize <> FSize) or (iAttr <> SRec.Attr) or
@@ -1886,21 +1902,13 @@ begin
                     InvalidateRect(Handle, @R, True);
                     AnyUpdate := True;
                   end;
-                  FItems.Add(Srec.Name);
                 end;
               end;
-
-              if not FileSel then
-              begin
-                if ((AttrExcludeMask and Srec.Attr and SysUtils.faHidden) <> 0) then
-                  Inc(FHiddenCount)
-                else
-                  Inc(FFilteredCount);
-              end;
+              FItems.Add(Srec.Name);
+              DosError := FindNext(Srec);
             end;
-            DosError := FindNext(Srec);
+            SysUtils.FindClose(Srec);
           end;
-          SysUtils.FindClose(Srec);
 
           {Search new directories:}
           if ShowDirectories then
@@ -1908,45 +1916,29 @@ begin
             DosError := SysUtils.FindFirst(FPath + '\*.*', DirAttrMask, SRec);
             while DosError = 0 do
             begin
-              if (Srec.Attr and faDirectory) <> 0 then
+              FileSel := True;
+              if AttrIncludeMask <> 0 then
+                FileSel := ((SRec.Attr and AttrIncludeMask) = AttrIncludeMask);
+              if FileSel and (AttrExcludeMask <> 0) then
+                FileSel := ((AttrExcludeMask and SRec.Attr) = 0);
+
+              if (SRec.Name <> '.') and (SRec.Name <> '..') and
+                 ((Srec.Attr and faDirectory) <> 0) then
               begin
-                FileSel := True;
-                if AttrIncludeMask <> 0 then
-                  FileSel := ((SRec.Attr and AttrIncludeMask) = AttrIncludeMask);
-                if FileSel and (AttrExcludeMask <> 0) then
-                  FileSel := ((AttrExcludeMask and SRec.Attr) = 0);
-
-                if (SRec.Name <> '.') and (SRec.Name <> '..') then
+                if not EItems.Find(SRec.Name, ItemIndex) then
                 begin
-                  if not EItems.Find(SRec.Name, ItemIndex) then
-                  begin
-                    if Assigned(FOnAddFile) then
-                      FOnAddFile(Self, SRec, FileSel);
+                  if Assigned(FOnAddFile) then
+                    FOnAddFile(Self, SRec, FileSel);
 
-                    if FileSel then
-                    begin
-                      New(PSrec);
-                      PSrec^ := SRec;
-                      NewItems.AddObject(Srec.Name, Pointer(PSrec));
-                      FItems.Add(SRec.Name);
-                    end
-                      else
-                    begin
-                      if (AttrExcludeMask and Srec.Attr and SysUtils.faHidden) <> 0 then
-                        Inc(FHiddenCount);
-                    end;
-                  end
-                    else
+                  if FileSel then
                   begin
-                    FileSel := true;
-                    FItems.Add(SRec.Name);
+                    New(PSrec);
+                    PSrec^ := SRec;
+                    NewItems.AddObject(Srec.Name, Pointer(PSrec));
                   end;
-                end
-                  else
-                begin
-                  FItems.Add(SRec.Name);
                 end;
               end;
+              FItems.Add(SRec.Name);
               DosError := FindNext(SRec);
             end;
             SysUtils.FindClose(SRec);
@@ -2306,6 +2298,15 @@ begin
   Assert(Assigned(Item) and Assigned(Item.Data));
   Result := ExtractFileExt(PFileRec(Item.Data)^.FileName);
 end; {ItemFileExt}
+
+procedure TDirView.SetMask(Value: string);
+var
+  LastMask: string;
+begin
+  LastMask := Mask;
+  inherited SetMask(Value);
+  if LastMask <> Mask then Reload(True);
+end; {SetMask}
 
 function TDirView.DeleteSelectedFiles(AllowUndo: Boolean): Boolean;
 const
@@ -3684,7 +3685,7 @@ begin
         IconEmpty := True;
         FileName := NewCaption;
         DisplayName := FileName;
-        FileExt := UpperCase(Copy(ExtractFileExt(HItem.pszText), 2, Pred(ExtLen)));
+        FileExt := UpperCase(ExtractFileExt(HItem.pszText));
         TypeName := EmptyStr;
         if Assigned(PIDL) then
           FreePIDL(PIDL);
@@ -3760,7 +3761,7 @@ begin
     end
       else
     begin
-      if (not Cache) or (Pos(PFileRec(Item.Data)^.FileExt, SpecialExtensions) <> 0) then
+      if (not Cache) or MatchesFileExt(PFileRec(Item.Data)^.FileExt, SpecialExtensions) then
         Result := PFileRec(Item.Data)^.ImageIndex
       else
         Result := -1

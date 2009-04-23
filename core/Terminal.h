@@ -24,6 +24,7 @@ class TSynchronizeChecklist;
 struct TCalculateSizeStats;
 struct TFileSystemInfo;
 struct TSpaceAvailable;
+typedef TStringList TUsersGroupsList;
 class TTunnelUI;
 class TCallbackGuard;
 //---------------------------------------------------------------------------
@@ -156,9 +157,8 @@ private:
   TNotifyEvent FOnStartReadDirectory;
   TReadDirectoryProgressEvent FOnReadDirectoryProgress;
   TDeleteLocalFileEvent FOnDeleteLocalFile;
-  TRemoteTokenList FMembership;
-  TRemoteTokenList FGroups;
-  TRemoteTokenList FUsers;
+  TUsersGroupsList * FGroups;
+  TUsersGroupsList * FUsers;
   bool FUsersGroupsLookedup;
   TFileOperationProgressEvent FOnProgress;
   TFileOperationFinished FOnFinished;
@@ -176,6 +176,7 @@ private:
   bool * FClosedOnCompletion;
   TSessionStatus FStatus;
   AnsiString FPassword;
+  AnsiString FTunnelPassword;
   TTunnelThread * FTunnelThread;
   TSecureShell * FTunnel;
   TSessionData * FTunnelData;
@@ -183,7 +184,6 @@ private:
   TTunnelUI * FTunnelUI;
   int FTunnelLocalPortNumber;
   AnsiString FTunnelError;
-  bool FTunnelOpening;
   TQueryUserEvent FOnQueryUser;
   TPromptUserEvent FOnPromptUser;
   TDisplayBannerEvent FOnDisplayBanner;
@@ -198,9 +198,8 @@ private:
   AnsiString __fastcall PeekCurrentDirectory();
   AnsiString __fastcall GetCurrentDirectory();
   bool __fastcall GetExceptionOnFail() const;
-  const TRemoteTokenList * __fastcall GetGroups();
-  const TRemoteTokenList * __fastcall GetUsers();
-  const TRemoteTokenList * __fastcall GetMembership();
+  TUsersGroupsList * __fastcall GetGroups();
+  TUsersGroupsList * __fastcall GetUsers();
   void __fastcall SetCurrentDirectory(AnsiString value);
   void __fastcall SetExceptionOnFail(bool value);
   void __fastcall ReactOnCommand(int /*TFSCommand*/ Cmd);
@@ -213,16 +212,19 @@ private:
   bool __fastcall GetResolvingSymlinks();
   bool __fastcall GetActive();
   AnsiString __fastcall GetPassword();
+  AnsiString __fastcall GetTunnelPassword();
   bool __fastcall GetStoredCredentialsTried();
 
 protected:
   bool FReadCurrentDirectoryPending;
   bool FReadDirectoryPending;
+  bool FTunnelOpening;
 
   void __fastcall DoStartReadDirectory();
   void __fastcall DoReadDirectoryProgress(int Progress, bool & Cancel);
   void __fastcall DoReadDirectory(bool ReloadOnly);
-  void __fastcall DoCreateDirectory(const AnsiString DirName);
+  void __fastcall DoCreateDirectory(const AnsiString DirName,
+    const TRemoteProperties * Properties);
   void __fastcall DoDeleteFile(const AnsiString FileName, const TRemoteFile * File,
     int Params);
   void __fastcall DoCustomCommandOnFile(AnsiString FileName,
@@ -317,11 +319,6 @@ protected:
   void __fastcall DoProgress(TFileOperationProgressType & ProgressData, TCancelStatus & Cancel);
   void __fastcall DoFinished(TFileOperation Operation, TOperationSide Side, bool Temp,
     const AnsiString & FileName, bool Success, bool & DisconnectWhenComplete);
-  void __fastcall RollbackAction(TSessionAction & Action,
-    TFileOperationProgressType * OperationProgress, Exception * E = NULL);
-  void __fastcall DoAnyCommand(const AnsiString Command, TCaptureOutputEvent OutputEvent,
-    TCallSessionAction * Action);
-  TRemoteFileList * DoReadDirectoryListing(AnsiString Directory, bool UseCache);
 
   __property TFileOperationProgressType * OperationProgress = { read=FOperationProgress };
 
@@ -338,12 +335,11 @@ public:
   bool __fastcall AllowedAnyCommand(const AnsiString Command);
   void __fastcall AnyCommand(const AnsiString Command, TCaptureOutputEvent OutputEvent);
   void __fastcall CloseOnCompletion(const AnsiString Message = "");
-  AnsiString __fastcall AbsolutePath(AnsiString Path, bool Local);
+  AnsiString __fastcall AbsolutePath(AnsiString Path);
   void __fastcall BeginTransaction();
   void __fastcall ReadCurrentDirectory();
   void __fastcall ReadDirectory(bool ReloadOnly, bool ForceCache = false);
-  TRemoteFileList * ReadDirectoryListing(AnsiString Directory, const TFileMasks & Mask);
-  TRemoteFileList * CustomReadDirectoryListing(AnsiString Directory, bool UseCache);
+  TRemoteFileList * ReadDirectoryListing(AnsiString Directory, bool UseCache);
   void __fastcall ReadFile(const AnsiString FileName, TRemoteFile *& File);
   bool __fastcall FileExists(const AnsiString FileName);
   void __fastcall ReadSymlink(TRemoteFile * SymlinkFile, TRemoteFile *& File);
@@ -432,9 +428,8 @@ public:
   __property TNotifyEvent OnStartReadDirectory = { read = FOnStartReadDirectory, write = FOnStartReadDirectory };
   __property TReadDirectoryProgressEvent OnReadDirectoryProgress = { read = FOnReadDirectoryProgress, write = FOnReadDirectoryProgress };
   __property TDeleteLocalFileEvent OnDeleteLocalFile = { read = FOnDeleteLocalFile, write = FOnDeleteLocalFile };
-  __property const TRemoteTokenList * Groups = { read = GetGroups };
-  __property const TRemoteTokenList * Users = { read = GetUsers };
-  __property const TRemoteTokenList * Membership = { read = GetMembership };
+  __property TUsersGroupsList * Groups = { read = GetGroups };
+  __property TUsersGroupsList * Users = { read = GetUsers };
   __property TFileOperationProgressEvent OnProgress  = { read=FOnProgress, write=FOnProgress };
   __property TFileOperationFinished OnFinished  = { read=FOnFinished, write=FOnFinished };
   __property TCurrentFSProtocol FSProtocol = { read = FFSProtocol };
@@ -448,6 +443,7 @@ public:
   __property TStrings * FixedPaths = { read = GetFixedPaths };
   __property bool ResolvingSymlinks = { read = GetResolvingSymlinks };
   __property AnsiString Password = { read = GetPassword };
+  __property AnsiString TunnelPassword = { read = GetTunnelPassword };
   __property bool StoredCredentialsTried = { read = GetStoredCredentialsTried };
   __property TQueryUserEvent OnQueryUser = { read = FOnQueryUser, write = FOnQueryUser };
   __property TPromptUserEvent OnPromptUser = { read = FOnPromptUser, write = FOnPromptUser };
@@ -474,6 +470,7 @@ protected:
 
 private:
   bool FMasterPasswordTried;
+  bool FMasterTunnelPasswordTried;
   TTerminal * FMainTerminal;
 };
 //---------------------------------------------------------------------------
@@ -568,7 +565,6 @@ public:
   public:
     struct TFileInfo
     {
-      AnsiString FileName;
       AnsiString Directory;
       TDateTime Modification;
       TModificationFmt ModificationFmt;
@@ -576,13 +572,12 @@ public:
     };
 
     TAction Action;
+    AnsiString FileName;
     bool IsDirectory;
     TFileInfo Local;
     TFileInfo Remote;
     int ImageIndex;
     bool Checked;
-
-    const AnsiString& GetFileName() const;
 
     ~TItem();
 

@@ -465,6 +465,8 @@ void __fastcall TScpCommanderForm::ConfigurationChanged()
   LocalDriveView->DimmHiddenDirs = WinConfiguration->DimmHiddenFiles;
   LocalDirView->ShowHiddenFiles = WinConfiguration->ShowHiddenFiles;
   LocalDriveView->ShowHiddenDirs = WinConfiguration->ShowHiddenFiles;
+  LocalDirView->ConfirmOverwrite = WinConfiguration->ConfirmOverwriting;
+  LocalDriveView->ConfirmOverwrite = WinConfiguration->ConfirmOverwriting;
 
   LocalDirView->NortonLike = WinConfiguration->ScpCommander.NortonLikeMode;
   RemoteDirView->NortonLike = WinConfiguration->ScpCommander.NortonLikeMode;

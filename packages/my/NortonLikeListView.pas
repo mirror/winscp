@@ -45,6 +45,7 @@ type
     procedure EndSelectionUpdate; virtual;
     function CanChangeSelection(Item: TListItem; Select: Boolean): Boolean; virtual;
     procedure ClearItems; virtual;
+    procedure ItemsReordered;
     procedure ColRightClick(Column: TListColumn; Point: TPoint); override;
     procedure Delete(Item: TListItem); override;
     function DoSelectByMask(Select: Boolean): Boolean; virtual;
@@ -319,6 +320,15 @@ begin
     Items.EndUpdate;
   end;
 end; { ClearItems }
+
+procedure TCustomNortonLikeListView.ItemsReordered;
+begin
+  if FManageSelection then
+  begin
+    FFirstSelected := -1;
+    FLastSelected := -1;
+  end;
+end;
 
 procedure TCustomNortonLikeListView.ColRightClick(Column: TListColumn; Point: TPoint);
 var
