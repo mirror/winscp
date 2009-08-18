@@ -39,6 +39,9 @@ public:
 	int nPasv;
 	int nTimeZoneOffset;
 	int nUTF8;
+#ifdef MPEXT
+	BOOL bForcePasvIp;
+#endif
 	bool operator<(const t_server &op) const; //Needed by STL map
 };
 
