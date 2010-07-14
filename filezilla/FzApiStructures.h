@@ -52,14 +52,14 @@ const bool operator != (const t_server &a,const t_server &b);
 
 typedef struct
 {
-	CString localfile;
-	CString remotefile;
-	CServerPath remotepath;
-	BOOL get;
-	__int64 size;
-	t_server server;
-	int nType;
-	int nUserData;
+    CString localfile;
+    CString remotefile;
+    CServerPath remotepath;
+    BOOL get;
+    __int64 size;
+    t_server server;
+    int nType;
+    int nUserData;
 } t_transferfile;
 
 #endif
