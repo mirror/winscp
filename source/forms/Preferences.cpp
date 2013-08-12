@@ -78,7 +78,7 @@ __fastcall TPreferencesDialog::TPreferencesDialog(
   HintLabel(LogFileNameHintText, LoadStr(LOG_FILE_HINT3));
   HintLabel(ActionsLogFileNameHintText, LoadStr(LOG_FILE_HINT3));
 
-  HintLabel(ShellIconsText);
+  HintLabel(ShellIconsText2);
   HotTrackLabel(CopyParamLabel);
   HintLabel(PuttyPathHintText, LoadStr(PUTTY_PATTERNS_HINT));
 
@@ -1053,7 +1053,7 @@ void __fastcall TPreferencesDialog::UpdateControls()
 
     // integration
     // There's no quick launch in Windows 7
-    EnableControl(QuickLaunchIconButton, !IsWin7());
+    EnableControl(QuickLaunchIconButton, !::IsWin7());
 
     // languages
     LanguageChangeLabel->Visible =
@@ -1859,6 +1859,68 @@ void __fastcall TPreferencesDialog::SessionReopenTimeoutEditGetValue(
   }
 }
 //---------------------------------------------------------------------------
+bool __fastcall TPreferencesDialog::CanSetMasterPassword()
+{
+  bool Result;
+  bool Retry;
+  do
+  {
+    Retry = false;
+    Result = !AnyOtherInstanceOfSelf();
+
+    if (!Result)
+    {
+      unsigned int Answer =
+        MessageDialog(
+          LoadStr(MASTER_PASSWORD_OTHER_INSTANCE),
+          qtConfirmation, qaRetry | qaIgnore | qaCancel,
+          HELP_MASTER_PASSWORD);
+
+      switch (Answer)
+      {
+        case qaRetry:
+          Retry = true;
+          break;
+
+        case qaIgnore:
+          Result = true;
+          break;
+
+        case qaCancel:
+        default:
+          // noop
+          break;
+      }
+    }
+  }
+  while (Retry && !Result);
+
+  return Result;
+}
+//---------------------------------------------------------------------------
+void __fastcall TPreferencesDialog::MasterPasswordChanged(
+  UnicodeString Message, TStrings * RecryptPasswordErrors)
+{
+  Configuration->Save();
+  if (RecryptPasswordErrors->Count > 0)
+  {
+    Message = FMTLOAD(MASTER_PASSWORD_RECRYPT_ERRORS, (Message));
+  }
+  MoreMessageDialog(
+    Message, RecryptPasswordErrors, qtInformation, qaOK, HELP_MASTER_PASSWORD);
+}
+//---------------------------------------------------------------------------
+void __fastcall TPreferencesDialog::ChangeMasterPassword(UnicodeString Message)
+{
+  UnicodeString NewPassword;
+  if (DoChangeMasterPasswordDialog(NewPassword))
+  {
+    std::auto_ptr<TStrings> RecryptPasswordErrors(new TStringList());
+    WinConfiguration->ChangeMasterPassword(NewPassword, RecryptPasswordErrors.get());
+    MasterPasswordChanged(Message, RecryptPasswordErrors.get());
+  }
+}
+//---------------------------------------------------------------------------
 void __fastcall TPreferencesDialog::UseMasterPasswordCheckClick(
   TObject * /*Sender*/)
 {
@@ -1866,19 +1928,20 @@ void __fastcall TPreferencesDialog::UseMasterPasswordCheckClick(
   {
     try
     {
-      if (UseMasterPasswordCheck->Checked)
+      if (CanSetMasterPassword())
       {
-        if (DoChangeMasterPasswordDialog())
+        if (UseMasterPasswordCheck->Checked)
         {
-          MessageDialog(LoadStr(MASTER_PASSWORD_SET), qtInformation, qaOK, HELP_MASTER_PASSWORD);
+          ChangeMasterPassword(LoadStr(MASTER_PASSWORD_SET));
         }
-      }
-      else
-      {
-        if (DoMasterPasswordDialog())
+        else
         {
-          WinConfiguration->ClearMasterPassword();
-          MessageDialog(LoadStr(MASTER_PASSWORD_CLEARED), qtInformation, qaOK, HELP_MASTER_PASSWORD);
+          if (DoMasterPasswordDialog())
+          {
+            std::auto_ptr<TStrings> RecryptPasswordErrors(new TStringList());
+            WinConfiguration->ClearMasterPassword(RecryptPasswordErrors.get());
+            MasterPasswordChanged(LoadStr(MASTER_PASSWORD_CLEARED), RecryptPasswordErrors.get());
+          }
         }
       }
     }
@@ -1893,9 +1956,9 @@ void __fastcall TPreferencesDialog::UseMasterPasswordCheckClick(
 void __fastcall TPreferencesDialog::SetMasterPasswordButtonClick(
   TObject * /*Sender*/)
 {
-  if (DoChangeMasterPasswordDialog())
+  if (CanSetMasterPassword())
   {
-    MessageDialog(LoadStr(MASTER_PASSWORD_CHANGED), qtInformation, qaOK, HELP_MASTER_PASSWORD);
+    ChangeMasterPassword(LoadStr(MASTER_PASSWORD_CHANGED));
   }
 }
 //---------------------------------------------------------------------------
