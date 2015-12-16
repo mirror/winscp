@@ -31,6 +31,8 @@ typedef struct terminal_tag Terminal;
  * Fingerprints of the PGP master keys that can be used to establish a trust
  * path between an executable and other files.
  */
+#define PGP_MASTER_KEY_FP \
+    "440D E3B5 B7A1 CA85 B3CC  1718 AB58 5DC6 0467 6F7C"
 #define PGP_RSA_MASTER_KEY_FP \
     "8F 15 97 DA 25 30 AB 0D  88 D1 92 54 11 CF 0C 4C"
 #define PGP_DSA_MASTER_KEY_FP \
@@ -839,12 +841,22 @@ void cleanup_exit(int);
     X(INT, NONE, sshbug_ignore2) \
     X(INT, NONE, sshbug_oldgex2) \
     X(INT, NONE, sshbug_winadj) \
+    X(INT, NONE, sshbug_chanreq) \
     /*                                                                \
      * ssh_simple means that we promise never to open any channel     \
      * other than the main one, which means it can safely use a very  \
      * large window in SSH-2.                                         \
      */ \
     X(INT, NONE, ssh_simple) \
+    X(INT, NONE, ssh_connection_sharing) \
+    X(INT, NONE, ssh_connection_sharing_upstream) \
+    X(INT, NONE, ssh_connection_sharing_downstream) \
+    /*
+     * ssh_manual_hostkeys is conceptually a set rather than a
+     * dictionary: the string subkeys are the important thing, and the
+     * actual values to which those subkeys map are all "".
+     */ \
+    X(STR, STR, ssh_manual_hostkeys) \
     /* Options for pterm. Should split out into platform-dependent part. */ \
     X(INT, NONE, stamp_utmp) \
     X(INT, NONE, login_shell) \
@@ -1022,7 +1034,8 @@ struct logblank_t {
 void log_packet(void *logctx, int direction, int type,
 		char *texttype, const void *data, int len,
 		int n_blanks, const struct logblank_t *blanks,
-		const unsigned long *sequence);
+		const unsigned long *sequence,
+                unsigned downstream_id, const char *additional_log_text);
 
 /*
  * Exports from testback.c
@@ -1300,6 +1313,7 @@ int filename_serialise(const Filename *f, void *data);
 Filename *filename_deserialise(void *data, int maxsize, int *used);
 char *get_username(void);	       /* return value needs freeing */
 char *get_random_data(int bytes);      /* used in cmdgen.c */
+char filename_char_sanitise(char c);   /* rewrite special pathname chars */
 
 /*
  * Exports and imports from timing.c.
@@ -1439,12 +1453,14 @@ void request_callback_notifications(toplevel_callback_notify_fn_t notify,
 #endif
 
 /* SURROGATE PAIR */
-#ifndef IS_HIGH_SURROGATE
 #define HIGH_SURROGATE_START 0xd800
 #define HIGH_SURROGATE_END 0xdbff
 #define LOW_SURROGATE_START 0xdc00
 #define LOW_SURROGATE_END 0xdfff
 
+/* These macros exist in the Windows API, so the environment may
+ * provide them. If not, define them in terms of the above. */
+#ifndef IS_HIGH_SURROGATE
 #define IS_HIGH_SURROGATE(wch) (((wch) >= HIGH_SURROGATE_START) && \
                                 ((wch) <= HIGH_SURROGATE_END))
 #define IS_LOW_SURROGATE(wch) (((wch) >= LOW_SURROGATE_START) && \
@@ -1480,4 +1496,5 @@ void putty_finalize();
 // but known to get UTF-8 encoded component (currently private key path only)
 #define MPEXT_BOM "\xEF\xBB\xBF"
 #endif
+
 #endif

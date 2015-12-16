@@ -70,6 +70,7 @@ __fastcall TPreferencesDialog::TPreferencesDialog(
   FListViewDragDest = -1;
   FCopyParamList = new TCopyParamList();
   FEditorList = new TEditorList();
+  FAutomaticUpdatesPossible = IsInstalled();
   UseSystemSettings(this);
 
   FCustomCommandsScrollOnDragOver = new TListViewScrollOnDragOver(CustomCommandsView, true);
@@ -89,7 +90,7 @@ __fastcall TPreferencesDialog::TPreferencesDialog(
 
   HintLabel(ShellIconsText2);
   HotTrackLabel(CopyParamLabel);
-  HintLabel(PuttyPathHintText, LoadStr(PUTTY_PATTERNS_HINT));
+  HintLabel(PuttyPathHintText, LoadStr(PUTTY_PATTERNS_HINT2));
 
   EditorEncodingCombo->Items->Add(DefaultEncodingName());
   EditorEncodingCombo->Items->Add(LoadStr(UTF8_NAME));
@@ -102,6 +103,13 @@ __fastcall TPreferencesDialog::TPreferencesDialog(
   PuttyRegistryStorageKeyEdit->Items->Add(KittyRegistryStorageKey);
 
   MenuButton(RegisterAsUrlHandlersButton);
+  MenuButton(EditorFontColorButton);
+  MenuButton(EditorBackgroundColorButton);
+
+  LoadDialogImage(CommanderInterfacePicture, L"Commander");
+  LoadDialogImage(ExplorerInterfacePicture, L"Explorer");
+
+  LinkLabel(UpdatesLink);
 }
 //---------------------------------------------------------------------------
 __fastcall TPreferencesDialog::~TPreferencesDialog()
@@ -121,7 +129,6 @@ bool __fastcall TPreferencesDialog::Execute(TPreferencesDialogData * DialogData)
 {
   PuttyPathEdit->Items = CustomWinConfiguration->History[L"PuttyPath"];
   FDialogData = DialogData;
-  LoadConfiguration();
   bool Result = (ShowModal() == DefaultResult(this));
   if (Result)
   {
@@ -162,7 +169,7 @@ TTabSheet * __fastcall TPreferencesDialog::FindPageForTreeNode(TTreeNode * Node)
       return Sheet;
     }
   }
-  FAIL;
+  DebugFail();
   return NULL;
 }
 //---------------------------------------------------------------------------
@@ -174,7 +181,7 @@ void __fastcall TPreferencesDialog::PrepareNavigationTree(TTreeView * Tree)
   {
     TTreeNode * Node = Tree->Items->Item[i];
     TTabSheet * Sheet = FindPageForTreeNode(Node);
-    if (NOT_NULL(Sheet))
+    if (DebugNotNull(Sheet))
     {
       if (Sheet->Enabled)
       {
@@ -216,7 +223,6 @@ void __fastcall TPreferencesDialog::LoadConfiguration()
     BOOLPROP(ConfirmResume);
     BOOLPROP(ConfirmDeleting);
     BOOLPROP(ConfirmRecycling);
-    BOOLPROP(ConfirmClosingSession);
     BOOLPROP(ConfirmExitOnCompletion);
     BOOLPROP(ConfirmCommandSession);
     BOOLPROP(ContinueOnError);
@@ -228,6 +234,8 @@ void __fastcall TPreferencesDialog::LoadConfiguration()
     BOOLPROP(TemporaryDirectoryCleanup);
     BOOLPROP(ConfirmTemporaryDirectoryCleanup);
     BOOLPROP(FullRowSelect);
+
+    ConfirmClosingSessionCheck2->Checked = WinConfiguration->ConfirmClosingSession;
 
     if (WinConfiguration->DDTransferConfirmation == asAuto)
     {
@@ -310,6 +318,8 @@ void __fastcall TPreferencesDialog::LoadConfiguration()
       EditorEncodingCombo->ItemIndex = 0;
     }
     TWinConfiguration::RestoreFont(WinConfiguration->Editor.Font, FEditorFont.get());
+    FEditorFont->Color = WinConfiguration->Editor.FontColor;
+    FEditorBackgroundColor = WinConfiguration->Editor.BackgroundColor;
     (*FEditorList) = *WinConfiguration->EditorList;
     UpdateEditorListView();
 
@@ -414,6 +424,8 @@ void __fastcall TPreferencesDialog::LoadConfiguration()
     }
     BOOLPROP(MinimizeToTray);
     BOOLPROP(ExternalSessionInExistingInstance);
+    BOOLPROP(KeepOpenWhenNoSession);
+    BOOLPROP(ShowTips);
 
     // panels
     DoubleClickActionCombo->ItemIndex = WinConfiguration->DoubleClickAction;
@@ -434,7 +446,7 @@ void __fastcall TPreferencesDialog::LoadConfiguration()
         FormatSizeBytesCombo->ItemIndex = 2;
         break;
       default:
-        FAIL;
+        DebugFail();
     }
 
     bool CustomPanelFont = !WinConfiguration->PanelFont.FontName.IsEmpty();
@@ -468,6 +480,8 @@ void __fastcall TPreferencesDialog::LoadConfiguration()
     }
 
     UpdatesShowOnStartup->Checked = Updates.ShowOnStartup;
+    UpdatesAuthenticationEmailEdit->Text = Updates.AuthenticationEmail;
+    FVerifiedUpdatesAuthenticationEmail = UpdatesAuthenticationEmailEdit->Text;
 
     CollectUsageCheck->Checked = Configuration->CollectUsage;
 
@@ -510,21 +524,8 @@ void __fastcall TPreferencesDialog::LoadConfiguration()
         break;
 
       default:
-        FAIL;
+        DebugFail();
         break;
-    }
-
-    if (WinConfiguration->Theme == THEME_OFFICEXP)
-    {
-      ThemeCombo->ItemIndex = 1;
-    }
-    else if (WinConfiguration->Theme == THEME_OFFICE2003)
-    {
-      ThemeCombo->ItemIndex = 2;
-    }
-    else
-    {
-      ThemeCombo->ItemIndex = 0;
     }
 
     // security
@@ -605,7 +606,6 @@ void __fastcall TPreferencesDialog::SaveConfiguration()
     BOOLPROP(ConfirmResume);
     BOOLPROP(ConfirmDeleting);
     BOOLPROP(ConfirmRecycling);
-    BOOLPROP(ConfirmClosingSession);
     BOOLPROP(ConfirmExitOnCompletion);
     BOOLPROP(ConfirmCommandSession);
     BOOLPROP(ContinueOnError);
@@ -617,6 +617,8 @@ void __fastcall TPreferencesDialog::SaveConfiguration()
     BOOLPROP(TemporaryDirectoryCleanup);
     BOOLPROP(ConfirmTemporaryDirectoryCleanup);
     BOOLPROP(FullRowSelect);
+
+    WinConfiguration->ConfirmClosingSession = ConfirmClosingSessionCheck2->Checked;
 
     WinConfiguration->DDTransferConfirmation =
       CheckBoxAutoSwitchSave(DDTransferConfirmationCheck);
@@ -688,6 +690,8 @@ void __fastcall TPreferencesDialog::SaveConfiguration()
         break;
     }
     TWinConfiguration::StoreFont(FEditorFont.get(), WinConfiguration->Editor.Font);
+    WinConfiguration->Editor.FontColor = FEditorFont->Color;
+    WinConfiguration->Editor.BackgroundColor = FEditorBackgroundColor;
     WinConfiguration->EditorList = FEditorList;
 
     // overwrites only TCopyParamType fields
@@ -784,6 +788,8 @@ void __fastcall TPreferencesDialog::SaveConfiguration()
     }
     BOOLPROP(MinimizeToTray);
     BOOLPROP(ExternalSessionInExistingInstance);
+    BOOLPROP(KeepOpenWhenNoSession);
+    BOOLPROP(ShowTips);
 
     // panels
     WinConfiguration->DoubleClickAction = (TDoubleClickAction)DoubleClickActionCombo->ItemIndex;
@@ -804,7 +810,7 @@ void __fastcall TPreferencesDialog::SaveConfiguration()
         WinConfiguration->FormatSizeBytes = fbShort;
         break;
       default:
-        FAIL;
+        DebugFail();
     }
 
     TFontConfiguration PanelFontConfiguration;
@@ -815,53 +821,9 @@ void __fastcall TPreferencesDialog::SaveConfiguration()
     WinConfiguration->PanelFont = PanelFontConfiguration;
 
     // updates
-    TUpdatesConfiguration Updates = WinConfiguration->Updates;
-    if (UpdatesPeriodCombo->ItemIndex == 0)
-    {
-      Updates.Period = 0;
-    }
-    else if (UpdatesPeriodCombo->ItemIndex == 1)
-    {
-      Updates.Period = 1;
-    }
-    else if (UpdatesPeriodCombo->ItemIndex == 2)
-    {
-      Updates.Period = 7;
-    }
-    else
-    {
-      Updates.Period = 30;
-    }
-
-    Updates.ShowOnStartup = UpdatesShowOnStartup->Checked;
+    WinConfiguration->Updates = SaveUpdates();
 
     Configuration->CollectUsage = CollectUsageCheck->Checked;
-
-    Updates.BetaVersions = ComboAutoSwitchSave(UpdatesBetaVersionsCombo);
-
-    if (UpdatesDirectCheck->Checked)
-    {
-      Updates.ConnectionType = ctDirect;
-    }
-    else if (UpdatesAutoCheck->Checked)
-    {
-      Updates.ConnectionType = ctAuto;
-    }
-    else if (UpdatesProxyCheck->Checked)
-    {
-      if (!UpdatesProxyHostEdit->Text.IsEmpty())
-      {
-        Updates.ConnectionType = ctProxy;
-      }
-      else
-      {
-        Updates.ConnectionType = ctDirect;
-      }
-    }
-    Updates.ProxyHost = UpdatesProxyHostEdit->Text;
-    Updates.ProxyPort = UpdatesProxyPortEdit->AsInteger;
-
-    WinConfiguration->Updates = Updates;
 
     // presets
     WinConfiguration->CopyParamList = FCopyParamList;
@@ -873,19 +835,6 @@ void __fastcall TPreferencesDialog::SaveConfiguration()
       Configuration->Usage->Inc(L"InterfaceChanges");
     }
     CustomWinConfiguration->Interface = GetInterface();
-
-    if (ThemeCombo->ItemIndex == 1)
-    {
-      WinConfiguration->Theme = THEME_OFFICEXP;
-    }
-    else if (ThemeCombo->ItemIndex == 2)
-    {
-      WinConfiguration->Theme = THEME_OFFICE2003;
-    }
-    else
-    {
-      WinConfiguration->Theme = THEME_DEFAULT;
-    }
 
     // network
     Configuration->ExternalIpAddress =
@@ -940,6 +889,56 @@ void __fastcall TPreferencesDialog::SaveConfiguration()
   }
 }
 //---------------------------------------------------------------------------
+TUpdatesConfiguration __fastcall TPreferencesDialog::SaveUpdates()
+{
+  TUpdatesConfiguration Updates = WinConfiguration->Updates;
+  if (UpdatesPeriodCombo->ItemIndex == 0)
+  {
+    Updates.Period = 0;
+  }
+  else if (UpdatesPeriodCombo->ItemIndex == 1)
+  {
+    Updates.Period = 1;
+  }
+  else if (UpdatesPeriodCombo->ItemIndex == 2)
+  {
+    Updates.Period = 7;
+  }
+  else
+  {
+    Updates.Period = 30;
+  }
+
+  Updates.ShowOnStartup = UpdatesShowOnStartup->Checked;
+  Updates.AuthenticationEmail = UpdatesAuthenticationEmailEdit->Text;
+
+  Updates.BetaVersions = ComboAutoSwitchSave(UpdatesBetaVersionsCombo);
+
+  if (UpdatesDirectCheck->Checked)
+  {
+    Updates.ConnectionType = ctDirect;
+  }
+  else if (UpdatesAutoCheck->Checked)
+  {
+    Updates.ConnectionType = ctAuto;
+  }
+  else if (UpdatesProxyCheck->Checked)
+  {
+    if (!UpdatesProxyHostEdit->Text.IsEmpty())
+    {
+      Updates.ConnectionType = ctProxy;
+    }
+    else
+    {
+      Updates.ConnectionType = ctDirect;
+    }
+  }
+  Updates.ProxyHost = UpdatesProxyHostEdit->Text;
+  Updates.ProxyPort = UpdatesProxyPortEdit->AsInteger;
+
+  return Updates;
+}
+//---------------------------------------------------------------------------
 TInterface __fastcall TPreferencesDialog::GetInterface()
 {
   return CommanderInterfaceButton2->Checked ? ifCommander : ifExplorer;
@@ -947,6 +946,11 @@ TInterface __fastcall TPreferencesDialog::GetInterface()
 //---------------------------------------------------------------------------
 void __fastcall TPreferencesDialog::FormShow(TObject * /*Sender*/)
 {
+  // Load only now, particularly so that we have handles allocated already.
+  // If called before ShowModal, we end up recreating the handles,
+  // what causes flicker of the currently focused window
+  LoadConfiguration();
+
   InstallPathWordBreakProc(RandomSeedFileEdit);
   InstallPathWordBreakProc(DDTemporaryDirectoryEdit);
   InstallPathWordBreakProc(PuttyPathEdit);
@@ -964,9 +968,11 @@ void __fastcall TPreferencesDialog::FormShow(TObject * /*Sender*/)
     case pmPresets: PageControl->ActivePage = CopyParamListSheet; break;
     case pmEditors: PageControl->ActivePage = EditorSheet; break;
     case pmCommander: PageControl->ActivePage = CommanderSheet; break;
+    case pmEditorInternal: PageControl->ActivePage = EditorInternalSheet; break;
     default: PageControl->ActivePage = PreferencesSheet; break;
   }
   PageControlChange(NULL);
+  ActiveControl = NavigationTree;
 }
 //---------------------------------------------------------------------------
 void __fastcall TPreferencesDialog::ControlChange(TObject * /*Sender*/)
@@ -1038,10 +1044,16 @@ void __fastcall TPreferencesDialog::UpdateControls()
     EditorFontLabelText += TabSample(L"ABCD") + L"\n";
     EditorFontLabelText += TabSample(L"1234");
     EditorFontLabel->Caption = EditorFontLabelText;
-    if (!SameFont(EditorFontLabel->Font, FEditorFont.get()))
+    TColor EditorFontColor = GetWindowTextColor(FEditorFont->Color);
+    if (!SameFont(EditorFontLabel->Font, FEditorFont.get()) ||
+        (EditorFontLabel->Font->Color != EditorFontColor))
     {
-      EditorFontLabel->Font = FEditorFont.get();
+      std::unique_ptr<TFont> Font(new TFont);
+      Font->Assign(FEditorFont.get());
+      Font->Color = EditorFontColor;
+      EditorFontLabel->Font = Font.get();
     }
+    EditorFontLabel->Color = GetWindowColor(FEditorBackgroundColor);
 
     bool CommandSelected = (CustomCommandsView->Selected != NULL);
     EnableControl(EditCommandButton, CommandSelected);
@@ -1109,6 +1121,9 @@ void __fastcall TPreferencesDialog::UpdateControls()
     EnableControl(DownEditorButton, EditorSelected &&
       (EditorListView3->ItemIndex < EditorListView3->Items->Count - 1));
 
+    // updates
+    EnableControl(UpdatesAuthenticationEmailEdit, FAutomaticUpdatesPossible);
+    EnableControl(UpdatesAuthenticationEmailLabel, UpdatesAuthenticationEmailEdit->Enabled);
     EnableControl(UsageViewButton, CollectUsageCheck->Checked);
     EnableControl(UpdatesProxyHostEdit, UpdatesProxyCheck->Checked);
     EnableControl(UpdatesProxyHostLabel, UpdatesProxyHostEdit->Enabled);
@@ -1150,12 +1165,12 @@ void __fastcall TPreferencesDialog::UpdateControls()
 
     // integration
     // There's no quick launch in Windows 7
-    EnableControl(QuickLaunchIconButton, !::IsWin7());
+    EnableControl(QuickLaunchIconButton, !IsWin7());
     MakeDefaultHandlerItem->Visible = IsWinVista();
 
     // languages
     LanguageChangeLabel->Visible =
-      !GUIConfiguration->CanApplyLocaleImmediately &&
+      DebugAlwaysTrue(!GUIConfiguration->CanApplyLocaleImmediately) &&
       (LanguagesView->ItemFocused != NULL) &&
       (reinterpret_cast<LCID>(LanguagesView->ItemFocused->Data) != GUIConfiguration->AppliedLocale);
 
@@ -1191,6 +1206,41 @@ void __fastcall TPreferencesDialog::EditorFontButtonClick(TObject * /*Sender*/)
   {
     UpdateControls();
   }
+}
+//---------------------------------------------------------------------------
+void __fastcall TPreferencesDialog::EditorFontColorChange(TColor Color)
+{
+  FEditorFont->Color = Color;
+  UpdateControls();
+}
+//---------------------------------------------------------------------------
+void __fastcall TPreferencesDialog::EditorFontColorButtonClick(TObject * /*Sender*/)
+{
+  // WORKAROUND: Compiler keeps crashing randomly (but frequently) with
+  // "internal error" when passing menu directly to unique_ptr.
+  // Splitting it to two statements seems to help.
+  // The same hack exists in TSiteAdvancedDialog::ColorButtonClick
+  TPopupMenu * Menu = CreateColorPopupMenu(FEditorFont->Color, EditorFontColorChange);
+  // Popup menu has to survive the popup as TBX calls click handler asynchronously (post).
+  FColorPopupMenu.reset(Menu);
+  MenuPopup(Menu, EditorFontColorButton);
+}
+//---------------------------------------------------------------------------
+void __fastcall TPreferencesDialog::EditorBackgroundColorChange(TColor Color)
+{
+  FEditorBackgroundColor = Color;
+  UpdateControls();
+}
+//---------------------------------------------------------------------------
+void __fastcall TPreferencesDialog::EditorBackgroundColorButtonClick(TObject * /*Sender*/)
+{
+  // See comment in EditorFontColorButtonClick.
+  // We are using session color (contrary to editor text color) for background
+  // for a consistency with color selection menu on editor toolbar.
+  TTBXPopupMenu * PopupMenu = new TTBXPopupMenu(Application);
+  FColorPopupMenu.reset(PopupMenu);
+  CreateEditorBackgroundColorMenu(PopupMenu->Items, FEditorBackgroundColor, EditorBackgroundColorChange);
+  MenuPopup(FColorPopupMenu.get(), EditorBackgroundColorButton);
 }
 //---------------------------------------------------------------------------
 void __fastcall TPreferencesDialog::PanelFontButtonClick(TObject * /*Sender*/)
@@ -1244,7 +1294,7 @@ void __fastcall TPreferencesDialog::IconButtonClick(TObject *Sender)
     {
       if (Sender == SendToHookButton)
       {
-        IconName = FMTLOAD(SENDTO_HOOK_NAME, (AppName));
+        IconName = FMTLOAD(SENDTO_HOOK_NAME2, (AppName));
         SpecialFolder = CSIDL_SENDTO;
         Params = TProgramParams::FormatSwitch(UPLOAD_SWITCH);
       }
@@ -1274,7 +1324,7 @@ void __fastcall TPreferencesDialog::CustomCommandsViewData(TObject * /*Sender*/,
   if (FCustomCommandList != NULL)
   {
     int Index = Item->Index;
-    assert(Index >= 0 && Index <= FCustomCommandList->Count);
+    DebugAssert(Index >= 0 && Index <= FCustomCommandList->Count);
     const TCustomCommandType * Command = FCustomCommandList->Commands[Index];
     UnicodeString Caption = StripHotkey(Command->Name);
     if (Command->ShortCut != 0)
@@ -1282,7 +1332,7 @@ void __fastcall TPreferencesDialog::CustomCommandsViewData(TObject * /*Sender*/,
       Caption = FORMAT(L"%s (%s)", (Caption, ShortCutToText(Command->ShortCut)));
     }
     Item->Caption = Caption;
-    assert(!Item->SubItems->Count);
+    DebugAssert(!Item->SubItems->Count);
     Item->SubItems->Add(Command->Command);
     int Params = Command->Params;
     Item->SubItems->Add(LoadStr(
@@ -1342,7 +1392,7 @@ void __fastcall TPreferencesDialog::AddEditCommandButtonClick(TObject * Sender)
   if (Edit)
   {
     int Index = CustomCommandsView->ItemIndex;
-    assert(Index >= 0 && Index <= FCustomCommandList->Count);
+    DebugAssert(Index >= 0 && Index <= FCustomCommandList->Count);
 
     Command = *FCustomCommandList->Commands[Index];
   }
@@ -1385,7 +1435,7 @@ void __fastcall TPreferencesDialog::AddEditCommandButtonClick(TObject * Sender)
 void __fastcall TPreferencesDialog::RemoveCommandButtonClick(
       TObject * /*Sender*/)
 {
-  assert(CustomCommandsView->ItemIndex >= 0 &&
+  DebugAssert(CustomCommandsView->ItemIndex >= 0 &&
     CustomCommandsView->ItemIndex < FCustomCommandList->Count);
   FCustomCommandList->Delete(CustomCommandsView->ItemIndex);
   UpdateCustomCommandsView();
@@ -1429,7 +1479,7 @@ TListViewScrollOnDragOver * __fastcall TPreferencesDialog::ScrollOnDragOver(TObj
   }
   else
   {
-    FAIL;
+    DebugFail();
     return NULL;
   }
 }
@@ -1528,7 +1578,7 @@ void __fastcall TPreferencesDialog::UpDownCopyParamButtonClick(TObject * Sender)
 void __fastcall TPreferencesDialog::RemoveCopyParamButtonClick(
   TObject * /*Sender*/)
 {
-  assert(CopyParamListView->ItemIndex >= 1 &&
+  DebugAssert(CopyParamListView->ItemIndex >= 1 &&
     CopyParamListView->ItemIndex < (1 + FCopyParamList->Count));
   FCopyParamList->Delete(CopyParamListView->ItemIndex - 1);
   UpdateCopyParamListView();
@@ -1639,7 +1689,7 @@ void __fastcall TPreferencesDialog::UpDownEditorButtonClick(TObject *Sender)
 void __fastcall TPreferencesDialog::RemoveEditorButtonClick(
   TObject * /*Sender*/)
 {
-  assert(EditorListView3->ItemIndex >= 0 &&
+  DebugAssert(EditorListView3->ItemIndex >= 0 &&
     EditorListView3->ItemIndex < FEditorList->Count);
   FEditorList->Delete(EditorListView3->ItemIndex);
   UpdateEditorListView();
@@ -1731,7 +1781,7 @@ void __fastcall TPreferencesDialog::EditorListView3Data(TObject * /*Sender*/,
   if (FEditorList != NULL)
   {
     int Index = Item->Index;
-    assert(Index >= 0 && Index <= FEditorList->Count);
+    DebugAssert(Index >= 0 && Index <= FEditorList->Count);
     const TEditorPreferences * Editor = FEditorList->Editors[Index];
     Item->Caption = Editor->Name;
     Item->SubItems->Add(Editor->Data->FileMask.Masks);
@@ -1745,9 +1795,9 @@ void __fastcall TPreferencesDialog::EditorListView3Data(TObject * /*Sender*/,
 void __fastcall TPreferencesDialog::NavigationTreeChange(TObject * /*Sender*/,
   TTreeNode * Node)
 {
-  if (ALWAYS_TRUE(Node->SelectedIndex > 0))
+  if (DebugAlwaysTrue(Node->SelectedIndex > 0))
   {
-    PageControl->ActivePage = NOT_NULL(FindPageForTreeNode(Node));
+    PageControl->ActivePage = DebugNotNull(FindPageForTreeNode(Node));
     // reshow the accelerators, etc
     ResetSystemSettings(this);
     // This is particularly here to enable EditCopyParamButton,
@@ -1761,7 +1811,7 @@ void __fastcall TPreferencesDialog::PageControlChange(TObject * /*Sender*/)
 {
   // this is probably only ever called from FormShow (explicitly)
   bool Found = false;
-  if (ALWAYS_TRUE(PageControl->ActivePage->Tag > 0))
+  if (DebugAlwaysTrue(PageControl->ActivePage->Tag > 0))
   {
     for (int Index = 0; Index < NavigationTree->Items->Count; Index++)
     {
@@ -1774,7 +1824,7 @@ void __fastcall TPreferencesDialog::PageControlChange(TObject * /*Sender*/)
     }
   }
 
-  if (ALWAYS_TRUE(Found))
+  if (DebugAlwaysTrue(Found))
   {
     UpdateControls();
   }
@@ -1809,7 +1859,7 @@ void __fastcall TPreferencesDialog::CMDialogKey(TWMKeyDown & Message)
 //---------------------------------------------------------------------------
 void __fastcall TPreferencesDialog::WMHelp(TWMHelp & Message)
 {
-  assert(Message.HelpInfo != NULL);
+  DebugAssert(Message.HelpInfo != NULL);
 
   if (Message.HelpInfo->iContextType == HELPINFO_WINDOW)
   {
@@ -1823,7 +1873,7 @@ void __fastcall TPreferencesDialog::WMHelp(TWMHelp & Message)
 void __fastcall TPreferencesDialog::Dispatch(void *Message)
 {
   TMessage * M = reinterpret_cast<TMessage*>(Message);
-  assert(M);
+  DebugAssert(M);
   if (M->Msg == CM_DIALOGKEY)
   {
     CMDialogKey(*((TWMKeyDown *)Message));
@@ -1924,7 +1974,7 @@ void __fastcall TPreferencesDialog::CopyParamListViewData(TObject * /*Sender*/,
     }
     else
     {
-      assert(Index >= 1 && Index <= 1 + FCopyParamList->Count);
+      DebugAssert(Index >= 1 && Index <= 1 + FCopyParamList->Count);
       Name = StripHotkey(FCopyParamList->Names[Index - 1]);
       Rule = BooleanToStr(FCopyParamList->Rules[Index - 1] != NULL);
     }
@@ -1973,14 +2023,6 @@ void __fastcall TPreferencesDialog::ListViewEndDrag(
   TObject * Sender, TObject * /*Target*/, int /*X*/, int /*Y*/)
 {
   ScrollOnDragOver(Sender)->EndDrag();
-}
-//---------------------------------------------------------------------------
-void __fastcall TPreferencesDialog::PathEditCreateEditDialog(
-  TObject * Sender, TFileDialogKind DialogKind, TOpenDialog *& Dialog)
-{
-  USEDPARAM(DialogKind);
-  assert(DialogKind == dkOpen);
-  Dialog = new TOpenDialog(dynamic_cast<TComponent *>(Sender));
 }
 //---------------------------------------------------------------------------
 void __fastcall TPreferencesDialog::SessionReopenTimeoutEditSetValue(
@@ -2188,5 +2230,50 @@ void __fastcall TPreferencesDialog::ExplorerClick(TObject * /*Sender*/)
 void __fastcall TPreferencesDialog::PanelFontLabelDblClick(TObject * Sender)
 {
   PanelFontButtonClick(Sender);
+}
+//---------------------------------------------------------------------------
+void __fastcall TPreferencesDialog::UpdatesAuthenticationEmailEditExit(TObject * /*Sender*/)
+{
+  if (FVerifiedUpdatesAuthenticationEmail != UpdatesAuthenticationEmailEdit->Text)
+  {
+    FVerifiedUpdatesAuthenticationEmail = UpdatesAuthenticationEmailEdit->Text;
+
+    if (!FVerifiedUpdatesAuthenticationEmail.IsEmpty())
+    {
+      TUpdatesConfiguration Updates = SaveUpdates();
+
+      {
+        TInstantOperationVisualizer Visualizer;
+        QueryUpdates(Updates);
+      }
+
+      UnicodeString AuthenticationError = Updates.Results.AuthenticationError;
+      if (!AuthenticationError.IsEmpty())
+      {
+        AuthenticationError = FormatUpdatesMessage(AuthenticationError);
+        if (HasParagraphs(AuthenticationError))
+        {
+          AuthenticationError = MainInstructionsFirstParagraph(AuthenticationError);
+        }
+        else
+        {
+          AuthenticationError = MainInstructions(AuthenticationError);
+        }
+
+        UnicodeString HelpUrl = GetEnableAutomaticUpdatesUrl();
+        unsigned int Result =
+          MoreMessageDialog(AuthenticationError, NULL, qtError, qaIgnore | qaAbort, HelpUrl);
+        if (Result == qaAbort)
+        {
+          Abort();
+        }
+      }
+    }
+  }
+}
+//---------------------------------------------------------------------------
+void __fastcall TPreferencesDialog::UpdatesLinkClick(TObject * /*Sender*/)
+{
+  EnableAutomaticUpdates();
 }
 //---------------------------------------------------------------------------

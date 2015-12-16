@@ -118,7 +118,7 @@ void __fastcall TNonVisualDataModule::LogActionsExecute(
     TAutoNestingCounter Counter(FBusy);
 
     TLogMemo * LogMemo = TTerminalManager::Instance()->LogMemo;
-    assert(LogMemo && LogMemo->Parent);
+    DebugAssert(LogMemo && LogMemo->Parent);
     EXE(LogClearAction, LogMemo->SessionLog->Clear())
     EXE(LogSelectAllAction, LogMemo->SelectAll())
     EXE(LogCopyAction, LogMemo->CopyToClipboard())
@@ -140,6 +140,7 @@ void __fastcall TNonVisualDataModule::ExplorerActionsUpdate(
     return;
   }
   void * Param;
+  #define HasTerminal (ScpExplorer->Terminal != NULL)
   // CURRENT DIRVIEW
   #define EnabledSelectedOperation (ScpExplorer->EnableSelectedOperation[osCurrent])
   #define EnabledFocusedOperation (ScpExplorer->EnableFocusedOperation[osCurrent])
@@ -159,8 +160,6 @@ void __fastcall TNonVisualDataModule::ExplorerActionsUpdate(
   UPD(CurrentSystemMenuFocusedAction, EnabledFocusedOperation)
   UPD(CurrentEditWithFocusedAction, EnabledFocusedFileOperation &&
     !WinConfiguration->DisableOpenEdit)
-  UPD(CurrentEditAlternativeFocusedAction, EnabledFocusedFileOperation &&
-    !WinConfiguration->DisableOpenEdit)
   UPD(CurrentEditInternalFocusedAction, EnabledFocusedFileOperation &&
     !WinConfiguration->DisableOpenEdit)
   // file operation
@@ -168,8 +167,6 @@ void __fastcall TNonVisualDataModule::ExplorerActionsUpdate(
     ((ScpExplorer->HasDirView[osLocal] && DirView(osLocal) == DirView(osCurrent)) ||
       ScpExplorer->Terminal->IsCapable[fcRename]))
   UPD(CurrentEditAction, EnabledSelectedFileOperation &&
-    !WinConfiguration->DisableOpenEdit)
-  UPD(CurrentEditAlternative2Action, EnabledSelectedFileOperation &&
     !WinConfiguration->DisableOpenEdit)
   UPD(CurrentEditInternalAction, EnabledSelectedFileOperation &&
     !WinConfiguration->DisableOpenEdit)
@@ -192,33 +189,47 @@ void __fastcall TNonVisualDataModule::ExplorerActionsUpdate(
   UPD(FileListToCommandLineAction, EnabledSelectedOperation)
   UPD(FileListToClipboardAction, EnabledSelectedOperation)
   UPD(FullFileListToClipboardAction, EnabledSelectedOperation)
-  UPD(FileGenerateUrlAction, EnabledSelectedOperation && (DirView(osRemote) == DirView(osCurrent)))
-  UPD(FileListFromClipboardAction, IsFormatInClipboard(CF_TEXT));
+  UPD(FileGenerateUrlAction2, EnabledSelectedOperation && (DirView(osRemote) == DirView(osCurrent)))
+  UPD(FileListFromClipboardAction, IsFormatInClipboard(CF_TEXT))
   UPD(CurrentAddEditLinkAction, ScpExplorer->CanAddEditLink(osCurrent))
+  UPD(LockAction,
+    EnabledSelectedOperation && (DirView(osRemote) == DirView(osCurrent)) &&
+    ScpExplorer->Terminal->IsCapable[fcLocking])
+  UPD(UnlockAction,
+    EnabledSelectedOperation && (DirView(osRemote) == DirView(osCurrent)) &&
+    ScpExplorer->Terminal->IsCapable[fcLocking])
   // local selected operation
-  UPD(LocalCopyAction, EnabledLocalSelectedOperation)
+  UPD(LocalCopyAction, HasTerminal && EnabledLocalSelectedOperation)
+  UPD(LocalCopyQueueAction, HasTerminal && EnabledLocalSelectedOperation)
+  UPD(LocalCopyNonQueueAction, HasTerminal && EnabledLocalSelectedOperation)
   UPD(LocalRenameAction, EnabledLocalSelectedOperation)
   UPD(LocalEditAction, EnabledLocalSelectedFileOperation && !WinConfiguration->DisableOpenEdit)
-  UPD(LocalMoveAction, EnabledLocalSelectedOperation)
+  UPD(LocalMoveAction, HasTerminal && EnabledLocalSelectedOperation)
   UPD(LocalCreateDirAction, true)
   UPD(LocalDeleteAction, EnabledLocalSelectedOperation)
   UPD(LocalPropertiesAction, EnabledLocalSelectedOperation)
   UPD(LocalAddEditLinkAction, ScpExplorer->CanAddEditLink(osLocal))
   // local focused operation
-  UPD(LocalCopyFocusedAction, EnabledLocalFocusedOperation)
-  UPD(LocalMoveFocusedAction, EnabledLocalFocusedOperation)
+  UPD(LocalCopyFocusedAction, HasTerminal && EnabledLocalFocusedOperation)
+  UPD(LocalCopyFocusedQueueAction, HasTerminal && EnabledLocalFocusedOperation)
+  UPD(LocalCopyFocusedNonQueueAction, HasTerminal && EnabledLocalFocusedOperation)
+  UPD(LocalMoveFocusedAction, HasTerminal && EnabledLocalFocusedOperation)
   // remote selected operation
   UPD(RemoteCopyAction, EnabledRemoteSelectedOperation)
+  UPD(RemoteCopyQueueAction, EnabledRemoteSelectedOperation)
+  UPD(RemoteCopyNonQueueAction, EnabledRemoteSelectedOperation)
   UPD(RemoteRenameAction, EnabledRemoteSelectedOperation &&
     ScpExplorer->Terminal->IsCapable[fcRename])
   UPD(RemoteEditAction, EnabledRemoteSelectedFileOperation && !WinConfiguration->DisableOpenEdit)
   UPD(RemoteMoveAction, EnabledRemoteSelectedOperation)
-  UPD(RemoteCreateDirAction, true)
+  UPD(RemoteCreateDirAction, DirViewEnabled(osRemote))
   UPD(RemoteDeleteAction, EnabledRemoteSelectedOperation)
   UPD(RemotePropertiesAction, EnabledRemoteSelectedOperation)
   UPD(RemoteAddEditLinkAction, ScpExplorer->CanAddEditLink(osRemote))
   // remote focused operation
   UPD(RemoteCopyFocusedAction, EnabledRemoteFocusedOperation)
+  UPD(RemoteCopyFocusedQueueAction, EnabledRemoteFocusedOperation)
+  UPD(RemoteCopyFocusedNonQueueAction, EnabledRemoteFocusedOperation)
   UPD(RemoteMoveFocusedAction, EnabledRemoteFocusedOperation)
   UPD(RemoteMoveToFocusedAction, EnabledFocusedOperation &&
     (DirView(osRemote) == DirView(osCurrent)) &&
@@ -226,9 +237,9 @@ void __fastcall TNonVisualDataModule::ExplorerActionsUpdate(
   UPD(RemoteCopyToFocusedAction, EnabledFocusedOperation &&
     DirView(osRemote) == DirView(osCurrent))
   // directory
-  UPD(CurrentCreateDirAction, true)
-  UPD(NewDirAction, true)
-  UPD(RemoteFindFilesAction, true)
+  UPD(CurrentCreateDirAction, DirViewEnabled(osCurrent))
+  UPD(NewDirAction, DirViewEnabled(osCurrent))
+  UPD(RemoteFindFilesAction, DirViewEnabled(osRemote))
   // selection
   UPD(SelectOneAction, DirView(osCurrent)->FilesCount)
   UPD(SelectAction, DirView(osCurrent)->FilesCount)
@@ -237,6 +248,8 @@ void __fastcall TNonVisualDataModule::ExplorerActionsUpdate(
   UPD(InvertSelectionAction, DirView(osCurrent)->FilesCount)
   UPD(ClearSelectionAction, DirView(osCurrent)->SelCount)
   UPD(RestoreSelectionAction, DirView(osCurrent)->SelectedNamesSaved)
+  UPD(SelectSameExtAction, EnabledFocusedFileOperation)
+  UPD(UnselectSameExtAction, EnabledFocusedFileOperation)
   UPD(PasteAction2, ScpExplorer->CanPasteFromClipBoard())
   UPD(LocalSelectAction, ScpExplorer->HasDirView[osLocal] && DirView(osLocal)->FilesCount)
   UPD(LocalUnselectAction, ScpExplorer->HasDirView[osLocal] && DirView(osLocal)->SelCount)
@@ -259,7 +272,7 @@ void __fastcall TNonVisualDataModule::ExplorerActionsUpdate(
   // REMOTE+LOCAL
   // back/forward
   #define HISTORYACTION(SIDE, DIRECTION, HINTFMT, DELTA) \
-    UPDEX(SIDE ## DIRECTION ## Action, (DirView(os ## SIDE)->DIRECTION ## Count > 0), \
+    UPDEX(SIDE ## DIRECTION ## Action, DirViewEnabled(os ## SIDE) && (DirView(os ## SIDE)->DIRECTION ## Count > 0), \
     SIDE ## DIRECTION ## Action->Hint = FMTLOAD(HINTFMT, (DirView(os ## SIDE)->HistoryPath[DELTA])), \
     SIDE ## DIRECTION ## Action->Hint = L"")
   HISTORYACTION(Local, Back, EXPLORER_BACK_HINT, -1)
@@ -268,15 +281,15 @@ void __fastcall TNonVisualDataModule::ExplorerActionsUpdate(
   HISTORYACTION(Remote, Forward, EXPLORER_FORWARD_HINT, 1)
   #undef HISTORYACTION
   #define PANEL_ACTIONS(SIDE) \
-    UPD(SIDE ## ParentDirAction, !DirView(os ## SIDE)->IsRoot) \
-    UPD(SIDE ## RootDirAction, !DirView(os ## SIDE)->IsRoot) \
-    UPD(SIDE ## HomeDirAction, true) \
-    UPD(SIDE ## RefreshAction, DirView(os ## SIDE)->DirOK) \
-    UPD(SIDE ## OpenDirAction, true) \
-    UPD(SIDE ## ChangePathAction, true) \
-    UPD(SIDE ## AddBookmarkAction, true) \
-    UPD(SIDE ## PathToClipboardAction, true) \
-    UPDEX1(SIDE ## FilterAction, true, ((TAction *)Action)->Checked = !DirView(os ## SIDE)->Mask.IsEmpty())
+    UPD(SIDE ## ParentDirAction, DirViewEnabled(os ## SIDE) && !DirView(os ## SIDE)->IsRoot) \
+    UPD(SIDE ## RootDirAction, DirViewEnabled(os ## SIDE) &&!DirView(os ## SIDE)->IsRoot) \
+    UPD(SIDE ## HomeDirAction, DirViewEnabled(os ## SIDE)) \
+    UPD(SIDE ## RefreshAction, DirViewEnabled(os ## SIDE) && DirView(os ## SIDE)->DirOK) \
+    UPD(SIDE ## OpenDirAction, DirViewEnabled(os ## SIDE)) \
+    UPD(SIDE ## ChangePathAction, DirViewEnabled(os ## SIDE)) \
+    UPD(SIDE ## AddBookmarkAction, DirViewEnabled(os ## SIDE)) \
+    UPD(SIDE ## PathToClipboardAction, DirViewEnabled(os ## SIDE)) \
+    UPDEX1(SIDE ## FilterAction, DirViewEnabled(os ## SIDE), ((TAction *)Action)->Checked = !DirView(os ## SIDE)->Mask.IsEmpty())
   PANEL_ACTIONS(Local)
   PANEL_ACTIONS(Remote)
   #undef PANEL_ACTIONS
@@ -292,6 +305,7 @@ void __fastcall TNonVisualDataModule::ExplorerActionsUpdate(
   UPD(UpdatesPreferencesAction, true)
   UPD(DonatePageAction, true)
   UPD(DownloadPageAction, true)
+  UPD(TipsAction, true)
 
   // VIEW
   UPDCOMP(SessionsTabs)
@@ -331,7 +345,7 @@ void __fastcall TNonVisualDataModule::ExplorerActionsUpdate(
 
   UPD(GoToCommandLineAction, true)
   UPD(GoToTreeAction, true)
-  UPDEX(ViewLogAction, Configuration->Logging,
+  UPDEX(ViewLogAction, Configuration->Logging && HasTerminal,
     ViewLogAction->Checked = (WinConfiguration->LogView == lvWindow),
     ViewLogAction->Checked = false )
   UPDEX(ShowHiddenFilesAction, true,
@@ -351,7 +365,8 @@ void __fastcall TNonVisualDataModule::ExplorerActionsUpdate(
   UPDEX(SelectiveToolbarTextAction, true,
     SelectiveToolbarTextAction->Checked = WinConfiguration->SelectiveToolbarText, )
   UPDCOMP(CustomCommandsBand)
-  UPD(ColorMenuAction, true)
+  UPD(ColorMenuAction, HasTerminal)
+  UPD(GoToAddressAction, true)
 
   // SORT
   UPDSORTA(Local)
@@ -381,9 +396,9 @@ void __fastcall TNonVisualDataModule::ExplorerActionsUpdate(
   UPDSORTC(dv, Name, uv, Group)
   #define COLVIEWPROPS ((TCustomDirViewColProperties*)(((TCustomDirView*)(((TListColumns*)(ListColumn->Collection))->Owner()))->ColProperties))
   UPDEX(SortColumnAscendingAction, (ListColumn != NULL), SortColumnAscendingAction->Checked =
-    (COLVIEWPROPS->SortColumn == ListColumn->Index) && COLVIEWPROPS->SortAscending, /*assert(false)*/  )
+    (COLVIEWPROPS->SortColumn == ListColumn->Index) && COLVIEWPROPS->SortAscending, /*DebugFail()*/  )
   UPDEX(SortColumnDescendingAction, (ListColumn != NULL), SortColumnDescendingAction->Checked =
-    (COLVIEWPROPS->SortColumn == ListColumn->Index) && !COLVIEWPROPS->SortAscending, /*assert(false)*/ )
+    (COLVIEWPROPS->SortColumn == ListColumn->Index) && !COLVIEWPROPS->SortAscending, /*DebugFail()*/ )
   #undef COLVIEWPROPS
 
   // SHOW/HIDE COLUMN
@@ -408,26 +423,26 @@ void __fastcall TNonVisualDataModule::ExplorerActionsUpdate(
   // SESSION
   UPD(NewSessionAction, true)
   UPD(SiteManagerAction, true)
-  UPD(DuplicateSessionAction, true)
-  UPD(CloseSessionAction, true)
+  UPD(DuplicateSessionAction, HasTerminal)
+  UPD(CloseSessionAction, HasTerminal)
   UPD(SavedSessionsAction2, true)
   UPD(WorkspacesAction, StoredSessions->HasAnyWorkspace())
-  UPD(OpenedSessionsAction, true)
-  UPD(SaveCurrentSessionAction2, true)
-  UPD(SaveWorkspaceAction, true)
+  UPD(OpenedSessionsAction, HasTerminal)
+  UPD(SaveCurrentSessionAction2, HasTerminal)
+  UPD(SaveWorkspaceAction, HasTerminal)
 
   // COMMAND
-  UPD(CompareDirectoriesAction, true)
-  UPD(SynchronizeAction, true)
-  UPD(FullSynchronizeAction, true)
-  UPD(ConsoleAction, ScpExplorer->Terminal->IsCapable[fcAnyCommand] || ScpExplorer->Terminal->IsCapable[fcSecondaryShell])
-  UPD(PuttyAction, TTerminalManager::Instance()->CanOpenInPutty())
-  UPD(SynchronizeBrowsingAction, true)
+  UPD(CompareDirectoriesAction, HasTerminal)
+  UPD(SynchronizeAction, HasTerminal)
+  UPD(FullSynchronizeAction, HasTerminal)
+  UPD(ConsoleAction, HasTerminal && (ScpExplorer->Terminal->IsCapable[fcAnyCommand] || ScpExplorer->Terminal->IsCapable[fcSecondaryShell]))
+  UPD(PuttyAction, HasTerminal && TTerminalManager::Instance()->CanOpenInPutty())
+  UPD(SynchronizeBrowsingAction, HasTerminal)
   UPD(CloseApplicationAction, true)
-  UPD(FileSystemInfoAction, true)
-  UPD(SessionGenerateUrlAction, true)
-  UPD(ClearCachesAction, (ScpExplorer->Terminal != NULL) && !ScpExplorer->Terminal->AreCachesEmpty)
-  UPD(NewFileAction, !WinConfiguration->DisableOpenEdit)
+  UPD(FileSystemInfoAction, HasTerminal)
+  UPD(SessionGenerateUrlAction2, HasTerminal)
+  UPD(ClearCachesAction, HasTerminal && !ScpExplorer->Terminal->AreCachesEmpty)
+  UPD(NewFileAction, DirViewEnabled(osCurrent) && !WinConfiguration->DisableOpenEdit)
   UPD(EditorListCustomizeAction, true)
 
   // CUSTOM COMMANDS
@@ -439,7 +454,7 @@ void __fastcall TNonVisualDataModule::ExplorerActionsUpdate(
   UPD(CustomCommandsCustomizeAction, true)
 
   // QUEUE
-  UPDEX(QueueEnableAction, true, ((TAction *)Action)->Checked = ScpExplorer->GetQueueEnabled(), )
+  UPDEX(QueueEnableAction, HasTerminal, ((TAction *)Action)->Checked = ScpExplorer->GetQueueEnabled(), )
   #define UPDQUEUE(OPERATION) UPD(Queue ## OPERATION ## Action, \
     ScpExplorer->AllowQueueOperation(qo ## OPERATION))
   UPDQUEUE(GoTo)
@@ -481,9 +496,9 @@ void __fastcall TNonVisualDataModule::ExplorerActionsUpdate(
     QueueCycleOnceEmptyAction->ImageIndex = CurrentQueueOnceEmptyAction()->ImageIndex;
     QueueCycleOnceEmptyAction->Checked = !QueueIdleOnceEmptyAction->Checked)
   UPD(QueueIdleOnceEmptyAction, ScpExplorer->AllowQueueOperation(qoOnceEmpty))
-  UPD(QueueDisconnectOnceEmptyAction, ScpExplorer->AllowQueueOperation(qoOnceEmpty))
-  UPD(QueueSuspendOnceEmptyAction, ScpExplorer->AllowQueueOperation(qoOnceEmpty))
-  UPD(QueueShutDownOnceEmptyAction, ScpExplorer->AllowQueueOperation(qoOnceEmpty))
+  UPD(QueueDisconnectOnceEmptyAction2, ScpExplorer->AllowQueueOperation(qoOnceEmpty))
+  UPD(QueueSuspendOnceEmptyAction2, ScpExplorer->AllowQueueOperation(qoOnceEmpty))
+  UPD(QueueShutDownOnceEmptyAction2, ScpExplorer->AllowQueueOperation(qoOnceEmpty))
   UPDCOMP(CommanderPreferencesBand)
   UPDACT(QueueToolbarAction,
     ((TAction *)Action)->Enabled = ScpExplorer->ComponentVisible[fcQueueView];
@@ -494,7 +509,7 @@ void __fastcall TNonVisualDataModule::ExplorerActionsUpdate(
 void __fastcall TNonVisualDataModule::ExplorerActionsExecute(
       TBasicAction *Action, bool &Handled)
 {
-  assert(ScpExplorer);
+  DebugAssert(ScpExplorer);
   if (!ScpExplorer->AllowedAction((TAction *)Action, aaExecute))
   {
     Handled = true;
@@ -502,7 +517,7 @@ void __fastcall TNonVisualDataModule::ExplorerActionsExecute(
   }
   ScpExplorer->BeforeAction();
 
-  bool ShortCutAction = (Action->ActionComponent == NULL);
+  unsigned int ShortCutFlag = FLAGMASK((Action->ActionComponent == NULL), cocShortCutHint);
 
   {
     TAutoNestingCounter Counter(FBusy);
@@ -512,11 +527,9 @@ void __fastcall TNonVisualDataModule::ExplorerActionsExecute(
     EXE(CurrentEditFocusedAction, ScpExplorer->ExecuteFile(osCurrent, efDefaultEditor, NULL, true, true))
     EXE(CurrentSystemMenuFocusedAction, ScpExplorer->DisplaySystemContextMenu())
     EXE(CurrentEditWithFocusedAction, ScpExplorer->ExecuteCurrentFileWith(true))
-    EXE(CurrentEditAlternativeFocusedAction, CreateEditorListMenu(CurrentEditAlternativeFocusedAction, true))
     EXE(CurrentEditInternalFocusedAction, ScpExplorer->ExecuteFile(osCurrent, efInternalEditor, NULL, true, true))
     // operation
     EXE(CurrentEditAction, ScpExplorer->ExecuteFile(osCurrent, efDefaultEditor, NULL, true, false))
-    EXE(CurrentEditAlternative2Action, CreateEditorListMenu(CurrentEditAlternative2Action, false))
     EXE(CurrentEditInternalAction, ScpExplorer->ExecuteFile(osCurrent, efInternalEditor, NULL, true, false))
     EXE(CurrentEditWithAction, ScpExplorer->ExecuteCurrentFileWith(false))
     EXE(CurrentOpenAction, ScpExplorer->ExecuteCurrentFile())
@@ -530,10 +543,14 @@ void __fastcall TNonVisualDataModule::ExplorerActionsExecute(
     EXE(FileListToCommandLineAction, ScpExplorer->PanelExport(osCurrent, peFileList, pedCommandLine))
     EXE(FileListToClipboardAction, ScpExplorer->PanelExport(osCurrent, peFileList, pedClipboard))
     EXE(FullFileListToClipboardAction, ScpExplorer->PanelExport(osCurrent, peFullFileList, pedClipboard))
-    EXE(FileGenerateUrlAction, ScpExplorer->FileGenerateUrl())
+    EXE(FileGenerateUrlAction2, ScpExplorer->FileGenerateUrl())
     EXE(FileListFromClipboardAction, ScpExplorer->FileListFromClipboard())
+    EXE(LockAction, ScpExplorer->ExecuteFileOperationCommand(foLock, osCurrent, false))
+    EXE(UnlockAction, ScpExplorer->ExecuteFileOperationCommand(foUnlock, osCurrent, false))
     // local selected operation
-    EXE(LocalCopyAction, ScpExplorer->ExecuteCopyOperationCommand(osLocal, false, ShortCutAction))
+    EXE(LocalCopyAction, ScpExplorer->ExecuteCopyOperationCommand(osLocal, false, ShortCutFlag))
+    EXE(LocalCopyQueueAction, ScpExplorer->ExecuteCopyOperationCommand(osLocal, false, cocQueue))
+    EXE(LocalCopyNonQueueAction, ScpExplorer->ExecuteCopyOperationCommand(osLocal, false, cocNonQueue))
     EXE(LocalRenameAction, ScpExplorer->ExecuteFileOperationCommand(foRename, osLocal, false))
     EXE(LocalEditAction, ScpExplorer->ExecuteFile(osLocal, efDefaultEditor, NULL, true, false))
     EXE(LocalMoveAction, ScpExplorer->ExecuteFileOperationCommand(foMove, osLocal, false))
@@ -542,10 +559,14 @@ void __fastcall TNonVisualDataModule::ExplorerActionsExecute(
     EXE(LocalPropertiesAction, ScpExplorer->ExecuteFileOperationCommand(foSetProperties, osLocal, false))
     EXE(LocalAddEditLinkAction, ScpExplorer->AddEditLink(osLocal, false))
     // local focused operation
-    EXE(LocalCopyFocusedAction, ScpExplorer->ExecuteCopyOperationCommand(osLocal, true, ShortCutAction))
+    EXE(LocalCopyFocusedAction, ScpExplorer->ExecuteCopyOperationCommand(osLocal, true, ShortCutFlag))
+    EXE(LocalCopyFocusedQueueAction, ScpExplorer->ExecuteCopyOperationCommand(osLocal, true, cocQueue))
+    EXE(LocalCopyFocusedNonQueueAction, ScpExplorer->ExecuteCopyOperationCommand(osLocal, true, cocNonQueue))
     EXE(LocalMoveFocusedAction, ScpExplorer->ExecuteFileOperationCommand(foMove, osLocal, true))
     // remote selected operation
-    EXE(RemoteCopyAction, ScpExplorer->ExecuteCopyOperationCommand(osRemote, false, ShortCutAction))
+    EXE(RemoteCopyAction, ScpExplorer->ExecuteCopyOperationCommand(osRemote, false, ShortCutFlag))
+    EXE(RemoteCopyQueueAction, ScpExplorer->ExecuteCopyOperationCommand(osRemote, false, cocQueue))
+    EXE(RemoteCopyNonQueueAction, ScpExplorer->ExecuteCopyOperationCommand(osRemote, false, cocNonQueue))
     EXE(RemoteRenameAction, ScpExplorer->ExecuteFileOperationCommand(foRename, osRemote, false))
     EXE(RemoteEditAction, ScpExplorer->ExecuteFile(osRemote, efDefaultEditor, NULL, true, false))
     EXE(RemoteMoveAction, ScpExplorer->ExecuteFileOperationCommand(foMove, osRemote, false))
@@ -556,7 +577,9 @@ void __fastcall TNonVisualDataModule::ExplorerActionsExecute(
     EXE(RemoteCopyToAction, ScpExplorer->ExecuteFileOperationCommand(foRemoteCopy, osCurrent, false))
     EXE(RemoteAddEditLinkAction, ScpExplorer->AddEditLink(osRemote, false))
     // remote focused operation
-    EXE(RemoteCopyFocusedAction, ScpExplorer->ExecuteCopyOperationCommand(osRemote, true, ShortCutAction))
+    EXE(RemoteCopyFocusedAction, ScpExplorer->ExecuteCopyOperationCommand(osRemote, true, ShortCutFlag))
+    EXE(RemoteCopyFocusedQueueAction, ScpExplorer->ExecuteCopyOperationCommand(osRemote, true, cocQueue))
+    EXE(RemoteCopyFocusedNonQueueAction, ScpExplorer->ExecuteCopyOperationCommand(osRemote, true, cocNonQueue))
     EXE(RemoteMoveFocusedAction, ScpExplorer->ExecuteFileOperationCommand(foMove, osRemote, true))
     EXE(RemoteMoveToFocusedAction, ScpExplorer->ExecuteFileOperationCommand(foRemoteMove, osCurrent, true))
     EXE(RemoteCopyToFocusedAction, ScpExplorer->ExecuteFileOperationCommand(foRemoteCopy, osCurrent, true))
@@ -572,6 +595,8 @@ void __fastcall TNonVisualDataModule::ExplorerActionsExecute(
     EXE(InvertSelectionAction, DirView(osCurrent)->SelectAll(smInvert))
     EXE(ClearSelectionAction, DirView(osCurrent)->SelectAll(smNone))
     EXE(RestoreSelectionAction, DirView(osCurrent)->RestoreSelectedNames())
+    EXE(SelectSameExtAction, ScpExplorer->SelectSameExt(true))
+    EXE(UnselectSameExtAction, ScpExplorer->SelectSameExt(false))
     EXE(LocalSelectAction, DirView(osLocal)->DoSelectByMask(true))
     EXE(LocalUnselectAction, DirView(osLocal)->DoSelectByMask(false))
     EXE(LocalSelectAllAction, DirView(osLocal)->SelectAll(smAll))
@@ -620,6 +645,7 @@ void __fastcall TNonVisualDataModule::ExplorerActionsExecute(
     EXE(UpdatesPreferencesAction, PreferencesDialog(pmUpdates))
     EXE(DonatePageAction, OpenBrowser(LoadStr(DONATE_URL)))
     EXE(DownloadPageAction, OpenBrowser(LoadStr(DOWNLOAD_URL)))
+    EXE(TipsAction, ShowTips())
 
     // VIEW
     EXECOMP(SessionsTabs)
@@ -671,7 +697,8 @@ void __fastcall TNonVisualDataModule::ExplorerActionsExecute(
     EXE(LockToolbarsAction, WinConfiguration->LockToolbars = !WinConfiguration->LockToolbars)
     EXE(SelectiveToolbarTextAction, WinConfiguration->SelectiveToolbarText = !WinConfiguration->SelectiveToolbarText)
     EXECOMP(CustomCommandsBand)
-    EXE(ColorMenuAction, CreateSessionColorMenu(ColorMenuAction));
+    EXE(ColorMenuAction, CreateSessionColorMenu(ColorMenuAction))
+    EXE(GoToAddressAction, ScpExplorer->GoToAddress())
 
     #define COLVIEWPROPS ((TCustomDirViewColProperties*)(((TCustomDirView*)(((TListColumns*)(ListColumn->Collection))->Owner()))->ColProperties))
     // SORT
@@ -700,9 +727,9 @@ void __fastcall TNonVisualDataModule::ExplorerActionsExecute(
     EXESORTC(Rights, dvAttr, uvRights)
     EXESORTC(Owner, dvName, uvOwner)
     EXESORTC(Group, dvName, uvGroup)
-    EXE(SortColumnAscendingAction, assert(ListColumn);
+    EXE(SortColumnAscendingAction, DebugAssert(ListColumn);
       COLVIEWPROPS->SortColumn = ListColumn->Index; COLVIEWPROPS->SortAscending = true; ListColumn = NULL )
-    EXE(SortColumnDescendingAction, assert(ListColumn);
+    EXE(SortColumnDescendingAction, DebugAssert(ListColumn);
       COLVIEWPROPS->SortColumn = ListColumn->Index; COLVIEWPROPS->SortAscending = false; ListColumn = NULL )
 
     // SHOW/HIDE COLUMN
@@ -721,9 +748,9 @@ void __fastcall TNonVisualDataModule::ExplorerActionsExecute(
     EXESHCOL(Remote, uv, Group)
     EXESHCOL(Remote, uv, LinkTarget)
     EXESHCOL(Remote, uv, Type)
-    EXE(HideColumnAction, assert(ListColumn);
+    EXE(HideColumnAction, DebugAssert(ListColumn);
       COLVIEWPROPS->Visible[ListColumn->Index] = false; ListColumn = NULL )
-    EXE(BestFitColumnAction, assert(ListColumn); ListColumn = NULL ) // TODO
+    EXE(BestFitColumnAction, DebugAssert(ListColumn); ListColumn = NULL ) // TODO
     #undef COLVIEWPROPS
 
     // SESSION
@@ -746,7 +773,7 @@ void __fastcall TNonVisualDataModule::ExplorerActionsExecute(
     EXE(SynchronizeBrowsingAction, ScpExplorer->SynchronizeBrowsingChanged())
     EXE(CloseApplicationAction, ScpExplorer->Close())
     EXE(FileSystemInfoAction, ScpExplorer->FileSystemInfo())
-    EXE(SessionGenerateUrlAction, ScpExplorer->SessionGenerateUrl())
+    EXE(SessionGenerateUrlAction2, ScpExplorer->SessionGenerateUrl())
     EXE(ClearCachesAction, ScpExplorer->Terminal->ClearCaches())
     EXE(NewFileAction, ScpExplorer->EditNew(osCurrent))
     EXE(EditorListCustomizeAction, PreferencesDialog(pmEditor))
@@ -789,12 +816,12 @@ void __fastcall TNonVisualDataModule::ExplorerActionsExecute(
     QUEUEACTION(HideWhenEmpty)
     QUEUEACTION(Hide)
     #undef QUEUEACTION
-    EXE(QueueCycleOnceEmptyAction, CycleQueueOnceEmptyAction());
+    EXE(QueueCycleOnceEmptyAction, CycleQueueOnceEmptyAction())
     EXE(QueueIdleOnceEmptyAction, SetQueueOnceEmptyAction(QueueIdleOnceEmptyAction))
-    EXE(QueueDisconnectOnceEmptyAction, SetQueueOnceEmptyAction(QueueDisconnectOnceEmptyAction))
-    EXE(QueueSuspendOnceEmptyAction, SetQueueOnceEmptyAction(QueueSuspendOnceEmptyAction))
-    EXE(QueueShutDownOnceEmptyAction, SetQueueOnceEmptyAction(QueueShutDownOnceEmptyAction))
-    EXECOMP(QueueToolbar);
+    EXE(QueueDisconnectOnceEmptyAction2, SetQueueOnceEmptyAction(QueueDisconnectOnceEmptyAction2))
+    EXE(QueueSuspendOnceEmptyAction2, SetQueueOnceEmptyAction(QueueSuspendOnceEmptyAction2))
+    EXE(QueueShutDownOnceEmptyAction2, SetQueueOnceEmptyAction(QueueShutDownOnceEmptyAction2))
+    EXECOMP(QueueToolbar)
     EXE(QueueItemSpeedAction, )
     ;
   }
@@ -846,7 +873,7 @@ void __fastcall TNonVisualDataModule::ExplorerShortcuts()
   UnselectAction->ShortCut = ShortCut(VK_SUBTRACT, NONE);
   SelectAllAction->ShortCut = ShortCut(L'A', CTRL);
   InvertSelectionAction->ShortCut = ShortCut(VK_MULTIPLY, NONE);
-  ClearSelectionAction->ShortCut = ShortCut(L'L', CTRL);
+  ClearSelectionAction->ShortCut = ShortCut(L'L', CTRLSHIFT);
   RestoreSelectionAction->ShortCut = ShortCut(L'R', CTRLSHIFT);
   // commands
   NewFileAction->ShortCut = ShortCut(L'E', CTRLSHIFT);
@@ -898,7 +925,7 @@ void __fastcall TNonVisualDataModule::CommanderShortcuts()
   UnselectAction->ShortCut = ShortCut(VK_SUBTRACT, NONE);
   SelectAllAction->ShortCut = ShortCut(L'A', CTRL);
   InvertSelectionAction->ShortCut = ShortCut(VK_MULTIPLY, NONE);
-  ClearSelectionAction->ShortCut = ShortCut(L'L', CTRL);
+  ClearSelectionAction->ShortCut = ShortCut(L'L', CTRLSHIFT);
   RestoreSelectionAction->ShortCut = ShortCut(L'R', CTRLSHIFT);
   // commands
   NewFileAction->ShortCut = ShortCut(VK_F4, SHIFT);
@@ -978,7 +1005,7 @@ void __fastcall TNonVisualDataModule::DoIdle()
     FSessionIdleTimerExecuting = true;
     try
     {
-      assert(ScpExplorer);
+      DebugAssert(ScpExplorer);
       ScpExplorer->Idle();
     }
     __finally
@@ -986,6 +1013,25 @@ void __fastcall TNonVisualDataModule::DoIdle()
       FSessionIdleTimerExecuting = false;
     }
   }
+}
+//---------------------------------------------------------------------------
+UnicodeString __fastcall TNonVisualDataModule::CustomCommandCaption(const TCustomCommandType * Command, bool Toolbar)
+{
+  UnicodeString Result = Command->Name;
+  if (Toolbar)
+  {
+    Result = EscapeHotkey(StripHotkey(Result));
+  }
+  return Result;
+}
+//---------------------------------------------------------------------------
+UnicodeString __fastcall TNonVisualDataModule::CustomCommandHint(const TCustomCommandType * Command)
+{
+  UnicodeString Name = StripHotkey(Command->Name);
+  UnicodeString ShortHint = FMTLOAD(CUSTOM_COMMAND_HINT, (Name));
+  UnicodeString LongHint = FMTLOAD(CUSTOM_COMMAND_HINT_LONG, (Name, Command->Command));
+  UnicodeString Result = FORMAT(L"%s|%s", (ShortHint, LongHint));
+  return Result;
 }
 //---------------------------------------------------------------------------
 void __fastcall TNonVisualDataModule::CreateCustomCommandsMenu(
@@ -1008,11 +1054,7 @@ void __fastcall TNonVisualDataModule::CreateCustomCommandsMenu(
     if (State >= 0)
     {
       TTBCustomItem * Item = new TTBXItem(Owner);
-      Item->Caption = Command->Name;
-      if (Toolbar)
-      {
-        Item->Caption = EscapeHotkey(StripHotkey(Item->Caption));
-      }
+      Item->Caption = CustomCommandCaption(Command, Toolbar);
       Item->Tag = Index;
       Item->Enabled = (State > 0);
       if (OnFocused)
@@ -1023,7 +1065,10 @@ void __fastcall TNonVisualDataModule::CreateCustomCommandsMenu(
       {
         Item->Tag = Item->Tag | 0x0200;
       }
-      Item->Hint = FMTLOAD(CUSTOM_COMMAND_HINT, (StripHotkey(Command->Name)));
+      UnicodeString Name = StripHotkey(Command->Name);
+      UnicodeString ShortHint = FMTLOAD(CUSTOM_COMMAND_HINT, (Name));
+      UnicodeString LongHint = FMTLOAD(CUSTOM_COMMAND_HINT_LONG, (Name, Command->Command));
+      Item->Hint = FORMAT(L"%s|%s", (ShortHint, LongHint));
       if (!Both)
       {
         Item->ShortCut = Command->ShortCut;
@@ -1068,7 +1113,7 @@ void __fastcall TNonVisualDataModule::CreateCustomCommandsMenu(
 void __fastcall TNonVisualDataModule::CreateCustomCommandsMenu(
   TAction * Action, bool OnFocused, bool Both)
 {
-  assert(Action);
+  DebugAssert(Action);
   TTBCustomItem * Menu = dynamic_cast<TTBCustomItem *>(Action->ActionComponent);
   if (Menu)
   {
@@ -1086,7 +1131,7 @@ void __fastcall TNonVisualDataModule::CreateCustomCommandsMenu(
 void __fastcall TNonVisualDataModule::CreateCustomCommandsMenu(TAction * Action)
 {
   TTBCustomItem * Menu = dynamic_cast<TTBCustomItem *>(Action->ActionComponent);
-  if (ALWAYS_TRUE(Menu != NULL))
+  if (DebugAlwaysTrue(Menu != NULL))
   {
     bool OnFocused = (Menu == RemoteDirViewCustomCommandsMenu);
     CreateCustomCommandsMenu(Action, OnFocused, false);
@@ -1109,9 +1154,13 @@ void __fastcall TNonVisualDataModule::UpdateCustomCommandsToolbar(TTBXToolbar * 
     int Index = 0;
     while (!Changed && (Index < CustomCommandList->Count))
     {
+      TTBCustomItem * Item = Toolbar->Items->Items[Index];
+      const TCustomCommandType * Command = CustomCommandList->Commands[Index];
+
       Changed =
-        (Toolbar->Items->Items[Index]->Caption !=
-          EscapeHotkey(StripHotkey(CustomCommandList->Commands[Index]->Name)));
+        (Item->Caption != CustomCommandCaption(Command, true)) ||
+        (Item->Hint != CustomCommandHint(Command));
+
       Index++;
     }
   }
@@ -1123,7 +1172,7 @@ void __fastcall TNonVisualDataModule::UpdateCustomCommandsToolbar(TTBXToolbar * 
     {
       Toolbar->Items->Clear();
       CreateCustomCommandsMenu(Toolbar->Items, false, true, false);
-      assert(CustomCommandList->Count == (Toolbar->Items->Count - AdditionalCommands));
+      DebugAssert(CustomCommandList->Count == (Toolbar->Items->Count - AdditionalCommands));
     }
     __finally
     {
@@ -1136,10 +1185,10 @@ void __fastcall TNonVisualDataModule::UpdateCustomCommandsToolbar(TTBXToolbar * 
     {
       TTBCustomItem * Item = Toolbar->Items->Items[Index];
       int CommandIndex = (Item->Tag & 0x00FF);
-      assert(CommandIndex == Index);
+      DebugAssert(CommandIndex == Index);
       int State = ScpExplorer->CustomCommandState(
         *CustomCommandList->Commands[CommandIndex], false);
-      assert(State >= 0);
+      DebugAssert(State >= 0);
       Item->Enabled = (State > 0);
     }
   }
@@ -1148,7 +1197,7 @@ void __fastcall TNonVisualDataModule::UpdateCustomCommandsToolbar(TTBXToolbar * 
 void __fastcall TNonVisualDataModule::CustomCommandClick(TObject * Sender)
 {
   TTBCustomItem * Item = dynamic_cast<TTBCustomItem *>(Sender);
-  assert(Item);
+  DebugAssert(Item);
   const TCustomCommandType * Command = WinConfiguration->CustomCommandList->Commands[Item->Tag & 0x00FF];
   if (FLAGCLEAR(Item->Tag, 0x0200))
   {
@@ -1163,7 +1212,7 @@ void __fastcall TNonVisualDataModule::CustomCommandClick(TObject * Sender)
 //---------------------------------------------------------------------------
 void __fastcall TNonVisualDataModule::CreateSessionColorMenu(TAction * Action)
 {
-  if (ALWAYS_TRUE(Action->ActionComponent != NULL))
+  if (DebugAlwaysTrue(Action->ActionComponent != NULL))
   {
     ::CreateSessionColorMenu(Action->ActionComponent, ScpExplorer->SessionColor,
       SessionColorChange);
@@ -1189,7 +1238,7 @@ UnicodeString __fastcall TNonVisualDataModule::GetSessionFolderRoot(
   UnicodeString Root;
   for (int ALevel = 0; ALevel < Level; ALevel++)
   {
-    Root.Insert(::CutToChar(Path, L'/', false) + L'/', Root.Length() + 1);
+    Root.Insert(CutToChar(Path, L'/', false) + L'/', Root.Length() + 1);
   }
   return Root;
 }
@@ -1209,7 +1258,7 @@ void __fastcall TNonVisualDataModule::CreateSessionListMenuLevel(
   }
   else
   {
-    assert(Index < StoredSessions->Count);
+    DebugAssert(Index < StoredSessions->Count);
     TSessionData * Data = StoredSessions->Sessions[Index];
 
     Root = GetSessionFolderRoot(Data, Level);
@@ -1217,7 +1266,7 @@ void __fastcall TNonVisualDataModule::CreateSessionListMenuLevel(
     Item->Caption = LoadStr(SAVEDSESSIONFOLDER_THIS_OPEN);
     Item->Tag = MAKELONG(Index, Level);
     UnicodeString FolderName = Root;
-    if (ALWAYS_TRUE(!FolderName.IsEmpty() && FolderName[FolderName.Length()] == L'/'))
+    if (DebugAlwaysTrue(!FolderName.IsEmpty() && FolderName[FolderName.Length()] == L'/'))
     {
       FolderName.Delete(FolderName.Length(), 1);
     }
@@ -1282,13 +1331,13 @@ void __fastcall TNonVisualDataModule::CreateSessionListMenuLevel(
 void __fastcall TNonVisualDataModule::SessionFolderItemClick(TObject * Sender)
 {
   TTBCustomItem * Item = dynamic_cast<TTBCustomItem *>(Sender);
-  assert(Item != NULL);
+  DebugAssert(Item != NULL);
   CreateSessionListMenuLevel(Item, LOWORD(Item->Tag), HIWORD(Item->Tag));
 }
 //---------------------------------------------------------------------------
 void __fastcall TNonVisualDataModule::SessionFolderThisItemClick(TObject * Sender)
 {
-  TTBCustomItem * Item = NOT_NULL(dynamic_cast<TTBCustomItem *>(Sender));
+  TTBCustomItem * Item = DebugNotNull(dynamic_cast<TTBCustomItem *>(Sender));
   int Index = LOWORD(Item->Tag);
   int Level = HIWORD(Item->Tag);
   UnicodeString Folder = GetSessionFolderRoot(StoredSessions->Sessions[Index], Level);
@@ -1297,7 +1346,7 @@ void __fastcall TNonVisualDataModule::SessionFolderThisItemClick(TObject * Sende
 //---------------------------------------------------------------------------
 void __fastcall TNonVisualDataModule::SessionItemClick(TObject * Sender)
 {
-  assert(StoredSessions && (((TTBCustomItem *)Sender)->Tag < StoredSessions->Count));
+  DebugAssert(StoredSessions && (((TTBCustomItem *)Sender)->Tag < StoredSessions->Count));
   ScpExplorer->OpenStoredSession(StoredSessions->Sessions[((TTBCustomItem *)Sender)->Tag]);
 }
 //---------------------------------------------------------------------------
@@ -1311,7 +1360,7 @@ void __fastcall TNonVisualDataModule::CreateWorkspacesMenu(TAction * Action)
   else
   {
     TTBCustomItem * Menu =
-      NOT_NULL(dynamic_cast<TTBCustomItem *>(Action->ActionComponent));
+      DebugNotNull(dynamic_cast<TTBCustomItem *>(Action->ActionComponent));
 
     Menu->Clear();
 
@@ -1332,7 +1381,7 @@ void __fastcall TNonVisualDataModule::WorkspaceItemClick(TObject * Sender)
 {
   std::unique_ptr<TStrings> Workspaces(StoredSessions->GetWorkspaces());
   ScpExplorer->OpenFolderOrWorkspace(
-    Workspaces->Strings[NOT_NULL(dynamic_cast<TTBCustomItem *>(Sender))->Tag]);
+    Workspaces->Strings[DebugNotNull(dynamic_cast<TTBCustomItem *>(Sender))->Tag]);
 }
 //---------------------------------------------------------------------------
 TShortCut __fastcall TNonVisualDataModule::OpenSessionShortCut(int Index)
@@ -1351,14 +1400,14 @@ TShortCut __fastcall TNonVisualDataModule::OpenSessionShortCut(int Index)
 void __fastcall TNonVisualDataModule::CreateOpenedSessionListMenu(TAction * Action)
 {
   TTBCustomItem * OpenedSessionsMenu = dynamic_cast<TTBCustomItem *>(Action->ActionComponent);
-  assert(OpenedSessionsMenu != NULL);
+  DebugAssert(OpenedSessionsMenu != NULL);
   TTerminalManager * Manager = TTerminalManager::Instance();
   TStrings * TerminalList = Manager->TerminalList;
   int PrevCount = OpenedSessionsMenu->Count;
   for (int Index = 0; Index < TerminalList->Count; Index++)
   {
     TTerminal * Terminal = dynamic_cast<TTerminal *>(TerminalList->Objects[Index]);
-    assert(Terminal);
+    DebugAssert(Terminal);
     TTBCustomItem * Item = new TTBXItem(OpenedSessionsMenu);
     Item->Caption = TerminalList->Strings[Index];
     Item->Tag = int(Terminal);
@@ -1380,68 +1429,72 @@ void __fastcall TNonVisualDataModule::OpenedSessionItemClick(TObject * Sender)
   TTerminalManager::Instance()->ActiveTerminal = (TTerminal*)(((TMenuItem *)Sender)->Tag);
 }
 //---------------------------------------------------------------------------
-void __fastcall TNonVisualDataModule::CreateEditorListMenu(TAction * Action, bool OnFocused)
+void __fastcall TNonVisualDataModule::CreateEditorListMenu(TTBCustomItem * Menu, bool OnFocused)
 {
-  assert(Action != NULL);
-  TTBCustomItem * Menu = dynamic_cast<TTBCustomItem *>(Action->ActionComponent);
-  if (Menu != NULL)
-  {
-    int PrevCount = Menu->Count;
+  DebugAssert(Menu != NULL);
+  int PrevCount = Menu->Count;
 
-    TTBCustomItem * Item = new TTBXItem(Menu);
-    Item->Action = OnFocused ? CurrentEditInternalFocusedAction : CurrentEditInternalAction;
+  TTBCustomItem * Item;
+
+  Item = new TTBXItem(Menu);
+  Item->Action = OnFocused ? CurrentEditFocusedAction : CurrentEditAction;
+  Menu->Add(Item);
+
+  AddMenuSeparator(Menu);
+
+  Item = new TTBXItem(Menu);
+  Item->Action = OnFocused ? CurrentEditInternalFocusedAction : CurrentEditInternalAction;
+  Menu->Add(Item);
+
+  AddMenuSeparator(Menu);
+
+  TStringList * UsedEditors = CreateSortedStringList();
+  try
+  {
+    const TEditorList * EditorList = WinConfiguration->EditorList;
+    for (int Index = 0; Index < EditorList->Count; Index++)
+    {
+      const TEditorPreferences * Editor = EditorList->Editors[Index];
+
+      if ((Editor->Data->Editor == edExternal) &&
+          (UsedEditors->IndexOf(Editor->Data->ExternalEditor) < 0))
+      {
+        UsedEditors->Add(Editor->Data->ExternalEditor);
+
+        TTBCustomItem * Item = new TTBXItem(Menu);
+        Item->Caption = Editor->Name;
+        Item->Tag = Index;
+        Item->Hint = FMTLOAD(EXTERNAL_EDITOR_HINT, (Editor->Name));
+        if (OnFocused)
+        {
+          Item->OnClick = EditorItemClickFocused;
+        }
+        else
+        {
+          Item->OnClick = EditorItemClick;
+        }
+        Menu->Add(Item);
+      }
+    }
+
+    Item = new TTBXItem(Menu);
+    Item->Action = OnFocused ? CurrentEditWithFocusedAction : CurrentEditWithAction;
     Menu->Add(Item);
 
     AddMenuSeparator(Menu);
 
-    TStringList * UsedEditors = CreateSortedStringList();
-    try
+    Item = new TTBXItem(Menu);
+    Item->Action = EditorListCustomizeAction;
+    Menu->Add(Item);
+
+    for (int Index = 0; Index < PrevCount; Index++)
     {
-      const TEditorList * EditorList = WinConfiguration->EditorList;
-      for (int Index = 0; Index < EditorList->Count; Index++)
-      {
-        const TEditorPreferences * Editor = EditorList->Editors[Index];
-
-        if ((Editor->Data->Editor == edExternal) &&
-            (UsedEditors->IndexOf(Editor->Data->ExternalEditor) < 0))
-        {
-          UsedEditors->Add(Editor->Data->ExternalEditor);
-
-          TTBCustomItem * Item = new TTBXItem(Menu);
-          Item->Caption = Editor->Name;
-          Item->Tag = Index;
-          Item->Hint = FMTLOAD(EXTERNAL_EDITOR_HINT, (Editor->Name));
-          if (OnFocused)
-          {
-            Item->OnClick = EditorItemClickFocused;
-          }
-          else
-          {
-            Item->OnClick = EditorItemClick;
-          }
-          Menu->Add(Item);
-        }
-      }
-
-      Item = new TTBXItem(Menu);
-      Item->Action = OnFocused ? CurrentEditWithFocusedAction : CurrentEditWithAction;
-      Menu->Add(Item);
-
-      AddMenuSeparator(Menu);
-
-      Item = new TTBXItem(Menu);
-      Item->Action = EditorListCustomizeAction;
-      Menu->Add(Item);
-
-      for (int Index = 0; Index < PrevCount; Index++)
-      {
-        Menu->Delete(0);
-      }
+      Menu->Delete(0);
     }
-    __finally
-    {
-      delete UsedEditors;
-    }
+  }
+  __finally
+  {
+    delete UsedEditors;
   }
 }
 //---------------------------------------------------------------------------
@@ -1569,6 +1622,7 @@ void __fastcall TNonVisualDataModule::CustomCommandsLastUpdate(TAction * Action)
 UnicodeString __fastcall TNonVisualDataModule::QueueItemSpeed(const UnicodeString & Text,
   TTBXComboBoxItem * Item)
 {
+  // Keep in sync with TProgressForm::ItemSpeed
   unsigned long Speed = GetSpeedLimit(Text);
   ScpExplorer->ExecuteQueueOperation(qoItemSpeed, reinterpret_cast<void*>(Speed));
 
@@ -1603,7 +1657,7 @@ void __fastcall TNonVisualDataModule::QueueSpeedComboBoxItem(TTBXComboBoxItem * 
 //---------------------------------------------------------------------------
 void __fastcall TNonVisualDataModule::QueueSpeedComboBoxItemUpdate(TTBXComboBoxItem * Item)
 {
-  Item->Strings = CustomWinConfiguration->History[L"SpeedLimit"];
+  CopySpeedLimits(CustomWinConfiguration->History[L"SpeedLimit"], Item->Strings);
 }
 //---------------------------------------------------------------------------
 void __fastcall TNonVisualDataModule::SetQueueOnceEmptyAction(TAction * Action)
@@ -1622,23 +1676,23 @@ void __fastcall TNonVisualDataModule::CycleQueueOnceEmptyAction()
   Current->Checked = false;
   if (Current == QueueIdleOnceEmptyAction)
   {
-    QueueDisconnectOnceEmptyAction->Checked = true;
+    QueueDisconnectOnceEmptyAction2->Checked = true;
   }
-  else if (Current == QueueDisconnectOnceEmptyAction)
+  else if (Current == QueueDisconnectOnceEmptyAction2)
   {
-    QueueSuspendOnceEmptyAction->Checked = true;
+    QueueSuspendOnceEmptyAction2->Checked = true;
   }
-  else if (Current == QueueSuspendOnceEmptyAction)
+  else if (Current == QueueSuspendOnceEmptyAction2)
   {
-    QueueShutDownOnceEmptyAction->Checked = true;
+    QueueShutDownOnceEmptyAction2->Checked = true;
   }
-  else if (Current == QueueShutDownOnceEmptyAction)
+  else if (Current == QueueShutDownOnceEmptyAction2)
   {
     QueueIdleOnceEmptyAction->Checked = true;
   }
   else
   {
-    FAIL;
+    DebugFail();
   }
 }
 //---------------------------------------------------------------------------
@@ -1649,21 +1703,21 @@ TAction * __fastcall TNonVisualDataModule::CurrentQueueOnceEmptyAction()
   {
     Result = QueueIdleOnceEmptyAction;
   }
-  else if (QueueDisconnectOnceEmptyAction->Checked)
+  else if (QueueDisconnectOnceEmptyAction2->Checked)
   {
-    Result = QueueDisconnectOnceEmptyAction;
+    Result = QueueDisconnectOnceEmptyAction2;
   }
-  else if (QueueSuspendOnceEmptyAction->Checked)
+  else if (QueueSuspendOnceEmptyAction2->Checked)
   {
-    Result = QueueSuspendOnceEmptyAction;
+    Result = QueueSuspendOnceEmptyAction2;
   }
-  else if (QueueShutDownOnceEmptyAction->Checked)
+  else if (QueueShutDownOnceEmptyAction2->Checked)
   {
-    Result = QueueShutDownOnceEmptyAction;
+    Result = QueueShutDownOnceEmptyAction2;
   }
   else
   {
-    FAIL;
+    DebugFail();
   }
   return Result;
 }
@@ -1676,21 +1730,21 @@ TOnceDoneOperation __fastcall TNonVisualDataModule::CurrentQueueOnceEmptyOperati
   {
     Result = odoIdle;
   }
-  else if (Current == QueueDisconnectOnceEmptyAction)
+  else if (Current == QueueDisconnectOnceEmptyAction2)
   {
     Result = odoDisconnect;
   }
-  else if (Current == QueueSuspendOnceEmptyAction)
+  else if (Current == QueueSuspendOnceEmptyAction2)
   {
     Result = odoSuspend;
   }
-  else if (Current == QueueShutDownOnceEmptyAction)
+  else if (Current == QueueShutDownOnceEmptyAction2)
   {
     Result = odoShutDown;
   }
   else
   {
-    FAIL;
+    DebugFail();
   }
   return Result;
 }
@@ -1716,3 +1770,23 @@ bool __fastcall TNonVisualDataModule::GetBusy()
     (FBusy > 0) ||
     ((ScpExplorer != NULL) && ScpExplorer->IsBusy());
 }
+//---------------------------------------------------------------------------
+void __fastcall TNonVisualDataModule::FocusedEditMenuItemPopup(TTBCustomItem * Sender,
+  bool /*FromLink*/)
+{
+  CreateEditorListMenu(Sender, true);
+}
+//---------------------------------------------------------------------------
+void __fastcall TNonVisualDataModule::EditMenuItemPopup(TTBCustomItem * Sender,
+  bool /*FromLink*/)
+{
+  CreateEditorListMenu(Sender, false);
+}
+//---------------------------------------------------------------------------
+void __fastcall TNonVisualDataModule::QueuePopupSpeedComboBoxItemAdjustImageIndex(
+  TTBXComboBoxItem * Sender, const UnicodeString /*AText*/, int /*AIndex*/, int & ImageIndex)
+{
+  // Use fixed image (do not change image by item index)
+  ImageIndex = Sender->ImageIndex;
+}
+//---------------------------------------------------------------------------

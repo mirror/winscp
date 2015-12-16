@@ -27,6 +27,7 @@
 //---------------------------------------------------------------------------
 TForm * __fastcall ShowEditorForm(const UnicodeString FileName, TCustomForm * ParentForm,
   TNotifyEvent OnFileChanged, TNotifyEvent OnFileReload, TFileClosedEvent OnClose,
+  TNotifyEvent OnSaveAll, TAnyModifiedEvent OnAnyModified,
   const UnicodeString Caption, bool StandaloneEditor, TColor Color)
 {
   TEditorForm * Dialog = new TEditorForm(Application);
@@ -38,6 +39,8 @@ TForm * __fastcall ShowEditorForm(const UnicodeString FileName, TCustomForm * Pa
     Dialog->Caption = ACaption + L" - " + LoadStr(EDITOR_CAPTION) + L" - " + AppName;
     Dialog->OnFileChanged = OnFileChanged;
     Dialog->OnFileReload = OnFileReload;
+    Dialog->OnSaveAll = OnSaveAll;
+    Dialog->OnAnyModified = OnAnyModified;
     Dialog->StandaloneEditor = StandaloneEditor;
     Dialog->BackgroundColor = Color;
     // load before showing, so when loading failes,
@@ -60,13 +63,23 @@ TForm * __fastcall ShowEditorForm(const UnicodeString FileName, TCustomForm * Pa
 void __fastcall ReconfigureEditorForm(TForm * Form)
 {
   TEditorForm * Editor = dynamic_cast<TEditorForm *>(Form);
-  assert(Editor != NULL);
+  DebugAssert(Editor != NULL);
   Editor->ApplyConfiguration();
 }
 //---------------------------------------------------------------------------
 void __fastcall EditorFormFileUploadComplete(TForm * Form)
 {
-  NOT_NULL(dynamic_cast<TEditorForm *>(Form))->FileUploadComplete();
+  DebugNotNull(dynamic_cast<TEditorForm *>(Form))->FileUploadComplete();
+}
+//---------------------------------------------------------------------------
+void __fastcall EditorFormFileSave(TForm * Form)
+{
+  DebugNotNull(dynamic_cast<TEditorForm *>(Form))->SaveFile();
+}
+//---------------------------------------------------------------------------
+bool __fastcall IsEditorFormModified(TForm * Form)
+{
+  return DebugNotNull(dynamic_cast<TEditorForm *>(Form))->IsFileModified();
 }
 //---------------------------------------------------------------------------
 class TPreambleFilteringFileStream : public TFileStream
@@ -126,7 +139,7 @@ int __fastcall TPreambleFilteringFileStream::Write(const void * Buffer, int Coun
 int __fastcall TPreambleFilteringFileStream::Write(
   const System::DynamicArray<System::Byte> /*Buffer*/, int /*Offset*/, int /*Count*/)
 {
-  FAIL;
+  DebugFail();
   EXCEPTION;
 }
 //---------------------------------------------------------------------------
@@ -137,14 +150,13 @@ public:
 
   bool __fastcall LoadFromStream(TStream * Stream, TEncoding * Encoding, bool & EncodingError);
 
-  void __fastcall SetFormat(const TFontConfiguration & FontConfiguration, unsigned int TabSize,
-    bool AWordWrap);
+  void __fastcall SetFormat(const TFontConfiguration & FontConfiguration,
+    TColor FontColor, unsigned int TabSize, bool AWordWrap);
   void __fastcall ResetFormat();
   int __fastcall FindText(const UnicodeString SearchStr, int StartPos, int Length,
     TSearchTypes Options, bool Down);
   void __fastcall Redo();
 
-  __property bool SupportsUpSearch = { read = FVersion20 };
   __property bool CanRedo = { read = GetCanRedo };
   __property bool LoadedWithPreamble = { read = FLoadedWithPreamble };
 
@@ -163,7 +175,6 @@ protected:
 
 private:
   HINSTANCE FLibrary;
-  bool FVersion20;
   bool FWordWrap;
   unsigned int FTabSize;
   bool FInitialized;
@@ -175,7 +186,6 @@ private:
 __fastcall TRichEdit20::TRichEdit20(TComponent * AOwner) :
   TRichEdit(AOwner),
   FLibrary(0),
-  FVersion20(false),
   FTabSize(0),
   FWordWrap(true),
   FInitialized(false),
@@ -183,14 +193,15 @@ __fastcall TRichEdit20::TRichEdit20(TComponent * AOwner) :
 {
 }
 //---------------------------------------------------------------------------
-void __fastcall TRichEdit20::SetFormat(const TFontConfiguration & FontConfiguration, unsigned int TabSize,
+void __fastcall TRichEdit20::SetFormat(
+  const TFontConfiguration & FontConfiguration, TColor FontColor, unsigned int TabSize,
   bool AWordWrap)
 {
 
   if (!FInitialized)
   {
     // for efficiency we should be creating handle here
-    assert(!HandleAllocated());
+    DebugAssert(!HandleAllocated());
   }
 
   // setting DefAttributes is noop if we do not have a handle
@@ -201,10 +212,12 @@ void __fastcall TRichEdit20::SetFormat(const TFontConfiguration & FontConfigurat
 
   std::unique_ptr<TFont> NewFont(new TFont());
   TWinConfiguration::RestoreFont(FontConfiguration, NewFont.get());
+  NewFont->Color = GetWindowTextColor(FontColor);
   // setting DefAttributes may take quite time, even if the font attributes
   // do not change, so avoid that if not necessary
   if (!FInitialized ||
-      !SameFont(Font, NewFont.get()))
+      !SameFont(Font, NewFont.get()) ||
+      (Font->Color != NewFont->Color))
   {
     Font->Assign(NewFont.get());
     DefAttributes->Assign(Font);
@@ -220,7 +233,7 @@ void __fastcall TRichEdit20::SetFormat(const TFontConfiguration & FontConfigurat
   if (!FInitialized ||
       (FWordWrap != AWordWrap))
   {
-    assert(HandleAllocated());
+    DebugAssert(HandleAllocated());
     // Undocumented usage of EM_SETTARGETDEVICE.
     // But note that it is used by MFC in CRichEditView::WrapChanged()
     SendMessage(Handle, EM_SETTARGETDEVICE, 0, (AWordWrap ? 0 : 1));
@@ -243,67 +256,54 @@ void __fastcall TRichEdit20::ResetFormat()
 int __fastcall TRichEdit20::FindText(const UnicodeString SearchStr, int StartPos,
   int /*Length*/, TSearchTypes Options, bool Down)
 {
-  int Result;
-  if (FVersion20)
-  {
-    ::FINDTEXTEX Find;
-    memset(&Find, 0, sizeof(Find));
-    Find.chrg.cpMin = StartPos;
-    Find.chrg.cpMax = -1;
-    Find.lpstrText = UnicodeString(SearchStr).c_str();
+  ::FINDTEXTEX Find;
+  memset(&Find, 0, sizeof(Find));
+  Find.chrg.cpMin = StartPos;
+  Find.chrg.cpMax = -1;
+  Find.lpstrText = UnicodeString(SearchStr).c_str();
 
-    unsigned int Flags =
-      FLAGMASK(Options.Contains(stWholeWord), FR_WHOLEWORD) |
-      FLAGMASK(Options.Contains(stMatchCase), FR_MATCHCASE) |
-      FLAGMASK(Down, FR_DOWN);
-    Result = SendMessage(Handle, EM_FINDTEXTEX, Flags, (LPARAM)&Find);
-  }
-  else
-  {
-    assert(Down);
-    Result = TRichEdit::FindText(SearchStr, StartPos, Text.Length(), Options);
-  }
+  unsigned int Flags =
+    FLAGMASK(Options.Contains(stWholeWord), FR_WHOLEWORD) |
+    FLAGMASK(Options.Contains(stMatchCase), FR_MATCHCASE) |
+    FLAGMASK(Down, FR_DOWN);
+  int Result = SendMessage(Handle, EM_FINDTEXTEX, Flags, (LPARAM)&Find);
   return Result;
 }
 //---------------------------------------------------------------------------
 void __fastcall TRichEdit20::Redo()
 {
-  assert(FVersion20);
   SendMessage(Handle, EM_REDO, 0, 0);
 }
 //---------------------------------------------------------------------------
 void __fastcall TRichEdit20::CreateParams(TCreateParams & Params)
 {
-  const wchar_t RichEditModuleName[] = L"RICHED20.DLL";
+  UnicodeString RichEditModuleName(L"RICHED20.DLL");
   long int OldError;
 
   OldError = SetErrorMode(SEM_NOOPENFILEERRORBOX);
-  FLibrary = LoadLibrary(RichEditModuleName);
+  FLibrary = LoadLibrary(RichEditModuleName.c_str());
   SetErrorMode(OldError);
 
-  FVersion20 = (FLibrary != 0);
-  if (!FVersion20)
+  // No fallback, RichEdit 2.0 is available since Windows NT/98
+  if (FLibrary == 0)
   {
-    // fallback to richedit 1.0
-    TRichEdit::CreateParams(Params);
+    throw Exception(FORMAT(L"Cannot load %s", (RichEditModuleName)));
   }
-  else
-  {
-    TCustomMemo::CreateParams(Params);
-    CreateSubClass(Params, RICHEDIT_CLASS);
-    Params.Style = Params.Style |
-      (HideScrollBars ? 0 : ES_DISABLENOSCROLL) |
-      (HideSelection ? 0 : ES_NOHIDESEL);
-    Params.WindowClass.style = Params.WindowClass.style &
-      ~(CS_HREDRAW | CS_VREDRAW);
-  }
+
+  TCustomMemo::CreateParams(Params);
+  CreateSubClass(Params, RICHEDIT_CLASS);
+  Params.Style = Params.Style |
+    (HideScrollBars ? 0 : ES_DISABLENOSCROLL) |
+    (HideSelection ? 0 : ES_NOHIDESEL);
+  Params.WindowClass.style = Params.WindowClass.style &
+    ~(CS_HREDRAW | CS_VREDRAW);
 }
 //---------------------------------------------------------------------------
 void __fastcall TRichEdit20::DestroyWnd()
 {
   TRichEdit::DestroyWnd();
 
-  if (FLibrary != 0)
+  if (DebugAlwaysTrue(FLibrary != 0))
   {
     FreeLibrary(FLibrary);
   }
@@ -430,12 +430,12 @@ void __fastcall TRichEdit20::Dispatch(void * Message)
 //---------------------------------------------------------------------------
 bool __fastcall TRichEdit20::GetCanRedo()
 {
-  return FVersion20 && (SendMessage(Handle, EM_CANREDO, 0, 0) != 0);
+  return (SendMessage(Handle, EM_CANREDO, 0, 0) != 0);
 }
 //---------------------------------------------------------------------------
 void __fastcall TRichEdit20::SetTabSize(unsigned int TabSize)
 {
-  assert(TabSize > 0);
+  DebugAssert(TabSize > 0);
 
   HDC DC = GetDC(Handle);
   SaveDC(DC);
@@ -538,7 +538,7 @@ bool __stdcall TRichEdit20::StreamLoad(
             }
             // If Unicode preamble is present, set StartIndex to skip over it
             TBytes Preamble = TEncoding::Unicode->GetPreamble();
-            if (ALWAYS_TRUE(Preamble.Length == 2) &&
+            if (DebugAlwaysTrue(Preamble.Length == 2) &&
                 (WasRead >= 2) && (Buffer[0] == Preamble[0]) && (Buffer[1] == Preamble[1]))
             {
               StartIndex = 2;
@@ -688,15 +688,16 @@ __fastcall TEditorForm::TEditorForm(TComponent* Owner)
   SetSubmenu(ColorItem);
 
   InitCodePage();
+  SelectScaledImageList(EditorImages);
 
   UseSystemSettings(this);
   UseDesktopFont(StatusBar);
-  SetFormIcons(this, L"Z_ICON_EDITOR_BIG", L"Z_ICON_EDITOR_SMALL");
+  FixFormIcons(this);
 }
 //---------------------------------------------------------------------------
 __fastcall TEditorForm::~TEditorForm()
 {
-  assert(FInstances > 0);
+  DebugAssert(FInstances > 0);
   FInstances--;
   if (FInstance == 0)
   {
@@ -778,7 +779,21 @@ void __fastcall TEditorForm::EditorActionsUpdate(TBasicAction *Action,
   Handled = true;
   if (Action == SaveAction)
   {
-    SaveAction->Enabled = EditorMemo->Modified;
+    SaveAction->Enabled = IsFileModified();
+  }
+  else if (Action == SaveAllAction)
+  {
+    bool Enabled = !FStandaloneEditor;
+    if (Enabled)
+    {
+      Enabled = IsFileModified();
+      // optimization
+      if (!Enabled)
+      {
+        FOnAnyModified(this, Enabled);
+      }
+    }
+    SaveAllAction->Enabled = Enabled;
   }
   else if (Action == FindNextAction)
   {
@@ -815,17 +830,16 @@ void __fastcall TEditorForm::SaveToFile()
 {
   std::unique_ptr<TStream> Stream(
     new TPreambleFilteringFileStream(
-      ::ApiPath(FFileName), fmCreate, FEncoding, EditorMemo->LoadedWithPreamble));
+      ApiPath(FFileName), fmCreate, FEncoding, EditorMemo->LoadedWithPreamble));
   EditorMemo->Lines->SaveToStream(Stream.get(), FEncoding);
 }
 //---------------------------------------------------------------------------
-void __fastcall TEditorForm::EditorActionsExecute(TBasicAction *Action,
-      bool &Handled)
+void __fastcall TEditorForm::SaveFile()
 {
-  Handled = true;
-  if (Action == SaveAction)
+  // Test is needed for "Save all" and is redundant for "Save"
+  if (IsFileModified())
   {
-    assert(!FFileName.IsEmpty());
+    DebugAssert(!FFileName.IsEmpty());
     SaveToFile();
     if (FOnFileChanged)
     {
@@ -835,9 +849,28 @@ void __fastcall TEditorForm::EditorActionsExecute(TBasicAction *Action,
     EditorMemo->Modified = false;
     UpdateControls();
   }
+}
+//---------------------------------------------------------------------------
+bool __fastcall TEditorForm::IsFileModified()
+{
+  return EditorMemo->Modified;
+}
+//---------------------------------------------------------------------------
+void __fastcall TEditorForm::EditorActionsExecute(TBasicAction *Action,
+      bool &Handled)
+{
+  Handled = true;
+  if (Action == SaveAction)
+  {
+    SaveFile();
+  }
+  else if (Action == SaveAllAction)
+  {
+    OnSaveAll(this);
+  }
   else if (Action == PreferencesAction)
   {
-    DoPreferencesDialog(pmEditor);
+    DoPreferencesDialog(pmEditorInternal);
   }
   else if (Action == ReloadAction)
   {
@@ -877,9 +910,9 @@ void __fastcall TEditorForm::EditorActionsExecute(TBasicAction *Action,
   }
   else if (Action == ColorAction)
   {
-    if (ALWAYS_TRUE(Action->ActionComponent != NULL))
+    if (DebugAlwaysTrue(Action->ActionComponent != NULL))
     {
-      ::CreateSessionColorMenu(Action->ActionComponent, BackgroundColor,
+      CreateEditorBackgroundColorMenu(Action->ActionComponent, BackgroundColor,
         SetBackgroundColor);
     }
   }
@@ -891,13 +924,13 @@ void __fastcall TEditorForm::EditorActionsExecute(TBasicAction *Action,
 //---------------------------------------------------------------------------
 void __fastcall TEditorForm::BackupSave()
 {
-  if (EditorMemo->Modified)
+  if (IsFileModified())
   {
     int Uniq = 0;
     while (true)
     {
       UnicodeString FileName = FFileName + L".bak" + (Uniq == 0 ? UnicodeString() : IntToStr(Uniq));
-      UnicodeString ApiFileName = ::ApiPath(FileName);
+      UnicodeString ApiFileName = ApiPath(FileName);
       if (!FileExists(ApiFileName))
       {
         EditorMemo->Lines->SaveToFile(ApiFileName, FEncoding);
@@ -912,7 +945,7 @@ void __fastcall TEditorForm::ChangeEncoding(TEncoding * Encoding)
 {
   if (FEncoding != Encoding)
   {
-    if (!EditorMemo->Modified ||
+    if (!IsFileModified() ||
         (MessageDialog(MainInstructions(LoadStr(EDITOR_MODIFIED_ENCODING)), qtConfirmation,
           qaOK | qaCancel) != qaCancel))
     {
@@ -936,7 +969,7 @@ void __fastcall TEditorForm::ChangeEncoding(TEncoding * Encoding)
 void __fastcall TEditorForm::FormCloseQuery(TObject * /*Sender*/,
       bool &CanClose)
 {
-  if (EditorMemo->Modified)
+  if (IsFileModified())
   {
     SetFocus();
     UnicodeString Message = MainInstructions(LoadStr(SAVE_CHANGES));
@@ -957,11 +990,13 @@ void __fastcall TEditorForm::FormCloseQuery(TObject * /*Sender*/,
 //---------------------------------------------------------------------------
 void __fastcall TEditorForm::ApplyConfiguration()
 {
-  bool PrevModified = EditorMemo->Modified;
-  assert(Configuration);
+  bool PrevModified = IsFileModified();
+  DebugAssert(Configuration);
   EditorMemo->SetFormat(WinConfiguration->Editor.Font,
+    WinConfiguration->Editor.FontColor,
     WinConfiguration->Editor.TabSize,
     WinConfiguration->Editor.WordWrap);
+  UpdateBackgroundColor();
   EditorMemo->Modified = PrevModified;
   EditorMemo->ClearUndo();
   UpdateControls();
@@ -969,10 +1004,10 @@ void __fastcall TEditorForm::ApplyConfiguration()
 //---------------------------------------------------------------------------
 void __fastcall TEditorForm::FileUploadComplete()
 {
-  assert(FSaving);
+  DebugAssert(FSaving);
   FSaving = false;
   UpdateControls();
-  if (FClosePending && ALWAYS_TRUE(FStandaloneEditor))
+  if (FClosePending && DebugAlwaysTrue(FStandaloneEditor))
   {
     Close();
   }
@@ -1054,7 +1089,7 @@ void __fastcall TEditorForm::UpdateControls()
     StatusBar->Panels->Items[3]->Caption = FMTLOAD(EDITOR_ENCODING_STATUS, (FEncodingName));
     StatusBar->Panels->Items[4]->Caption =
       (FSaving ? LoadStr(EDITOR_SAVING) :
-        (EditorMemo->Modified ? LoadStr(EDITOR_MODIFIED) : UnicodeString(L"")));
+        (IsFileModified() ? LoadStr(EDITOR_MODIFIED) : UnicodeString(L"")));
     StatusBar->SimplePanel = false;
   }
 
@@ -1090,7 +1125,7 @@ void __fastcall TEditorForm::Find()
 
   do
   {
-    assert(FLastFindDialog);
+    DebugAssert(FLastFindDialog);
 
     TSearchTypes SearchTypes;
 
@@ -1173,7 +1208,7 @@ void __fastcall TEditorForm::FormShow(TObject * /*Sender*/)
 
   CutFormToDesktop(this);
 
-  assert(FWindowParams.IsEmpty());
+  DebugAssert(FWindowParams.IsEmpty());
   if (FWindowParams.IsEmpty())
   {
     FWindowParams = StoreForm(this);
@@ -1220,7 +1255,7 @@ bool __fastcall TEditorForm::ContainsPreamble(TStream * Stream, const TBytes & S
 //---------------------------------------------------------------------------
 void __fastcall TEditorForm::LoadFromFile(bool PrimaryEncoding)
 {
-  TStream * Stream = new TFileStream(::ApiPath(FFileName), fmOpenRead | fmShareDenyWrite);
+  TStream * Stream = new TFileStream(ApiPath(FFileName), fmOpenRead | fmShareDenyWrite);
   try
   {
     bool CanTrySecondary;
@@ -1246,7 +1281,7 @@ void __fastcall TEditorForm::LoadFromFile(bool PrimaryEncoding)
 
         default:
           CanTrySecondary = false;
-          FAIL;
+          DebugFail();
           // fallthru
 
         case CP_ACP:
@@ -1327,7 +1362,7 @@ void __fastcall TEditorForm::CheckFileSize()
   if (EditorConfiguration.WarnOrLargeFileSize)
   {
     TWin32FileAttributeData FileAttributeData;
-    if (GetFileAttributesEx(::ApiPath(FFileName).c_str(), GetFileExInfoStandard, &FileAttributeData))
+    if (GetFileAttributesEx(ApiPath(FFileName).c_str(), GetFileExInfoStandard, &FileAttributeData))
     {
       const __int64 MaxSize = 100 * 1024 * 1024;
       __int64 Size =
@@ -1356,7 +1391,7 @@ void __fastcall TEditorForm::CheckFileSize()
             break;
 
           default:
-            FAIL;
+            DebugFail();
         }
       }
     }
@@ -1406,7 +1441,7 @@ bool __fastcall TEditorForm::CursorInUpperPart()
 //---------------------------------------------------------------------------
 void __fastcall TEditorForm::PositionFindDialog(bool VerticalOnly)
 {
-  assert(FLastFindDialog);
+  DebugAssert(FLastFindDialog);
   if (!VerticalOnly)
   {
     FLastFindDialog->Left = Left + EditorMemo->Left + EditorMemo->Width / 2 - ScaleByTextHeight(this, 100);
@@ -1443,16 +1478,8 @@ void __fastcall TEditorForm::StartFind(bool Find)
   {
     Options << frWholeWord;
   }
-  if (EditorMemo->SupportsUpSearch)
+  if (WinConfiguration->Editor.FindDown)
   {
-    if (WinConfiguration->Editor.FindDown)
-    {
-      Options << frDown;
-    }
-  }
-  else
-  {
-    Options << frHideUpDown; // not implemented
     Options << frDown;
   }
   FLastFindDialog->Options = Options;
@@ -1533,7 +1560,7 @@ void __fastcall TEditorForm::CreateParams(TCreateParams & Params)
 //---------------------------------------------------------------------------
 void __fastcall TEditorForm::Reload()
 {
-  if (!EditorMemo->Modified ||
+  if (!IsFileModified() ||
       (MessageDialog(MainInstructions(LoadStr(EDITOR_MODIFIED_RELOAD)), qtConfirmation,
         qaOK | qaCancel) != qaCancel))
   {
@@ -1547,8 +1574,9 @@ void __fastcall TEditorForm::Reload()
 //---------------------------------------------------------------------------
 void __fastcall TEditorForm::ApplicationHint(TObject * /*Sender*/)
 {
-  assert(Application);
-  UnicodeString AHint = GetLongHint(Application->Hint);
+  DebugAssert(Application);
+  // Application->Hint contains long hint only
+  UnicodeString AHint = Application->Hint;
   FShowStatusBarHint = Active && !AHint.IsEmpty();
   if (FShowStatusBarHint)
   {
@@ -1580,15 +1608,24 @@ void __fastcall TEditorForm::SetBackgroundColor(TColor Color)
   if (BackgroundColor != Color)
   {
     FBackgroundColor = Color;
-    TColor ItemColor = (Color != 0 ? Color : Vcl::Graphics::clNone);
-    ColorItem->Color = ItemColor;
-    TColor EditorColor = (Color != 0 ? Color : clWindow);
-    if (EditorMemo->Color != EditorColor)
-    {
-      EditorMemo->Color = EditorColor;
-      // does not seem to have any effect (nor is needed), but just in case
-      ForceColorChange(EditorMemo);
-    }
+    UpdateBackgroundColor();
+  }
+}
+//---------------------------------------------------------------------------
+void __fastcall TEditorForm::UpdateBackgroundColor()
+{
+  TColor Color = FBackgroundColor;
+  if (Color == 0)
+  {
+    // double default, first our preferred default, then system default
+    Color = GetWindowColor(WinConfiguration->Editor.BackgroundColor);
+  }
+  ColorItem->Color = Color;
+  if (EditorMemo->Color != Color)
+  {
+    EditorMemo->Color = Color;
+    // does not seem to have any effect (nor is needed), but just in case
+    ForceColorChange(EditorMemo);
   }
 }
 //---------------------------------------------------------------------------

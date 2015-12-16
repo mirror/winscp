@@ -19,11 +19,12 @@
 #include "GUITools.h"
 #include "Tools.h"
 #include "WinApi.h"
+#include <DateUtils.hpp>
 //---------------------------------------------------------------------------
 #pragma package(smart_init)
 //---------------------------------------------------------------------------
 void __fastcall GetLoginData(UnicodeString SessionName, TOptions * Options,
-  TObjectList * DataList, UnicodeString & DownloadFile)
+  TObjectList * DataList, UnicodeString & DownloadFile, bool NeedSession)
 {
   bool DefaultsOnly = false;
   bool Close = false;
@@ -42,7 +43,7 @@ void __fastcall GetLoginData(UnicodeString SessionName, TOptions * Options,
 
     if (DataList->Count == 1)
     {
-      TSessionData * SessionData = NOT_NULL(dynamic_cast<TSessionData *>(DataList->Items[0]));
+      TSessionData * SessionData = DebugNotNull(dynamic_cast<TSessionData *>(DataList->Items[0]));
       if (SessionData->SaveOnly)
       {
         Configuration->Usage->Inc(L"CommandLineSessionSave");
@@ -54,19 +55,34 @@ void __fastcall GetLoginData(UnicodeString SessionName, TOptions * Options,
         }
         DataList->Clear();
       }
+      else if (!SessionData->PuttyProtocol.IsEmpty())
+      {
+        // putty does not support resolving environment variables in session settings
+        // though it's hardly of any use here.
+        SessionData->ExpandEnvironmentVariables();
+        OpenSessionInPutty(GUIConfiguration->PuttyPath, SessionData);
+        DataList->Clear();
+        Close = true;
+      }
     }
   }
 
   if (!Close)
   {
-    if ((DataList->Count == 0) ||
+    if (DefaultsOnly && !NeedSession)
+    {
+      // No URL specified on command-line and no explicit command-line parameter
+      // that results session was specified => noop
+      DataList->Clear();
+    }
+    else if ((DataList->Count == 0) ||
         !dynamic_cast<TSessionData *>(DataList->Items[0])->CanLogin ||
         DefaultsOnly)
     {
       // Note that GetFolderOrWorkspace never returns sites that !CanLogin,
       // so we should not get here with more then one site.
       // Though we should be good, if we ever do.
-      assert(DataList->Count <= 1);
+      DebugAssert(DataList->Count <= 1);
       if (!DoLoginDialog(StoredSessions, DataList, loStartup))
       {
         DataList->Clear();
@@ -228,7 +244,7 @@ void __fastcall ImportSitesIfAny()
       }
       else
       {
-        FAIL;
+        DebugFail();
       }
 
       UnicodeString Message = FORMAT(LoadStrPart(IMPORT_SESSIONS2, 1), (Source));
@@ -248,7 +264,7 @@ void __fastcall Usage(UnicodeString Param)
 {
   while (!Param.IsEmpty())
   {
-    UnicodeString Pair = ::CutToChar(Param, L',', true);
+    UnicodeString Pair = CutToChar(Param, L',', true);
     if (!Pair.IsEmpty())
     {
       if (Pair[Pair.Length()] == L'+')
@@ -258,7 +274,7 @@ void __fastcall Usage(UnicodeString Param)
       }
       else
       {
-        UnicodeString Key = ::CutToChar(Pair, L':', true);
+        UnicodeString Key = CutToChar(Pair, L':', true);
         Configuration->Usage->Set(Key, Pair.Trim());
       }
     }
@@ -310,6 +326,16 @@ void __fastcall RecordWrapperVersions(UnicodeString ConsoleVersion, UnicodeStrin
       Configuration->SetNulStorage();
     }
   }
+}
+//---------------------------------------------------------------------------
+static UnicodeString ColorToRGBStr(TColor Color)
+{
+  int RGB = ColorToRGB(Color);
+  int R = GetRValue(RGB);
+  int G = GetGValue(RGB);
+  int B = GetBValue(RGB);
+  UnicodeString Result = FORMAT(L"%.2x%.2x%.2x", (R, G, B));
+  return Result;
 }
 //---------------------------------------------------------------------------
 void __fastcall UpdateStaticUsage()
@@ -397,6 +423,10 @@ void __fastcall UpdateStaticUsage()
   Configuration->Usage->Set(L"NotUseThemes", !UseThemes());
   Configuration->Usage->Set(L"ThemeDefaultFontSize", Application->DefaultFont->Size);
   Configuration->Usage->Set(L"ThemeIconFontSize", Screen->IconFont->Size);
+
+  Configuration->Usage->Set(L"SysColorWindow", ColorToRGBStr(clWindow));
+  Configuration->Usage->Set(L"SysColorBtnFace", ColorToRGBStr(clBtnFace));
+  Configuration->Usage->Set(L"SysColorWindowText", ColorToRGBStr(clWindowText));
 
   UnicodeString ProgramsFolder;
   ::SpecialFolderLocation(CSIDL_PROGRAM_FILES, ProgramsFolder);
@@ -512,6 +542,7 @@ bool __fastcall ShowUpdatesIfAvailable()
 {
   TUpdatesConfiguration Updates = WinConfiguration->Updates;
   int CurrentCompoundVer = Configuration->CompoundVersion;
+  bool NoPopup = true;
   bool Result =
     Updates.ShowOnStartup &&
     Updates.HaveValidResultsForVersion(CurrentCompoundVer) &&
@@ -526,15 +557,39 @@ bool __fastcall ShowUpdatesIfAvailable()
     {
       Configuration->Usage->Inc(L"UpdateDownloadOpensStartup");
     }
+    NoPopup = false;
+  }
+  else if (WinConfiguration->ShowTips)
+  {
+    int Days = DaysBetween(WinConfiguration->TipsShown, Now());
+    if ((Days >= Updates.Results.TipsIntervalDays) &&
+        (WinConfiguration->RunsSinceLastTip >= Updates.Results.TipsIntervalDays))
+    {
+      UnicodeString Tip = FirstUnshownTip();
+      if (!Tip.IsEmpty())
+      {
+        AutoShowNewTip();
+        NoPopup = false;
+      }
+      else
+      {
+        Configuration->Usage->Inc(L"TipsNoUnseen");
+      }
+    }
+  }
+
+  if (NoPopup)
+  {
+    WinConfiguration->RunsSinceLastTip = WinConfiguration->RunsSinceLastTip + 1;
   }
   return Result;
 }
 //---------------------------------------------------------------------------
 int __fastcall Execute()
 {
-  assert(StoredSessions);
+  DebugAssert(StoredSessions);
   TProgramParams * Params = TProgramParams::Instance();
-  assert(Params);
+  DebugAssert(Params);
 
   // do not flash message boxes on startup
   SetOnForeground(true);
@@ -600,11 +655,15 @@ int __fastcall Execute()
   {
     Mode = cmBatchSettings;
   }
+  else if (Params->FindSwitch(KEYGEN_SWITCH))
+  {
+    Mode = cmKeyGen;
+  }
   // We have to check for /console only after the other options,
   // as the /console is always used when we are run by winscp.com
   // (ambiguous use to pass console version)
   else if (Params->FindSwitch(L"Console") || Params->FindSwitch(L"script") ||
-      Params->FindSwitch(L"command"))
+      Params->FindSwitch(COMMAND_SWITCH))
   {
     Mode = cmScripting;
   }
@@ -621,7 +680,7 @@ int __fastcall Execute()
   try
   {
     TerminalManager = TTerminalManager::Instance();
-    HANDLE ResourceModule = GUIConfiguration->ChangeResourceModule(NULL);
+    HANDLE ResourceModule = GUIConfiguration->ChangeToDefaultResourceModule();
     try
     {
       GlyphsModule = new TGlyphsModule(Application);
@@ -640,7 +699,7 @@ int __fastcall Execute()
     if (!IniFileName.IsEmpty())
     {
       UnicodeString IniFileNameExpanded = ExpandEnvironmentVariables(IniFileName);
-      if (!FileExists(::ApiPath(IniFileNameExpanded)))
+      if (!FileExists(ApiPath(IniFileNameExpanded)))
       {
         // this should be displayed rather at the very beginning.
         // however for simplicity (GUI-only), we do it only here.
@@ -837,17 +896,18 @@ int __fastcall Execute()
       // from now flash message boxes on background
       SetOnForeground(false);
 
+      bool CommandLineOperation = (ParamCommand != pcNone) || !DownloadFile.IsEmpty();
+      bool NeedSession = CommandLineOperation;
+
       bool Retry;
       do
       {
         Retry = false;
         TObjectList * DataList = new TObjectList();
-        GetLoginData(AutoStartSession, Params, DataList, DownloadFile);
-        // from now on, we do not support runtime locale change
-        GUIConfiguration->CanApplyLocaleImmediately = false;
+        GetLoginData(AutoStartSession, Params, DataList, DownloadFile, NeedSession);
         try
         {
-          if (DataList->Count > 0)
+          if (!NeedSession || (DataList->Count > 0))
           {
             if (CheckSafe(Params))
             {
@@ -864,12 +924,22 @@ int __fastcall Execute()
 
             try
             {
-              assert(!TerminalManager->ActiveTerminal);
+              DebugAssert(!TerminalManager->ActiveTerminal);
 
-              TerminalManager->ActiveTerminal =
-                TerminalManager->NewTerminals(DataList);
+              bool CanStart;
+              if (DataList->Count > 0)
+              {
+                TerminalManager->ActiveTerminal =
+                  TerminalManager->NewTerminals(DataList);
+                CanStart = (TerminalManager->Count > 0);
+              }
+              else
+              {
+                DebugAssert(!NeedSession);
+                CanStart = true;
+              }
 
-              if (TerminalManager->Count == 0)
+              if (!CanStart)
               {
                 // do not prompt with login dialog, if connection of
                 // auto-start session (typically from command line) failed
@@ -889,7 +959,7 @@ int __fastcall Execute()
                   // moved inside try .. __finally, because it can fail as well
                   TerminalManager->ScpExplorer = ScpExplorer;
 
-                  if ((ParamCommand != pcNone) || !DownloadFile.IsEmpty())
+                  if (CommandLineOperation)
                   {
                     Configuration->Usage->Inc(L"CommandLineOperation");
                   }
