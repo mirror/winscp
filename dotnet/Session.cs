@@ -62,6 +62,7 @@ namespace WinSCP
         [Obsolete("Use AddRawConfiguration")]
         public bool DefaultConfiguration { get { return _defaultConfiguration; } set { CheckNotOpened(); _defaultConfiguration = value; } }
         public bool DisableVersionCheck { get { return _disableVersionCheck; } set { CheckNotOpened(); _disableVersionCheck = value; } }
+        [Obsolete("Use AddRawConfiguration")]
         public string IniFilePath { get { return _iniFilePath; } set { CheckNotOpened(); _iniFilePath = value; } }
         public TimeSpan ReconnectTime { get { return _reconnectTime; } set { CheckNotOpened(); _reconnectTime = value; } }
         public int ReconnectTimeInMilliseconds { get { return Tools.TimeSpanToMilliseconds(ReconnectTime); } set { ReconnectTime = Tools.MillisecondsToTimeSpan(value); } }
@@ -1935,6 +1936,7 @@ namespace WinSCP
         internal bool TestHandlesClosedInternal { get; set; }
         internal Dictionary<string, string> RawConfiguration { get; private set; }
         internal bool DefaultConfigurationInternal { get { return _defaultConfiguration; } }
+        internal string IniFilePathInternal { get { return _iniFilePath; } }
 
         private ExeSessionProcess _process;
         private DateTime _lastOutput;

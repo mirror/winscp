@@ -225,6 +225,7 @@ private:
   unsigned int FCommandReply;
   TCommand FLastCommand;
   bool FPasswordFailed;
+  bool FStoredPasswordTried;
   bool FMultineResponse;
   int FLastCode;
   int FLastCodeClass;
@@ -272,6 +273,7 @@ private:
   X509 * FCertificate;
   EVP_PKEY * FPrivateKey;
   bool FTransferActiveImmediately;
+  bool FWindowsServer;
   mutable UnicodeString FOptionScratch;
 };
 //---------------------------------------------------------------------------

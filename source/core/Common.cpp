@@ -50,6 +50,17 @@ UnicodeString DeleteChar(UnicodeString Str, wchar_t C)
   return Str;
 }
 //---------------------------------------------------------------------------
+int PosFrom(const UnicodeString & SubStr, const UnicodeString & Str, int Index)
+{
+  UnicodeString S = Str.SubString(Index, Str.Length() - Index + 1);
+  int Result = S.Pos(SubStr);
+  if (Result > 0)
+  {
+    Result += Index - 1;
+  }
+  return Result;
+}
+//---------------------------------------------------------------------------
 template<typename T>
 void DoPackStr(T & Str)
 {
@@ -645,6 +656,7 @@ UnicodeString __fastcall ExpandFileNameCommand(const UnicodeString Command,
 //---------------------------------------------------------------------------
 UnicodeString __fastcall EscapeParam(const UnicodeString & Param)
 {
+  // Make sure this won't break RTF syntax
   return ReplaceStr(Param, L"\"", L"\"\"");
 }
 //---------------------------------------------------------------------------
@@ -1557,8 +1569,7 @@ TDateTime __fastcall UnixToDateTime(__int64 TimeStamp, TDSTMode DSTMode)
 
   if ((DSTMode == dstmUnix) || (DSTMode == dstmKeep))
   {
-    Result -= (IsDateInDST(Result) ?
-      Params->DaylightDifference : Params->StandardDifference);
+    Result -= DSTDifferenceForTime(Result);
   }
 
   return Result;
@@ -1734,9 +1745,7 @@ TDateTime __fastcall ConvertTimestampToUTC(TDateTime DateTime)
 {
 
   const TDateTimeParams * Params = GetDateTimeParams(DecodeYear(DateTime));
-  DateTime +=
-    (IsDateInDST(DateTime) ?
-      Params->DaylightDifference : Params->StandardDifference);
+  DateTime += DSTDifferenceForTime(DateTime);
   DateTime += Params->BaseDifference;
 
   if (Params->DaylightHack)
@@ -1752,9 +1761,7 @@ TDateTime __fastcall ConvertTimestampFromUTC(TDateTime DateTime)
 {
 
   const TDateTimeParams * Params = GetDateTimeParams(DecodeYear(DateTime));
-  DateTime -=
-    (IsDateInDST(DateTime) ?
-      Params->DaylightDifference : Params->StandardDifference);
+  DateTime -= DSTDifferenceForTime(DateTime);
   DateTime -= Params->BaseDifference;
 
   if (Params->DaylightHack)
@@ -1778,6 +1785,21 @@ __int64 __fastcall ConvertTimestampToUnixSafe(const FILETIME & FileTime,
   else
   {
     Result = ConvertTimestampToUnix(FileTime, DSTMode);
+  }
+  return Result;
+}
+//---------------------------------------------------------------------------
+double __fastcall DSTDifferenceForTime(TDateTime DateTime)
+{
+  double Result;
+  const TDateTimeParams * Params = GetDateTimeParams(DecodeYear(DateTime));
+  if (IsDateInDST(DateTime))
+  {
+    Result = Params->DaylightDifference;
+  }
+  else
+  {
+    Result = Params->StandardDifference;
   }
   return Result;
 }
@@ -1810,14 +1832,7 @@ TDateTime __fastcall AdjustDateTimeFromUnix(TDateTime DateTime, TDSTMode DSTMode
   {
     if (DSTMode == dstmWin)
     {
-      if (IsDateInDST(DateTime))
-      {
-        DateTime = DateTime + Params->DaylightDifference;
-      }
-      else
-      {
-        DateTime = DateTime + Params->StandardDifference;
-      }
+      DateTime = DateTime + DSTDifferenceForTime(DateTime);
     }
   }
 
@@ -2578,6 +2593,20 @@ TStringList * __fastcall TextToStringList(const UnicodeString & Text)
   return List.release();
 }
 //---------------------------------------------------------------------------
+UnicodeString __fastcall StringsToText(TStrings * Strings)
+{
+  UnicodeString Result;
+  if (Strings->Count == 1)
+  {
+    Result = Strings->Strings[0];
+  }
+  else
+  {
+    Result = Strings->Text;
+  }
+  return Result;
+}
+//---------------------------------------------------------------------------
 TStrings * __fastcall CloneStrings(TStrings * Strings)
 {
   std::unique_ptr<TStringList> List(new TStringList());
@@ -2687,20 +2716,26 @@ static int PemPasswordCallback(char * Buf, int Size, int /*RWFlag*/, void * User
   return strlen(Buf);
 }
 //---------------------------------------------------------------------------
-static bool __fastcall IsTlsPassphraseError(int Error)
+static bool __fastcall IsTlsPassphraseError(int Error, bool HasPassphrase)
 {
+  int ErrorLib = ERR_GET_LIB(Error);
+  int ErrorReason = ERR_GET_REASON(Error);
+
   bool Result =
-    ((ERR_GET_LIB(Error) == ERR_LIB_PKCS12) &&
-     (ERR_GET_REASON(Error) == PKCS12_R_MAC_VERIFY_FAILURE)) ||
-    ((ERR_GET_LIB(Error) == ERR_LIB_PEM) &&
-     (ERR_GET_REASON(Error) == PEM_R_BAD_PASSWORD_READ));
+    ((ErrorLib == ERR_LIB_PKCS12) &&
+     (ErrorReason == PKCS12_R_MAC_VERIFY_FAILURE)) ||
+    ((ErrorLib == ERR_LIB_PEM) &&
+     (ErrorReason == PEM_R_BAD_PASSWORD_READ)) ||
+    (HasPassphrase && (ERR_LIB_EVP == ERR_LIB_EVP) &&
+     ((ErrorReason == PEM_R_BAD_DECRYPT) || (ErrorReason == PEM_R_BAD_BASE64_DECODE)));
+
   return Result;
 }
 //---------------------------------------------------------------------------
-static void __fastcall ThrowTlsCertificateErrorIgnorePassphraseErrors(const UnicodeString & Path)
+static void __fastcall ThrowTlsCertificateErrorIgnorePassphraseErrors(const UnicodeString & Path, bool HasPassphrase)
 {
   int Error = ERR_get_error();
-  if (!IsTlsPassphraseError(Error))
+  if (!IsTlsPassphraseError(Error, HasPassphrase))
   {
     throw ExtException(MainInstructions(FMTLOAD(CERTIFICATE_READ_ERROR, (Path))), GetTlsErrorStr(Error));
   }
@@ -2710,10 +2745,16 @@ void __fastcall ParseCertificate(const UnicodeString & Path,
   const UnicodeString & Passphrase, X509 *& Certificate, EVP_PKEY *& PrivateKey,
   bool & WrongPassphrase)
 {
+  Certificate = NULL;
+  PrivateKey = NULL;
+  bool HasPassphrase = !Passphrase.IsEmpty();
+
   FILE * File;
 
   // Inspired by neon's ne_ssl_clicert_read
   File = OpenCertificate(Path);
+  // openssl pkcs12 -inkey cert.pem -in cert.crt -export -out cert.pfx
+  // Binary file
   PKCS12 * Pkcs12 = d2i_PKCS12_fp(File, NULL);
   fclose(File);
 
@@ -2726,7 +2767,7 @@ void __fastcall ParseCertificate(const UnicodeString & Path,
 
     if (!Result)
     {
-      ThrowTlsCertificateErrorIgnorePassphraseErrors(Path);
+      ThrowTlsCertificateErrorIgnorePassphraseErrors(Path, HasPassphrase);
       WrongPassphrase = true;
     }
   }
@@ -2739,6 +2780,20 @@ void __fastcall ParseCertificate(const UnicodeString & Path,
     CallbackUserData.Passphrase = const_cast<UnicodeString *>(&Passphrase);
 
     File = OpenCertificate(Path);
+    // Encrypted:
+    // openssl req -x509 -newkey rsa:2048 -keyout cert.pem -out cert.crt
+    // -----BEGIN ENCRYPTED PRIVATE KEY-----
+    // ...
+    // -----END ENCRYPTED PRIVATE KEY-----
+
+    // Not encrypted (add -nodes):
+    // -----BEGIN PRIVATE KEY-----
+    // ...
+    // -----END PRIVATE KEY-----
+    // Or (openssl genrsa -out client.key 1024   # used for certificate signing request)
+    // -----BEGIN RSA PRIVATE KEY-----
+    // ...
+    // -----END RSA PRIVATE KEY-----
     PrivateKey = PEM_read_PrivateKey(File, NULL, PemPasswordCallback, &CallbackUserData);
     fclose(File);
 
@@ -2746,11 +2801,19 @@ void __fastcall ParseCertificate(const UnicodeString & Path,
     {
       if (PrivateKey == NULL)
       {
-        ThrowTlsCertificateErrorIgnorePassphraseErrors(Path);
+        ThrowTlsCertificateErrorIgnorePassphraseErrors(Path, HasPassphrase);
         WrongPassphrase = true;
       }
 
       File = OpenCertificate(Path);
+      // The file can contain both private and public key
+      // (basically cert.pem and cert.crt appended one to each other)
+      // -----BEGIN ENCRYPTED PRIVATE KEY-----
+      // ...
+      // -----END ENCRYPTED PRIVATE KEY-----
+      // -----BEGIN CERTIFICATE-----
+      // ...
+      // -----END CERTIFICATE-----
       Certificate = PEM_read_X509(File, NULL, PemPasswordCallback, &CallbackUserData);
       fclose(File);
 
@@ -2758,7 +2821,7 @@ void __fastcall ParseCertificate(const UnicodeString & Path,
       {
         int Error = ERR_get_error();
         // unlikely
-        if (IsTlsPassphraseError(Error))
+        if (IsTlsPassphraseError(Error, HasPassphrase))
         {
           WrongPassphrase = true;
         }
@@ -2777,13 +2840,32 @@ void __fastcall ParseCertificate(const UnicodeString & Path,
           else
           {
             File = OpenCertificate(CertificatePath);
+            // -----BEGIN CERTIFICATE-----
+            // ...
+            // -----END CERTIFICATE-----
             Certificate = PEM_read_X509(File, NULL, PemPasswordCallback, &CallbackUserData);
             fclose(File);
 
             if (Certificate == NULL)
             {
-              ThrowTlsCertificateErrorIgnorePassphraseErrors(CertificatePath);
-              WrongPassphrase = true;
+              int Base64Error = ERR_get_error();
+
+              File = OpenCertificate(CertificatePath);
+              // Binary DER-encoded certificate
+              // (as above, with BEGIN/END removed, and decoded from Base64 to binary)
+              // openssl x509 -in cert.crt -out client.der.crt -outform DER
+              Certificate = d2i_X509_fp(File, NULL);
+              fclose(File);
+
+              if (Certificate == NULL)
+              {
+                int DERError = ERR_get_error();
+
+                UnicodeString Message = MainInstructions(FMTLOAD(CERTIFICATE_READ_ERROR, (CertificatePath)));
+                UnicodeString MoreMessages =
+                  FORMAT(L"Base64: %s\nDER: %s", (GetTlsErrorStr(Base64Error), GetTlsErrorStr(DERError)));
+                throw ExtException(Message, MoreMessages);
+              }
             }
           }
         }
@@ -2830,4 +2912,81 @@ void __fastcall CheckCertificate(const UnicodeString & Path)
 bool __fastcall IsHttpUrl(const UnicodeString & S)
 {
   return SameText(S.SubString(1, 4), L"http");
+}
+//---------------------------------------------------------------------------
+const UnicodeString RtfPara = L"\\par\n";
+const UnicodeString RtfHyperlinkField = L"HYPERLINK";
+const UnicodeString RtfHyperlinkFieldPrefix = RtfHyperlinkField + L" \"";
+//---------------------------------------------------------------------
+UnicodeString __fastcall RtfColor(int Index)
+{
+  return FORMAT(L"\\cf%d", (Index));
+}
+//---------------------------------------------------------------------
+UnicodeString __fastcall RtfText(const UnicodeString & Text)
+{
+  UnicodeString Result = Text;
+  int Index = 1;
+  while (Index <= Result.Length())
+  {
+    UnicodeString Replacement;
+    wchar_t Ch = Result[Index];
+    if ((Ch == L'\\') || (Ch == L'{') || (Ch == L'}'))
+    {
+      Replacement = FORMAT(L"\\%s", (Ch));
+    }
+    else if (Ch >= 0x0080)
+    {
+      Replacement = FORMAT(L"\\u%d?", (int(Ch)));
+    }
+
+    if (!Replacement.IsEmpty())
+    {
+      Result.Delete(Index, 1);
+      Result.Insert(Replacement, Index);
+      Index += Replacement.Length();
+    }
+    else
+    {
+      Index++;
+    }
+  }
+  return Result;
+}
+//---------------------------------------------------------------------
+UnicodeString __fastcall RtfColorText(int Color, const UnicodeString & Text)
+{
+  return RtfColor(Color) + L" " + RtfText(Text) + RtfColor(0) + L" ";
+}
+//---------------------------------------------------------------------
+UnicodeString __fastcall RtfColorItalicText(int Color, const UnicodeString & Text)
+{
+  return RtfColor(Color) + L"\\i " + RtfText(Text) + L"\\i0" + RtfColor(0) + L" ";
+}
+//---------------------------------------------------------------------
+UnicodeString __fastcall RtfOverrideColorText(const UnicodeString & Text)
+{
+  return RtfColorText(1, Text);
+}
+//---------------------------------------------------------------------
+UnicodeString __fastcall RtfKeyword(const UnicodeString & Text)
+{
+  return RtfColorText(5, Text);
+}
+//---------------------------------------------------------------------
+UnicodeString __fastcall RtfParameter(const UnicodeString & Text)
+{
+  return RtfColorText(6, Text);
+}
+//---------------------------------------------------------------------
+UnicodeString __fastcall RtfString(const UnicodeString & Text)
+{
+  return RtfColorText(4, Text);
+}
+//---------------------------------------------------------------------
+UnicodeString __fastcall RtfLink(const UnicodeString & Link, const UnicodeString & RtfText)
+{
+  return
+    L"{\\field{\\*\\fldinst{HYPERLINK \"" + Link + L"\" }}{\\fldrslt{" +
+    RtfText + L"}}}";
 }

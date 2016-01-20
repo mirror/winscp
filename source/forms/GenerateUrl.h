@@ -9,6 +9,12 @@
 
 #include "SessionData.h"
 #include <Vcl.ComCtrls.hpp>
+#include <Vcl.Menus.hpp>
+#include <System.Actions.hpp>
+#include <Vcl.ActnList.hpp>
+#include <Vcl.StdActns.hpp>
+//---------------------------------------------------------------------------
+class TRichEdit41;
 //---------------------------------------------------------------------------
 class TGenerateUrlDialog : public TForm
 {
@@ -32,15 +38,24 @@ __published:
   TComboBox *ScriptFormatCombo;
   TLabel *Label1;
   TComboBox *AssemblyLanguageCombo;
+  TLabel *ScriptDescriptionLabel;
+  TLabel *AssemblyDescriptionLabel;
+  TPopupMenu *ResultPopupMenu;
+  TActionList *ResultActionList;
+  TEditCopy *EditCopyAction;
+  TEditSelectAll *EditSelectAllAction;
   void __fastcall ControlChange(TObject *Sender);
   void __fastcall ClipboardButtonClick(TObject *Sender);
   void __fastcall HelpButtonClick(TObject *Sender);
   void __fastcall WMNCCreate(TWMNCCreate & Message);
+  void __fastcall ResultMemoContextPopup(TObject *Sender, TPoint &MousePos, bool &Handled);
+  void __fastcall FormShow(TObject *Sender);
 
 private:
   TSessionData * FData;
   TStrings * FPaths;
   bool FChanging;
+  TRichEdit41 * FResultMemo41;
 
 protected:
   void __fastcall UpdateControls();

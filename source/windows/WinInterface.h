@@ -34,6 +34,8 @@ const int mpAllowContinueOnError = 0x02;
 #define KEYGEN_OUTPUT_SWITCH L"Output"
 #define KEYGEN_COMMENT_SWITCH L"Comment"
 #define KEYGEN_CHANGE_PASSPHRASE_SWITCH L"ChangePassphrase"
+#define LOG_SWITCH L"Log"
+#define INI_SWITCH L"Ini"
 
 struct TMessageParams
 {
@@ -201,21 +203,10 @@ bool __fastcall DoImportSessionsDialog(TList * Imported);
 enum TLicense { lcNoLicense = -1, lcWinScp, lcExpat };
 void __fastcall DoLicenseDialog(TLicense License);
 
-// forms\Login.cpp
-// these flags are used in navigation tree of login dialog, change with care
-const loLocalDirectory = 0x01;
-const loExternalTools  = 0x04;
-
-const loColor          = 0x80;
-
-const loNone           = 0x00;
-const loAddSession     = (loLocalDirectory | loColor);
-const loStartup        = (loLocalDirectory | loExternalTools | loColor);
-bool __fastcall DoLoginDialog(TStoredSessionList * SessionList,
-  TList * DataList, int Options);
+bool __fastcall DoLoginDialog(TStoredSessionList * SessionList, TList * DataList);
 
   // forms\SiteAdvanced.cpp
-bool __fastcall DoSiteAdvancedDialog(TSessionData * SessionData, int Options);
+bool __fastcall DoSiteAdvancedDialog(TSessionData * SessionData);
 
 // forms\OpenDirectory.cpp
 enum TOpenDirectoryMode { odBrowse, odAddBookmark };
@@ -472,6 +463,7 @@ bool __fastcall IsCustomShortCut(TShortCut ShortCut);
 
 class TAnimationsModule;
 TAnimationsModule * __fastcall GetAnimationsModule();
+void __fastcall ReleaseAnimationsModule();
 
 #ifdef _DEBUG
 void __fastcall ForceTracing();

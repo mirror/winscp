@@ -14,6 +14,7 @@ object GenerateUrlDialog: TGenerateUrlDialog
   ParentFont = True
   OldCreateOrder = True
   Position = poOwnerFormCenter
+  OnShow = FormShow
   DesignSize = (
     484
     338)
@@ -67,7 +68,7 @@ object GenerateUrlDialog: TGenerateUrlDialog
         Width = 216
         Height = 17
         Caption = '&Save extension'
-        TabOrder = 3
+        TabOrder = 5
         OnClick = ControlChange
       end
       object RemoteDirectoryCheck: TCheckBox
@@ -88,7 +89,7 @@ object GenerateUrlDialog: TGenerateUrlDialog
         Height = 17
         HelpType = htKeyword
         Caption = '&Password'
-        TabOrder = 5
+        TabOrder = 3
         OnClick = ControlChange
       end
     end
@@ -102,6 +103,15 @@ object GenerateUrlDialog: TGenerateUrlDialog
         Height = 13
         Caption = '&Format:'
         FocusControl = ScriptFormatCombo
+      end
+      object ScriptDescriptionLabel: TLabel
+        Left = 11
+        Top = 32
+        Width = 446
+        Height = 42
+        AutoSize = False
+        Caption = 'ScriptDescriptionLabel'
+        WordWrap = True
       end
       object ScriptFormatCombo: TComboBox
         Left = 112
@@ -127,6 +137,15 @@ object GenerateUrlDialog: TGenerateUrlDialog
         Height = 13
         Caption = '&Language:'
         FocusControl = AssemblyLanguageCombo
+      end
+      object AssemblyDescriptionLabel: TLabel
+        Left = 11
+        Top = 32
+        Width = 446
+        Height = 42
+        AutoSize = False
+        Caption = 'AssemblyDescriptionLabel'
+        WordWrap = True
       end
       object AssemblyLanguageCombo: TComboBox
         Left = 112
@@ -159,15 +178,13 @@ object GenerateUrlDialog: TGenerateUrlDialog
       Top = 15
       Width = 454
       Height = 152
-      TabStop = False
       Anchors = [akLeft, akTop, akRight, akBottom]
       BevelInner = bvNone
       BevelOuter = bvNone
       BorderStyle = bsNone
-      Lines.Strings = (
-        'ResultMemo')
-      ScrollBars = ssVertical
+      PopupMenu = ResultPopupMenu
       TabOrder = 0
+      OnContextPopup = ResultMemoContextPopup
     end
   end
   object CancelBtn: TButton
@@ -200,5 +217,29 @@ object GenerateUrlDialog: TGenerateUrlDialog
     Caption = '&Copy to Clipboard'
     TabOrder = 2
     OnClick = ClipboardButtonClick
+  end
+  object ResultPopupMenu: TPopupMenu
+    Left = 64
+    Top = 160
+    object TMenuItem
+      Action = EditCopyAction
+    end
+    object TMenuItem
+      Action = EditSelectAllAction
+    end
+  end
+  object ResultActionList: TActionList
+    Left = 184
+    Top = 160
+    object EditCopyAction: TEditCopy
+      Category = 'Edit'
+      Caption = '&Copy'
+      ShortCut = 16451
+    end
+    object EditSelectAllAction: TEditSelectAll
+      Category = 'Edit'
+      Caption = 'Select &All'
+      ShortCut = 16449
+    end
   end
 end

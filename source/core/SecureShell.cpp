@@ -20,6 +20,8 @@
 //---------------------------------------------------------------------------
 #define MAX_BUFSIZE 32768
 //---------------------------------------------------------------------------
+const wchar_t HostKeyDelimiter = L';';
+//---------------------------------------------------------------------------
 struct TPuttyTranslation
 {
   const wchar_t * Original;
@@ -168,6 +170,7 @@ Conf * __fastcall TSecureShell::StoreToConfig(TSessionData * Data, bool Simple)
   conf_set_str(conf, CONF_ssh_rekey_data, AnsiString(Data->RekeyData).c_str());
   conf_set_int(conf, CONF_ssh_rekey_time, Data->RekeyTime);
 
+  DebugAssert(CIPHER_MAX == CIPHER_COUNT);
   for (int c = 0; c < CIPHER_COUNT; c++)
   {
     int pcipher;
@@ -178,11 +181,13 @@ Conf * __fastcall TSecureShell::StoreToConfig(TSessionData * Data, bool Simple)
       case cipAES: pcipher = CIPHER_AES; break;
       case cipDES: pcipher = CIPHER_DES; break;
       case cipArcfour: pcipher = CIPHER_ARCFOUR; break;
+      case cipChaCha20: pcipher = CIPHER_CHACHA20; break;
       default: DebugFail();
     }
     conf_set_int_int(conf, CONF_ssh_cipherlist, c, pcipher);
   }
 
+  DebugAssert(KEX_MAX == KEX_COUNT);
   for (int k = 0; k < KEX_COUNT; k++)
   {
     int pkex;
@@ -192,6 +197,7 @@ Conf * __fastcall TSecureShell::StoreToConfig(TSessionData * Data, bool Simple)
       case kexDHGroup14: pkex = KEX_DHGROUP14; break;
       case kexDHGEx: pkex = KEX_DHGEX; break;
       case kexRSA: pkex = KEX_RSA; break;
+      case kexECDH: pkex = KEX_ECDH; break;
       default: DebugFail();
     }
     conf_set_int_int(conf, CONF_ssh_kexlist, k, pkex);
@@ -2015,8 +2021,8 @@ TCipher __fastcall TSecureShell::FuncToSsh1Cipher(const void * Cipher)
 TCipher __fastcall TSecureShell::FuncToSsh2Cipher(const void * Cipher)
 {
   const ssh2_ciphers *CipherFuncs[] =
-    {&ssh2_3des, &ssh2_des, &ssh2_aes, &ssh2_blowfish, &ssh2_arcfour};
-  const TCipher TCiphers[] = {cip3DES, cipDES, cipAES, cipBlowfish, cipArcfour};
+    {&ssh2_3des, &ssh2_des, &ssh2_aes, &ssh2_blowfish, &ssh2_arcfour, &ssh2_ccp};
+  const TCipher TCiphers[] = {cip3DES, cipDES, cipAES, cipBlowfish, cipArcfour, cipChaCha20};
   DebugAssert(LENOF(CipherFuncs) == LENOF(TCiphers));
   TCipher Result = cipWarn;
 
@@ -2060,6 +2066,29 @@ UnicodeString __fastcall TSecureShell::FormatKeyStr(UnicodeString KeyStr)
   return KeyStr;
 }
 //---------------------------------------------------------------------------
+void __fastcall TSecureShell::GetRealHost(UnicodeString & Host, int & Port)
+{
+  if (FSessionData->Tunnel)
+  {
+    Host = FSessionData->OrigHostName;
+    Port = FSessionData->OrigPortNumber;
+  }
+}
+//---------------------------------------------------------------------------
+UnicodeString __fastcall TSecureShell::RetrieveHostKey(UnicodeString Host, int Port, const UnicodeString KeyType)
+{
+  AnsiString AnsiStoredKeys;
+  AnsiStoredKeys.SetLength(10240);
+  UnicodeString Result;
+  if (retrieve_host_key(AnsiString(Host).c_str(), Port, AnsiString(KeyType).c_str(),
+        AnsiStoredKeys.c_str(), AnsiStoredKeys.Length()) == 0)
+  {
+    PackStr(AnsiStoredKeys);
+    Result = UnicodeString(AnsiStoredKeys);
+  }
+  return Result;
+}
+//---------------------------------------------------------------------------
 void __fastcall TSecureShell::VerifyHostKey(UnicodeString Host, int Port,
   const UnicodeString KeyType, UnicodeString KeyStr, UnicodeString Fingerprint)
 {
@@ -2067,50 +2096,40 @@ void __fastcall TSecureShell::VerifyHostKey(UnicodeString Host, int Port,
 
   GotHostKey();
 
-  wchar_t Delimiter = L';';
-  DebugAssert(KeyStr.Pos(Delimiter) == 0);
+  DebugAssert(KeyStr.Pos(HostKeyDelimiter) == 0);
 
-  if (FSessionData->Tunnel)
-  {
-    Host = FSessionData->OrigHostName;
-    Port = FSessionData->OrigPortNumber;
-  }
+  GetRealHost(Host, Port);
 
   FSessionInfo.HostKeyFingerprint = Fingerprint;
   UnicodeString NormalizedFingerprint = NormalizeFingerprint(Fingerprint);
 
   bool Result = false;
 
-  UnicodeString StoredKeys;
-  AnsiString AnsiStoredKeys;
-  AnsiStoredKeys.SetLength(10240);
-  if (retrieve_host_key(AnsiString(Host).c_str(), Port, AnsiString(KeyType).c_str(),
-        AnsiStoredKeys.c_str(), AnsiStoredKeys.Length()) == 0)
+  UnicodeString StoredKeys = RetrieveHostKey(Host, Port, KeyType);
+  UnicodeString Buf = StoredKeys;
+  while (!Result && !Buf.IsEmpty())
   {
-    PackStr(AnsiStoredKeys);
-    StoredKeys = UnicodeString(AnsiStoredKeys);
-    UnicodeString Buf = StoredKeys;
-    while (!Result && !Buf.IsEmpty())
+    UnicodeString StoredKey = CutToChar(Buf, HostKeyDelimiter, false);
+    // skip leading ECDH subtype identification
+    int P = StoredKey.Pos(L",");
+    // start from beginning or after the comma, if there 's any
+    bool Fingerprint = (StoredKey.SubString(P + 1, 2) != L"0x");
+    // it's probably a fingerprint (stored by TSessionData::CacheHostKey)
+    UnicodeString NormalizedExpectedKey;
+    if (Fingerprint)
     {
-      UnicodeString StoredKey = CutToChar(Buf, Delimiter, false);
-      bool Fingerprint = (StoredKey.SubString(1, 2) != L"0x");
-      // it's probably a fingerprint (stored by TSessionData::CacheHostKey)
-      UnicodeString NormalizedExpectedKey;
-      if (Fingerprint)
-      {
-        NormalizedExpectedKey = NormalizeFingerprint(StoredKey);
-      }
-      if ((!Fingerprint && (StoredKey == KeyStr)) ||
-          (Fingerprint && (NormalizedExpectedKey == NormalizedFingerprint)))
-      {
-        LogEvent(L"Host key matches cached key");
-        Result = true;
-      }
-      else
-      {
-        UnicodeString FormattedKey = Fingerprint ? StoredKey : FormatKeyStr(StoredKey);
-        LogEvent(FORMAT(L"Host key does not match cached key %s", (FormattedKey)));
-      }
+      NormalizedExpectedKey = NormalizeFingerprint(StoredKey);
+    }
+    if ((!Fingerprint && (StoredKey == KeyStr)) ||
+        (Fingerprint && (NormalizedExpectedKey == NormalizedFingerprint)))
+    {
+      LogEvent(L"Host key matches cached key");
+      Result = true;
+    }
+    else
+    {
+      UnicodeString FormattedKey = Fingerprint ? StoredKey : FormatKeyStr(StoredKey);
+      LogEvent(FORMAT(L"Host key does not match cached key %s", (FormattedKey)));
     }
   }
 
@@ -2122,7 +2141,7 @@ void __fastcall TSecureShell::VerifyHostKey(UnicodeString Host, int Port,
     UnicodeString Buf = FSessionData->HostKey;
     while (!Result && !Buf.IsEmpty())
     {
-      UnicodeString ExpectedKey = CutToChar(Buf, Delimiter, false);
+      UnicodeString ExpectedKey = CutToChar(Buf, HostKeyDelimiter, false);
       UnicodeString NormalizedExpectedKey = NormalizeFingerprint(ExpectedKey);
       if (ExpectedKey == L"*")
       {
@@ -2210,7 +2229,7 @@ void __fastcall TSecureShell::VerifyHostKey(UnicodeString Host, int Port,
       switch (R) {
         case qaOK:
           DebugAssert(!Unknown);
-          KeyStr = (StoredKeys + Delimiter + KeyStr);
+          KeyStr = (StoredKeys + HostKeyDelimiter + KeyStr);
           // fall thru
         case qaYes:
           store_host_key(AnsiString(Host).c_str(), Port, AnsiString(KeyType).c_str(), AnsiString(KeyStr).c_str());
@@ -2258,6 +2277,34 @@ void __fastcall TSecureShell::VerifyHostKey(UnicodeString Host, int Port,
   }
 
   Configuration->RememberLastFingerprint(FSessionData->SiteKey, SshFingerprintType, Fingerprint);
+}
+//---------------------------------------------------------------------------
+bool __fastcall TSecureShell::HaveHostKey(UnicodeString Host, int Port, const UnicodeString KeyType)
+{
+  // Return true, if we have any host key fingerprint of a particular type
+
+  GetRealHost(Host, Port);
+
+  UnicodeString StoredKeys = RetrieveHostKey(Host, Port, KeyType);
+  bool Result = !StoredKeys.IsEmpty();
+
+  if (!FSessionData->HostKey.IsEmpty())
+  {
+    UnicodeString Buf = FSessionData->HostKey;
+    while (!Result && !Buf.IsEmpty())
+    {
+      UnicodeString ExpectedKey = CutToChar(Buf, HostKeyDelimiter, false);
+      UnicodeString ExpectedKeyType = KeyTypeFromFingerprint(ExpectedKey);
+      Result = SameText(ExpectedKeyType, KeyType);
+    }
+  }
+
+  if (Result)
+  {
+    LogEvent(FORMAT(L"Have a known host key of type %s", (KeyType)));
+  }
+
+  return Result;
 }
 //---------------------------------------------------------------------------
 void __fastcall TSecureShell::AskAlg(const UnicodeString AlgType,

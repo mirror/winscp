@@ -16,19 +16,21 @@
 #include <StrUtils.hpp>
 #include <XMLDoc.hpp>
 #include <StrUtils.hpp>
+#include <algorithm>
 //---------------------------------------------------------------------------
 #pragma package(smart_init)
 //---------------------------------------------------------------------------
 const wchar_t * PingTypeNames = L"Off;Null;Dummy";
 const wchar_t * ProxyMethodNames = L"None;SOCKS4;SOCKS5;HTTP;Telnet;Cmd";
 const wchar_t * DefaultName = L"Default Settings";
-const wchar_t CipherNames[CIPHER_COUNT][10] = {L"WARN", L"3des", L"blowfish", L"aes", L"des", L"arcfour"};
-const wchar_t KexNames[KEX_COUNT][20] = {L"WARN", L"dh-group1-sha1", L"dh-group14-sha1", L"dh-gex-sha1", L"rsa" };
+const UnicodeString CipherNames[CIPHER_COUNT] = {L"WARN", L"3des", L"blowfish", L"aes", L"des", L"arcfour", L"chacha20"};
+const UnicodeString KexNames[KEX_COUNT] = {L"WARN", L"dh-group1-sha1", L"dh-group14-sha1", L"dh-gex-sha1", L"rsa", L"ecdh"};
 const wchar_t SshProtList[][10] = {L"1 only", L"1", L"2", L"2 only"};
 const TCipher DefaultCipherList[CIPHER_COUNT] =
-  { cipAES, cipBlowfish, cip3DES, cipWarn, cipArcfour, cipDES };
+  // Contrary to PuTTY, we put chacha below AES, as we want to field-test it before promoting it
+  { cipAES, cipBlowfish, cipChaCha20, cip3DES, cipWarn, cipArcfour, cipDES };
 const TKex DefaultKexList[KEX_COUNT] =
-  { kexDHGEx, kexDHGroup14, kexDHGroup1, kexRSA, kexWarn };
+  { kexECDH, kexDHGEx, kexDHGroup14, kexDHGroup1, kexRSA, kexWarn };
 const wchar_t FSProtocolNames[FSPROTOCOL_COUNT][16] = { L"SCP", L"SFTP (SCP)", L"SFTP", L"", L"", L"FTP", L"WebDAV" };
 const int SshPortNumber = 22;
 const int FtpPortNumber = 21;
@@ -116,7 +118,7 @@ void __fastcall TSessionData::Default()
   GSSAPIServerRealm = L"";
   ChangeUsername = false;
   Compression = false;
-  SshProt = ssh2;
+  SshProt = ssh2only;
   Ssh2DES = false;
   SshNoUserAuth = false;
   for (int Index = 0; Index < CIPHER_COUNT; Index++)
@@ -696,6 +698,46 @@ void __fastcall TSessionData::DoLoad(THierarchicalStorage * Storage, bool & Rewr
 
   CustomParam1 = Storage->ReadString(L"CustomParam1", CustomParam1);
   CustomParam2 = Storage->ReadString(L"CustomParam2", CustomParam2);
+
+#ifdef TEST
+  #define KEX_TEST(VALUE, EXPECTED) KexList = VALUE; DebugAssert(KexList == EXPECTED);
+  #define KEX_DEFAULT L"ecdh,dh-gex-sha1,dh-group14-sha1,dh-group1-sha1,rsa,WARN"
+  // Empty source should result in default list
+  KEX_TEST(L"", KEX_DEFAULT);
+  // Default of pre 5.8.1 should result in new default
+  KEX_TEST(L"dh-gex-sha1,dh-group14-sha1,dh-group1-sha1,rsa,WARN", KEX_DEFAULT);
+  // Missing first two priority algos, and last non-priority algo => default
+  KEX_TEST(L"dh-group14-sha1,dh-group1-sha1,WARN", L"ecdh,dh-gex-sha1,dh-group14-sha1,dh-group1-sha1,rsa,WARN");
+  // Missing first two priority algos, last non-priority algo and WARN => default
+  KEX_TEST(L"dh-group14-sha1,dh-group1-sha1", L"ecdh,dh-gex-sha1,dh-group14-sha1,dh-group1-sha1,rsa,WARN");
+  // Old algos, with all but the first below WARN
+  KEX_TEST(L"dh-gex-sha1,WARN,dh-group14-sha1,dh-group1-sha1,rsa", L"ecdh,dh-gex-sha1,WARN,dh-group14-sha1,dh-group1-sha1,rsa");
+  // Unknown algo at front
+  KEX_TEST(L"unknown,ecdh,dh-gex-sha1,dh-group14-sha1,dh-group1-sha1,rsa,WARN", KEX_DEFAULT);
+  // Unknown algo at back
+  KEX_TEST(L"ecdh,dh-gex-sha1,dh-group14-sha1,dh-group1-sha1,rsa,WARN,unknown", KEX_DEFAULT);
+  // Unknown algo in the middle
+  KEX_TEST(L"ecdh,dh-gex-sha1,dh-group14-sha1,unknown,dh-group1-sha1,rsa,WARN", KEX_DEFAULT);
+  #undef KEX_DEFAULT
+  #undef KEX_TEST
+
+  #define CIPHER_TEST(VALUE, EXPECTED) CipherList = VALUE; DebugAssert(CipherList == EXPECTED);
+  #define CIPHER_DEFAULT L"aes,blowfish,chacha20,3des,WARN,arcfour,des"
+  // Empty source should result in default list
+  CIPHER_TEST(L"", CIPHER_DEFAULT);
+  // Default of pre 5.8.1
+  CIPHER_TEST(L"aes,blowfish,3des,WARN,arcfour,des", L"aes,blowfish,3des,chacha20,WARN,arcfour,des");
+  // Missing priority algo
+  CIPHER_TEST(L"blowfish,chacha20,3des,WARN,arcfour,des", CIPHER_DEFAULT);
+  // Missing non-priority algo
+  CIPHER_TEST(L"aes,chacha20,3des,WARN,arcfour,des", L"aes,chacha20,3des,blowfish,WARN,arcfour,des");
+  // Missing last warn algo
+  CIPHER_TEST(L"aes,blowfish,chacha20,3des,WARN,arcfour", L"aes,blowfish,chacha20,3des,WARN,arcfour,des");
+  // Missing first warn algo
+  CIPHER_TEST(L"aes,blowfish,chacha20,3des,WARN,des", L"aes,blowfish,chacha20,3des,WARN,des,arcfour");
+  #undef CIPHER_DEFAULT
+  #undef CIPHER_TEST
+#endif
 }
 //---------------------------------------------------------------------
 void __fastcall TSessionData::Load(THierarchicalStorage * Storage)
@@ -1589,6 +1631,9 @@ bool __fastcall TSessionData::ParseUrl(UnicodeString Url, TOptions * Options,
       ARemoteDirectory = CutToChar(RemoteDirectoryWithSessionParams, UrlParamSeparator, false);
       UnicodeString SessionParams = RemoteDirectoryWithSessionParams;
 
+      // We should handle session params in "stored session" branch too.
+      // And particularly if there's a "save" param, we should actually not try to match the
+      // URL against site names
       while (!SessionParams.IsEmpty())
       {
         UnicodeString SessionParam = CutToChar(SessionParams, UrlParamSeparator, false);
@@ -2030,32 +2075,95 @@ TCipher __fastcall TSessionData::GetCipher(int Index) const
   return FCiphers[Index];
 }
 //---------------------------------------------------------------------
-void __fastcall TSessionData::SetCipherList(UnicodeString value)
+template<class AlgoT>
+void __fastcall TSessionData::SetAlgoList(AlgoT * List, const AlgoT * DefaultList, const UnicodeString * Names,
+  int Count, AlgoT WarnAlgo, UnicodeString value)
 {
-  bool Used[CIPHER_COUNT];
-  for (int C = 0; C < CIPHER_COUNT; C++) Used[C] = false;
+  std::vector<bool> Used(Count); // initialized to false
+  std::vector<AlgoT> NewList(Count);
 
-  UnicodeString CipherStr;
+  const AlgoT * WarnPtr = std::find(DefaultList, DefaultList + Count, WarnAlgo);
+  DebugAssert(WarnPtr != NULL);
+  int WarnDefaultIndex = (WarnPtr - DefaultList);
+
   int Index = 0;
-  while (!value.IsEmpty() && (Index < CIPHER_COUNT))
+  while (!value.IsEmpty())
   {
-    CipherStr = CutToChar(value, L',', true);
-    for (int C = 0; C < CIPHER_COUNT; C++)
+    UnicodeString AlgoStr = CutToChar(value, L',', true);
+    for (int Algo = 0; Algo < Count; Algo++)
     {
-      if (!CipherStr.CompareIC(CipherNames[C]))
+      if (!AlgoStr.CompareIC(Names[Algo]) &&
+          !Used[Algo] && DebugAlwaysTrue(Index < Count))
       {
-        Cipher[Index] = (TCipher)C;
-        Used[C] = true;
+        NewList[Index] = (AlgoT)Algo;
+        Used[Algo] = true;
         Index++;
         break;
       }
     }
   }
 
-  for (int C = 0; C < CIPHER_COUNT && Index < CIPHER_COUNT; C++)
+  if (!Used[WarnAlgo] && DebugAlwaysTrue(Index < Count))
   {
-    if (!Used[DefaultCipherList[C]]) Cipher[Index++] = DefaultCipherList[C];
+    NewList[Index] = WarnAlgo;
+    Used[WarnAlgo] = true;
+    Index++;
   }
+
+  int WarnIndex = std::find(NewList.begin(), NewList.end(), WarnAlgo) - NewList.begin();
+
+  bool Priority = true;
+  for (int DefaultIndex = 0; (DefaultIndex < Count); DefaultIndex++)
+  {
+    AlgoT DefaultAlgo = DefaultList[DefaultIndex];
+    if (!Used[DefaultAlgo] && DebugAlwaysTrue(Index < Count))
+    {
+      int TargetIndex;
+      // Unused algs that are prioritized in the default list,
+      // should be merged before the existing custom list
+      if (Priority)
+      {
+        TargetIndex = DefaultIndex;
+      }
+      else
+      {
+        if (DefaultIndex < WarnDefaultIndex)
+        {
+          TargetIndex = WarnIndex;
+        }
+        else
+        {
+          TargetIndex = Index;
+        }
+      }
+
+      NewList.insert(NewList.begin() + TargetIndex, DefaultAlgo);
+      DebugAssert(NewList.back() == AlgoT());
+      NewList.pop_back();
+
+      if (TargetIndex <= WarnIndex)
+      {
+        WarnIndex++;
+      }
+
+      Index++;
+    }
+    else
+    {
+      Priority = false;
+    }
+  }
+
+  if (!std::equal(NewList.begin(), NewList.end(), List))
+  {
+    std::copy(NewList.begin(), NewList.end(), List);
+    Modify();
+  }
+}
+//---------------------------------------------------------------------
+void __fastcall TSessionData::SetCipherList(UnicodeString value)
+{
+  SetAlgoList(FCiphers, DefaultCipherList, CipherNames, CIPHER_COUNT, cipWarn, value);
 }
 //---------------------------------------------------------------------
 UnicodeString __fastcall TSessionData::GetCipherList() const
@@ -2082,30 +2190,7 @@ TKex __fastcall TSessionData::GetKex(int Index) const
 //---------------------------------------------------------------------
 void __fastcall TSessionData::SetKexList(UnicodeString value)
 {
-  bool Used[KEX_COUNT];
-  for (int K = 0; K < KEX_COUNT; K++) Used[K] = false;
-
-  UnicodeString KexStr;
-  int Index = 0;
-  while (!value.IsEmpty() && (Index < KEX_COUNT))
-  {
-    KexStr = CutToChar(value, L',', true);
-    for (int K = 0; K < KEX_COUNT; K++)
-    {
-      if (!KexStr.CompareIC(KexNames[K]))
-      {
-        Kex[Index] = (TKex)K;
-        Used[K] = true;
-        Index++;
-        break;
-      }
-    }
-  }
-
-  for (int K = 0; K < KEX_COUNT && Index < KEX_COUNT; K++)
-  {
-    if (!Used[DefaultKexList[K]]) Kex[Index++] = DefaultKexList[K];
-  }
+  SetAlgoList(FKex, DefaultKexList, KexNames, KEX_COUNT, kexWarn, value);
 }
 //---------------------------------------------------------------------
 UnicodeString __fastcall TSessionData::GetKexList() const
@@ -2439,22 +2524,23 @@ UnicodeString __fastcall TSessionData::GenerateSessionUrl(unsigned int Flags)
 //---------------------------------------------------------------------
 void __fastcall TSessionData::AddSwitch(UnicodeString & Result, const UnicodeString & Switch)
 {
-  Result += FORMAT(L" -%s", (Switch));
+  Result += RtfText(L" ") + RtfLink(L"scriptcommand_open#" + Switch.LowerCase(), RtfParameter(FORMAT(L"-%s", (Switch))));
 }
 //---------------------------------------------------------------------
 void __fastcall TSessionData::AddSwitchValue(UnicodeString & Result, const UnicodeString & Name, const UnicodeString & Value)
 {
-  AddSwitch(Result, FORMAT(L"%s=%s", (Name, Value)));
+  AddSwitch(Result, Name);
+  Result += L"=" + Value;
 }
 //---------------------------------------------------------------------
 void __fastcall TSessionData::AddSwitch(UnicodeString & Result, const UnicodeString & Name, const UnicodeString & Value)
 {
-  AddSwitchValue(Result, Name, FORMAT("\"%s\"", (EscapeParam(Value))));
+  AddSwitchValue(Result, Name, RtfString(FORMAT("\"%s\"", (EscapeParam(Value)))));
 }
 //---------------------------------------------------------------------
 void __fastcall TSessionData::AddSwitch(UnicodeString & Result, const UnicodeString & Name, int Value)
 {
-  AddSwitchValue(Result, Name, IntToStr(Value));
+  AddSwitchValue(Result, Name, RtfText(IntToStr(Value)));
 }
 //---------------------------------------------------------------------
 void __fastcall TSessionData::LookupLastFingerprint()
@@ -2473,6 +2559,31 @@ void __fastcall TSessionData::LookupLastFingerprint()
   {
     HostKey = Configuration->LastFingerprint(SiteKey, FingerprintType);
   }
+}
+//---------------------------------------------------------------------
+static UnicodeString __fastcall RtfCodeComment(const UnicodeString & Text)
+{
+  return RtfColorItalicText(2, Text);
+}
+//---------------------------------------------------------------------
+static UnicodeString __fastcall RtfClass(const UnicodeString & Text)
+{
+  return RtfColorText(3, Text);
+}
+//---------------------------------------------------------------------
+static UnicodeString __fastcall RtfLibraryClass(const UnicodeString & ClassName)
+{
+  return RtfLink(L"library_" + ClassName.LowerCase(), RtfClass(ClassName));
+}
+//---------------------------------------------------------------------
+static UnicodeString __fastcall RtfLibraryMethod(const UnicodeString & ClassName, const UnicodeString & MethodName)
+{
+  return RtfLink(L"library_" + ClassName.LowerCase() + L"_" + MethodName.LowerCase(), RtfOverrideColorText(MethodName));
+}
+//---------------------------------------------------------------------
+static UnicodeString __fastcall RtfLibraryProperty(const UnicodeString & ClassName, const UnicodeString & PropertyName)
+{
+  return RtfLink(L"library_" + ClassName.LowerCase() + L"#" + PropertyName.LowerCase(), RtfOverrideColorText(PropertyName));
 }
 //---------------------------------------------------------------------
 UnicodeString __fastcall TSessionData::GenerateOpenCommandArgs()
@@ -2552,31 +2663,6 @@ UnicodeString __fastcall TSessionData::GenerateOpenCommandArgs()
   return Result;
 }
 //---------------------------------------------------------------------
-void __fastcall TSessionData::AddAssemblyProperty(
-  UnicodeString & Result, TAssemblyLanguage Language,
-  const UnicodeString & Name, const UnicodeString & Type,
-  const UnicodeString & Member)
-{
-  UnicodeString PropertyCode;
-
-  switch (Language)
-  {
-    case alCSharp:
-      PropertyCode = L"    %s = %s.%s,\n";
-      break;
-
-    case alVBNET:
-      PropertyCode = L"    .%s = %s.%s\n";
-      break;
-
-    case alPowerShell:
-      PropertyCode = L"$sessionOptions.%s = [WinSCP.%s]::%s\n";
-      break;
-  }
-
-  Result += FORMAT(PropertyCode, (Name, Type, Member));
-}
-//---------------------------------------------------------------------
 UnicodeString __fastcall TSessionData::AssemblyString(TAssemblyLanguage Language, UnicodeString S)
 {
   switch (Language)
@@ -2605,31 +2691,49 @@ UnicodeString __fastcall TSessionData::AssemblyString(TAssemblyLanguage Language
       break;
   }
 
-  return S;
+  return RtfString(S);
 }
 //---------------------------------------------------------------------
 void __fastcall TSessionData::AddAssemblyPropertyRaw(
   UnicodeString & Result, TAssemblyLanguage Language,
   const UnicodeString & Name, const UnicodeString & Value)
 {
-  UnicodeString PropertyCode;
+  switch (Language)
+  {
+    case alCSharp:
+      Result += L"    " + RtfLibraryProperty(L"SessionOptions", Name) + L" = " + Value + L"," + RtfPara;
+      break;
+
+    case alVBNET:
+      Result += L"    ." + RtfLibraryProperty(L"SessionOptions", Name) + L" = " + Value + RtfPara;
+      break;
+
+    case alPowerShell:
+      Result += RtfText(L"$sessionOptions.") + RtfLibraryProperty(L"SessionOptions", Name) + L" = " + Value + RtfPara;
+      break;
+  }
+}
+//---------------------------------------------------------------------
+void __fastcall TSessionData::AddAssemblyProperty(
+  UnicodeString & Result, TAssemblyLanguage Language,
+  const UnicodeString & Name, const UnicodeString & Type,
+  const UnicodeString & Member)
+{
+  UnicodeString PropertyValue;
 
   switch (Language)
   {
     case alCSharp:
-      PropertyCode = L"    %s = %s,\n";
-      break;
-
     case alVBNET:
-      PropertyCode = L"    .%s = %s\n";
+      PropertyValue = RtfClass(Type) + RtfText(L"." + Member);
       break;
 
     case alPowerShell:
-      PropertyCode = L"$sessionOptions.%s = %s\n";
+      PropertyValue = RtfText(L"[WinSCP.") + RtfClass(Type) + RtfText(L"]::" + Member);
       break;
   }
 
-  Result += FORMAT(PropertyCode, (Name, Value));
+  AddAssemblyPropertyRaw(Result, Language, Name, PropertyValue);
 }
 //---------------------------------------------------------------------
 void __fastcall TSessionData::AddAssemblyProperty(
@@ -2683,25 +2787,25 @@ UnicodeString __fastcall TSessionData::GenerateAssemblyCode(
   {
     case alCSharp:
       SessionOptionsPreamble =
-        L"// %s\n"
-         "SessionOptions sessionOptions = new SessionOptions\n"
-         "{\n";
+        RtfCodeComment(L"// %s") + RtfPara +
+        RtfLibraryClass(L"SessionOptions") + RtfText(L" sessionOptions = ") + RtfKeyword(L"new") + RtfText(" ") + RtfLibraryClass(L"SessionOptions") + RtfPara +
+        RtfText(L"{") + RtfPara;
       break;
 
     case alVBNET:
       SessionOptionsPreamble =
-        L"' %s\n"
-         "Dim mySessionOptions As New SessionOptions\n"
-         "With mySessionOptions\n";
+        RtfCodeComment(L"' %s") + RtfPara +
+        RtfKeyword(L"Dim") + RtfText(" mySessionOptions ") + RtfKeyword(L"As") + RtfText(L" ") + RtfKeyword(L"New") + RtfText(" ") + RtfLibraryClass(L"SessionOptions") + RtfPara +
+        RtfKeyword(L"With") + RtfText(" mySessionOptions") + RtfPara;
       break;
 
     case alPowerShell:
       SessionOptionsPreamble =
-        FORMAT(L"# %s\n", (LoadStr(CODE_PS_ADD_TYPE))) +
-        L"Add-Type -Path \"WinSCPnet.dll\"\n"
-         "\n"
-         "# %s\n"
-         "$sessionOptions = New-Object WinSCP.SessionOptions\n";
+        RtfCodeComment(FORMAT(L"# %s", (LoadStr(CODE_PS_ADD_TYPE)))) + RtfPara +
+        RtfKeyword(L"Add-Type") + RtfText(" -Path ") + AssemblyString(Language, "WinSCPnet.dll") + RtfPara +
+        RtfPara +
+        RtfCodeComment(L"# %s") + RtfPara +
+        RtfText(L"$sessionOptions = ") + RtfKeyword(L"New-Object") + RtfText(" WinSCP.") + RtfLibraryClass(L"SessionOptions") + RtfPara;
       break;
 
     default:
@@ -2845,7 +2949,7 @@ UnicodeString __fastcall TSessionData::GenerateAssemblyCode(
   switch (Language)
   {
     case alCSharp:
-      Result += L"};\n";
+      Result += RtfText(L"};") + RtfPara;
       break;
 
     case alVBNET:
@@ -2858,7 +2962,7 @@ UnicodeString __fastcall TSessionData::GenerateAssemblyCode(
 
   if (RawSettings->Count > 0)
   {
-    Result += L"\n";
+    Result += RtfPara;
 
     for (int Index = 0; Index < RawSettings->Count; Index++)
     {
@@ -2868,18 +2972,18 @@ UnicodeString __fastcall TSessionData::GenerateAssemblyCode(
       switch (Language)
       {
         case alCSharp:
-          SettingsCode = L"sessionOptions.AddRawSettings(\"%s\", %s);\n";
+          SettingsCode = RtfText(L"sessionOptions.") + RtfLibraryMethod(L"SessionOptions", L"AddRawSettings") + RtfText(L"(%s, %s);") + RtfPara;
           break;
 
         case alVBNET:
-          SettingsCode = L"    .AddRawSettings(\"%s\", %s)\n";
+          SettingsCode = RtfText(L"    .") + RtfLibraryMethod(L"SessionOptions", L"AddRawSettings") + RtfText(L"(%s, %s)") + RtfPara;
           break;
 
         case alPowerShell:
-          SettingsCode = L"$sessionOptions.AddRawSettings(\"%s\", %s)\n";
+          SettingsCode = RtfText(L"$sessionOptions.") + RtfLibraryMethod(L"SessionOptions", L"AddRawSettings") + RtfText(L"(%s, %s)") + RtfPara;
           break;
       }
-      Result += FORMAT(SettingsCode, (Name, AssemblyString(Language, Value)));
+      Result += FORMAT(SettingsCode, (AssemblyString(Language, Name), AssemblyString(Language, Value)));
     }
   }
 
@@ -2889,44 +2993,44 @@ UnicodeString __fastcall TSessionData::GenerateAssemblyCode(
   {
     case alCSharp:
       SessionCode =
-        L"\n"
-         "using (Session session = new Session())\n"
-         "{\n"
-         "    // %s\n"
-         "    session.Open(sessionOptions);\n"
-         "\n"
-         "    // %s\n"
-         "}\n";
+        RtfPara +
+        RtfKeyword(L"using") + RtfText(" (") + RtfLibraryClass(L"Session") + RtfText(L" session = ") + RtfKeyword(L"new") + RtfText(" ") + RtfLibraryClass(L"Session") + RtfText(L"())") + RtfPara +
+        RtfText(L"{") + RtfPara +
+        RtfCodeComment(L"    // %s") + RtfPara +
+        RtfText(L"    session.") + RtfLibraryMethod(L"Session", L"Open") + RtfText(L"(sessionOptions);") + RtfPara +
+        RtfPara +
+        RtfCodeComment(L"    // %s") + RtfPara +
+        RtfText(L"}") + RtfPara;
       break;
 
     case alVBNET:
       SessionCode =
-        L"End With\n"
-         "\n"
-         "Using mySession As Session = New Session\n"
-         "    ' %s\n"
-         "    mySession.Open(mySessionOptions)\n"
-         "\n"
-         "    ' %s\n"
-         "End Using\n";
+        RtfKeyword(L"End With") + RtfPara +
+        RtfPara +
+        RtfKeyword(L"Using") + RtfText(" mySession As ") + RtfLibraryClass(L"Session") + RtfText(L" = ") + RtfKeyword(L"New") + RtfText(" ") + RtfLibraryClass(L"Session") + RtfPara +
+        RtfCodeComment(L"    ' %s") + RtfPara +
+        RtfText(L"    mySession.") + RtfLibraryMethod(L"Session", L"Open") + RtfText(L"(mySessionOptions)") + RtfPara +
+        RtfPara +
+        RtfCodeComment(L"    ' %s") + RtfPara +
+        RtfKeyword(L"End Using");
       break;
 
     case alPowerShell:
       SessionCode =
-        L"\n"
-         "$session = New-Object WinSCP.Session\n"
-         "\n"
-         "try\n"
-         "{\n"
-         "    # %s\n"
-         "    $session.Open($sessionOptions)\n"
-         "\n"
-         "    # %s\n"
-         "}\n"
-         "finally\n"
-         "{\n"
-         "    $session.Dispose()\n"
-         "}\n";
+        RtfPara +
+        RtfText(L"$session = ") + RtfKeyword(L"New-Object") + RtfText(" WinSCP.") + RtfLibraryClass(L"Session") + RtfPara +
+        RtfPara +
+        RtfKeyword(L"try") + RtfPara +
+        RtfText(L"{") + RtfPara +
+        RtfCodeComment(L"    # %s") + RtfPara +
+        RtfText(L"    $session.") + RtfLibraryMethod(L"Session", L"Open") + RtfText(L"($sessionOptions)") + RtfPara +
+        RtfPara +
+        RtfCodeComment(L"    # %s") + RtfPara +
+        RtfText(L"}") + RtfPara +
+        RtfKeyword(L"finally") + RtfPara +
+        RtfText(L"{") + RtfPara +
+        RtfText(L"    $session.") + RtfLibraryMethod(L"Session", L"Dispose") + RtfText(L"()") + RtfPara +
+        RtfText(L"}") + RtfPara;
       break;
   }
 

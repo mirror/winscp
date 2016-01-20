@@ -2,9 +2,14 @@
 #ifndef PuttyToolsH
 #define PuttyToolsH
 //---------------------------------------------------------------------------
-enum TKeyType { ktUnopenable, ktUnknown, ktSSH1, ktSSH2, ktOpenSSH, ktSSHCom };
+enum TKeyType
+{
+  ktUnopenable, ktUnknown,
+  ktSSH1, ktSSH2,
+  ktOpenSSHAuto, ktOpenSSHPEM, ktOpenSSHNew, ktSSHCom,
+  ktSSH1Public, ktSSH2PublicRFC4716, ktSSH2PublicOpenSSH
+};
 TKeyType KeyType(UnicodeString FileName);
-UnicodeString KeyTypeName(TKeyType KeyType);
 bool IsKeyEncrypted(TKeyType KeyType, const UnicodeString & FileName, UnicodeString & Comment);
 struct TPrivateKey;
 TPrivateKey * LoadKey(TKeyType KeyType, const UnicodeString & FileName, const UnicodeString & Passphrase);

@@ -41,7 +41,7 @@ static const char hex[16] = "0123456789ABCDEF";
 
 static int tried_shgetfolderpath = FALSE;
 static HMODULE shell32_module = NULL;
-DECL_WINDOWS_FUNCTION(static, HRESULT, SHGetFolderPathA, 
+DECL_WINDOWS_FUNCTION(static, HRESULT, SHGetFolderPathA,
 		      (HWND, int, HANDLE, DWORD, LPSTR));
 
 static void mungestr(const char *in, char *out)
@@ -491,6 +491,18 @@ int verify_host_key(const char *hostname, int port,
 	return 0;		       /* key matched OK in registry */
 }
 
+#ifndef MPEXT
+int have_ssh_host_key(const char *hostname, int port,
+		      const char *keytype)
+{
+    /*
+     * If we have a host key, verify_host_key will return 0 or 2.
+     * If we don't have one, it'll return 1.
+     */
+    return verify_host_key(hostname, port, keytype, "") != 1;
+}
+#endif
+
 void store_host_key(const char *hostname, int port,
 		    const char *keytype, const char *key)
 {
@@ -547,7 +559,7 @@ static HANDLE access_random_seed(int action)
     /*
      * Iterate over a selection of possible random seed paths until
      * we find one that works.
-     * 
+     *
      * We do this iteration separately for reading and writing,
      * meaning that we will automatically migrate random seed files
      * if a better location becomes available (by reading from the
@@ -684,7 +696,7 @@ static int transform_jumplist_registry
     int ret;
     HKEY pjumplist_key, psettings_tmp;
     DWORD type;
-    int value_length;
+    DWORD value_length;
     char *old_value, *new_value;
     char *piterator_old, *piterator_new, *piterator_tmp;
 

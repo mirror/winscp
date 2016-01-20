@@ -538,6 +538,17 @@ void __fastcall OpenBrowser(UnicodeString URL)
   ShellExecute(Application->Handle, L"open", URL.c_str(), NULL, NULL, SW_SHOWNORMAL);
 }
 //---------------------------------------------------------------------------
+void __fastcall ShowHelp(const UnicodeString & AHelpKeyword)
+{
+  // see also AppendUrlParams
+  UnicodeString HelpKeyword = AHelpKeyword;
+  const wchar_t FragmentSeparator = L'#';
+  UnicodeString HelpPath = CutToChar(HelpKeyword, FragmentSeparator, false);
+  UnicodeString HelpUrl = FMTLOAD(DOCUMENTATION_KEYWORD_URL2, (HelpPath, Configuration->ProductVersion, GUIConfiguration->LocaleHex));
+  AddToList(HelpUrl, HelpKeyword, FragmentSeparator);
+  OpenBrowser(HelpUrl);
+}
+//---------------------------------------------------------------------------
 bool __fastcall IsFormatInClipboard(unsigned int Format)
 {
   bool Result = OpenClipboard(0);
@@ -870,14 +881,7 @@ void __fastcall CopyToClipboard(TStrings * Strings)
 {
   if (Strings->Count > 0)
   {
-    if (Strings->Count == 1)
-    {
-      CopyToClipboard(Strings->Strings[0]);
-    }
-    else
-    {
-      CopyToClipboard(Strings->Text);
-    }
+    CopyToClipboard(StringsToText(Strings));
   }
 }
 //---------------------------------------------------------------------------
@@ -1004,10 +1008,11 @@ static void __fastcall DoVerifyKey(
     std::unique_ptr<TStrings> MoreMessages;
     switch (Type)
     {
-      case ktOpenSSH:
+      case ktOpenSSHPEM:
+      case ktOpenSSHNew:
       case ktSSHCom:
         {
-          UnicodeString TypeName = (Type == ktOpenSSH) ? L"OpenSSH SSH-2" : L"ssh.com SSH-2";
+          UnicodeString TypeName = ((Type == ktOpenSSHPEM) || (Type == ktOpenSSHNew)) ? L"OpenSSH SSH-2" : L"ssh.com SSH-2";
           Message = FMTLOAD(KEY_TYPE_UNSUPPORTED2, (FileName, TypeName));
 
           if (Convert)
@@ -1047,6 +1052,13 @@ static void __fastcall DoVerifyKey(
                   (FileName, (Type == ktSSH1 ? L"SSH-1" : L"PuTTY SSH-2"))));
           }
         }
+        break;
+
+      case ktSSH1Public:
+      case ktSSH2PublicRFC4716:
+      case ktSSH2PublicOpenSSH:
+        // noop
+        // Do not even bother checking SSH protocol version
         break;
 
       case ktUnopenable:

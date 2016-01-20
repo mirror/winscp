@@ -8,7 +8,7 @@
 #define WebDocumentation WebRoot+"eng/docs/"
 #define WebReport WebRoot+"install.php"
 #define WebPuTTY "http://www.chiark.greenend.org.uk/~sgtatham/putty/"
-#define Year 2015
+#define Year 2016
 #define EnglishLang "English"
 #define SetupTypeData "SetupType"
 #define InnoSetupReg "Software\Microsoft\Windows\CurrentVersion\Uninstall\" + AppId + "_is1"
@@ -90,8 +90,6 @@ VersionInfoVersion={#Major}.{#Minor}.{#Rev}.{#Build}
 VersionInfoTextVersion={#Version}
 VersionInfoCopyright=(c) 2000-{#Year} Martin Prikryl
 DefaultDirName={pf}\WinSCP
-DefaultGroupName=WinSCP
-AllowNoIcons=yes
 LicenseFile=license.setup.txt
 UninstallDisplayIcon={app}\WinSCP.exe
 OutputDir={#OutputDir}
@@ -108,6 +106,7 @@ UsePreviousLanguage=yes
 DisableProgramGroupPage=yes
 MinVersion=0,5.1
 SetupIconFile=winscpsetup.ico
+DisableDirPage=no
 #ifdef Sign
 SignTool=sign $f "WinSCP Installer" http://winscp.net/eng/docs/installation
 #endif
@@ -681,30 +680,19 @@ const
 procedure LoadEmbededBitmap(Image: TBitmapImage; Name: string; BackgroundColor: TColor);
 var
   FileName: string;
-  Bitmap: TBitmap;
+  Bitmap: TAlphaBitmap;
 begin
   ExtractTemporaryFile(Name);
-  Bitmap := TBitmap.Create();
+  Bitmap := TAlphaBitmap.Create();
+  Bitmap.AlphaFormat := afDefined;
   FileName := ExpandConstant('{tmp}\' + Name);
   Bitmap.LoadFromFile(FileName);
   // we won't need this anymore
   DeleteFile(FileName);
 
-  if BackgroundColor <> 0 then
-  begin
-    // Solving transparency on run-time to avoid having to
-    // change the background color in the image file,
-    // so they can stay identical to the original
-    // (except for conversion from png to bmp)
-    Image.ReplaceColor := clFuchsia;
-    Bitmap.Canvas.Brush.Color := Image.ReplaceColor;
-    Bitmap.Canvas.FloodFill(0, 0, Bitmap.Canvas.Pixels[0, 0], fsSurface);
-    Image.ReplaceWithColor := BackgroundColor;
-  end;
-
   Image.Bitmap := Bitmap;
   Bitmap.Free;
-  Image.AutoSize := True;
+  Image.BackColor := BackgroundColor;
 end;
 
 function GetScalingFactor: Integer;
@@ -723,6 +711,12 @@ var
 begin
   Name := Format('%s %d.bmp', [NameBase, SizeBase * GetScalingFactor div 100]);
   LoadEmbededBitmap(Image, Name, BackgroundColor);
+end;
+
+procedure LoadEmbededScaledIcon(Image: TBitmapImage; NameBase: string; SizeBase: Integer; BackgroundColor: TColor);
+begin
+  LoadEmbededScaledBitmap(Image, NameBase, SizeBase, BackgroundColor);
+  Image.AutoSize := True;
 end;
 
 // WORKAROUND
@@ -801,9 +795,7 @@ var
   Caption: TLabel;
   Image: TBitmapImage;
   HelpButton: TButton;
-#ifdef Donations
   P: Integer;
-#endif
   S: string;
   Completeness: Integer;
 begin
@@ -992,7 +984,7 @@ begin
   Image.Top := GetBottom(CommanderRadioButton) + ScaleY(6);
   Image.Left := CommanderRadioButton.Left + ScaleX(45);
   Image.Parent := InterfacePage.Surface;
-  LoadEmbededScaledBitmap(Image, '{#CommanderFileBase}', 32, InterfacePage.Surface.Color);
+  LoadEmbededScaledIcon(Image, '{#CommanderFileBase}', 32, InterfacePage.Surface.Color);
   Image.OnClick := @ImageClick;
   Image.Tag := Integer(CommanderRadioButton);
 
@@ -1022,7 +1014,7 @@ begin
   Image.Top := GetBottom(ExplorerRadioButton) + ScaleY(6);
   Image.Left := ExplorerRadioButton.Left + ScaleX(45);
   Image.Parent := InterfacePage.Surface;
-  LoadEmbededScaledBitmap(Image, '{#ExplorerFileBase}', 32, InterfacePage.Surface.Color);
+  LoadEmbededScaledIcon(Image, '{#ExplorerFileBase}', 32, InterfacePage.Surface.Color);
   Image.OnClick := @ImageClick;
   Image.Tag := Integer(ExplorerRadioButton);
 
@@ -1090,6 +1082,7 @@ begin
 
   Image := TBitmapImage.Create(DonationPanel);
   LoadEmbededBitmap(Image, '{#PayPalCardImage}', DonationPanel.Color);
+  Image.AutoSize := True;
   Image.Cursor := crHand;
   Image.Parent := DonationPanel;
   Image.Left := ScaleX(100);
@@ -1120,7 +1113,16 @@ begin
     LoadEmbededScaledBitmap(WizardForm.WizardSmallBitmapImage, '{#WizardSmallImageFileBase}', 100, 0);
   end;
 
-  LoadEmbededScaledBitmap(WizardForm.SelectDirBitmapImage, '{#SelectDirFileBase}', 32, WizardForm.SelectDirPage.Color);
+  // Text does not scale as quick as with DPI,
+  // so the icon may overlap the labels. Shift them.
+  P := WizardForm.SelectDirBitmapImage.Width;
+  LoadEmbededScaledIcon(WizardForm.SelectDirBitmapImage, '{#SelectDirFileBase}', 32, WizardForm.SelectDirPage.Color);
+  P := (WizardForm.SelectDirBitmapImage.Width - P);
+  // Vertical change should be the same as horizontal
+  WizardForm.SelectDirLabel.Left := WizardForm.SelectDirLabel.Left + P;
+  WizardForm.SelectDirBrowseLabel.Top := WizardForm.SelectDirBrowseLabel.Top + P;
+  WizardForm.DirEdit.Top := WizardForm.DirEdit.Top + P;
+  WizardForm.DirBrowseButton.Top := WizardForm.DirBrowseButton.Top + P;
 end;
 
 procedure RegisterPreviousData(PreviousDataKey: Integer);

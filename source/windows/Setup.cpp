@@ -29,6 +29,7 @@
 #include <PuttyTools.h>
 #include <VCLCommon.h>
 #include <WebBrowserEx.hpp>
+#include <DateUtils.hpp>
 //---------------------------------------------------------------------------
 #define KEY _T("SYSTEM\\CurrentControlSet\\Control\\") \
             _T("Session Manager\\Environment")
@@ -764,6 +765,8 @@ UnicodeString __fastcall CampaignUrl(UnicodeString URL)
 {
   int CurrentCompoundVer = Configuration->CompoundVersion;
   UnicodeString Version = VersionStrFromCompoundVersion(CurrentCompoundVer);
+  // Beware that these parameters may get truncated if URL is too long,
+  // such as with ERROR_REPORT_URL2
   UnicodeString Params = FORMAT(L"utm_source=winscp&utm_medium=app&utm_campaign=%s", (Version));
 
   return AppendUrlParams(URL, Params);
@@ -784,7 +787,7 @@ UnicodeString __fastcall ProgramUrl(UnicodeString URL)
   UnicodeString Params =
     FORMAT(L"v=%s&lang=%s&isinstalled=%d",
       (CurrentVersionStr,
-      IntToHex(__int64(GUIConfiguration->Locale), 4),
+      GUIConfiguration->LocaleHex,
       int(IsInstalled())));
 
   if (Configuration->IsUnofficial)
@@ -1170,6 +1173,8 @@ public:
 
   bool __fastcall CancelDownload();
 
+  __property bool Done = { read = FDone };
+
 protected:
   virtual void __fastcall Execute();
   void __fastcall UpdateDownloaded();
@@ -1186,6 +1191,7 @@ private:
   std::unique_ptr<Exception> FException;
   std::unique_ptr<THttp> FHttp;
   TUpdatesConfiguration FUpdates;
+  bool FDone;
 };
 //---------------------------------------------------------------------------
 __fastcall TUpdateDownloadThread::TUpdateDownloadThread(TProgressBar * ProgressBar) :
@@ -1197,6 +1203,7 @@ __fastcall TUpdateDownloadThread::TUpdateDownloadThread(TProgressBar * ProgressB
   FProgressBar = ProgressBar;
   // cache to prevent concurrency
   FUpdates = WinConfiguration->Updates;
+  FDone = false;
 }
 //---------------------------------------------------------------------------
 __fastcall TUpdateDownloadThread::~TUpdateDownloadThread()
@@ -1207,22 +1214,53 @@ void __fastcall TUpdateDownloadThread::Execute()
 {
   try
   {
-    try
+    bool Retried = false;
+    bool Retry;
+
+    do
     {
-      FHttp.reset(CreateHttp(FUpdates));
-      FHttp->URL = FUpdates.Results.DownloadUrl;
-      FHttp->OnDownload = HttpDownload;
-      FHttp->Get();
+      Retry = false;
+      try
+      {
+        FDownloaded = 0;
+
+        FHttp.reset(CreateHttp(FUpdates));
+        FHttp->URL = FUpdates.Results.DownloadUrl;
+        FHttp->OnDownload = HttpDownload;
+        FHttp->Get();
+      }
+      catch (EAbort &)
+      {
+        throw;
+      }
+      catch (Exception & E)
+      {
+        // The original URL failed, try to get a fresh one and retry
+        if (!Retried)
+        {
+          try
+          {
+            // Check if new update data (URL particlarly) is available
+            if (QueryUpdates(FUpdates) &&
+                !FUpdates.Results.DownloadUrl.IsEmpty())
+            {
+              Retry = true;
+              Retried = true;
+            }
+          }
+          catch (...)
+          {
+          }
+        }
+
+        if (!Retry)
+        {
+          Configuration->Usage->Inc(L"UpdateFailuresDownload");
+          throw ExtException(&E, MainInstructions(LoadStr(UPDATE_DOWNLOAD_ERROR)));
+        }
+      }
     }
-    catch (EAbort &)
-    {
-      throw;
-    }
-    catch (Exception & E)
-    {
-      Configuration->Usage->Inc(L"UpdateFailuresDownload");
-      throw ExtException(&E, MainInstructions(LoadStr(UPDATE_DOWNLOAD_ERROR)));
-    }
+    while (Retry);
 
     Synchronize(UpdateDownloaded);
   }
@@ -1237,6 +1275,7 @@ void __fastcall TUpdateDownloadThread::Execute()
     Synchronize(ShowException);
   }
 
+  FDone = true;
   Synchronize(CancelForm);
 }
 //---------------------------------------------------------------------------
@@ -1352,7 +1391,6 @@ void __fastcall TUpdateDownloadThread::CancelClicked(TObject * /*Sender*/)
 {
   if (CancelDownload())
   {
-    Terminate();
     WaitFor();
   }
 }
@@ -1385,9 +1423,15 @@ public:
 static void __fastcall DownloadClose(void * /*Data*/, TObject * Sender, TCloseAction & Action)
 {
   TUpdateDownloadData * UpdateDownloadData = TUpdateDownloadData::Retrieve(Sender);
-  if (UpdateDownloadData->Thread->CancelDownload())
+  // If the form was closed by CancelForm at the end of the thread, do nothing
+  if (!UpdateDownloadData->Thread->Done)
   {
-    Action = caNone;
+    // Otherwise the form is closing because X was clicked (or maybe Cancel).
+    // May this should actually call CancelClicked?
+    if (UpdateDownloadData->Thread->CancelDownload())
+    {
+      Action = caNone;
+    }
   }
 }
 //---------------------------------------------------------------------------
@@ -2001,7 +2045,7 @@ static void __fastcall ShowTip(bool AutoShow)
 
   if (AutoShow)
   {
-    // Won't be used automatically as we have more than "OK button
+    // Won't be used automatically as we have more than the "OK" button
     Params.NeverAskAgainTitle = LoadStr(NEVER_SHOW_AGAIN);
     Params.NeverAskAgainAnswer = qaCancel;
     Params.Params |= mpNeverAskAgainCheck;

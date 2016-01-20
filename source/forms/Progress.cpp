@@ -434,6 +434,10 @@ void __fastcall TProgressForm::FormShow(TObject * /*Sender*/)
   {
     UpdateControls();
   }
+  // HACK: In command-line run (/upload), FormShow gets called twice,
+  // leading to duplicate hook and memory leak. Make sure we unhook, just in case.
+  // Calling unhook without hooking first is noop.
+  UnhookFormActivation(this);
   HookFormActivation(this);
 }
 //---------------------------------------------------------------------------
@@ -541,7 +545,13 @@ void __fastcall TProgressForm::SetOnceDoneItem(TTBCustomItem * Item)
   {
     Current->Checked = false;
     Item->Checked = true;
-    UpdateControls();
+    // Not until we have any data to update.
+    // Happens when set to odoDisconnect in command-line upload/download
+    // mode from TCustomScpExplorerForm::FileOperationProgress.
+    if (FDataGot)
+    {
+      UpdateControls();
+    }
   }
 }
 //---------------------------------------------------------------------------

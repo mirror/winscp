@@ -502,28 +502,34 @@ void __fastcall TTerminalManager::FreeTerminal(TTerminal * Terminal)
     FQueues->Delete(Index);
     FTerminationMessages->Delete(Index);
 
-    if (ActiveTerminal && (Terminal == ActiveTerminal))
+    try
     {
-      if ((Count > 0) && !FDestroying)
+      if (ActiveTerminal && (Terminal == ActiveTerminal))
       {
-        ActiveTerminal = Terminals[Index < Count ? Index : Index - 1];
+        if ((Count > 0) && !FDestroying)
+        {
+          ActiveTerminal = Terminals[Index < Count ? Index : Index - 1];
+        }
+        else
+        {
+          ActiveTerminal = NULL;
+        }
       }
       else
       {
-        ActiveTerminal = NULL;
+        SaveTerminal(Terminal);
       }
     }
-    else
+    // ActiveTerminal = NULL throws EAbort when Login dialog is closed
+    __finally
     {
-      SaveTerminal(Terminal);
+      // only now all references to/from queue (particularly events to explorer)
+      // are cleared
+      delete Queue;
+      delete Terminal;
+
+      DoTerminalListChanged();
     }
-
-    // only now all references to/from queue (particularly events to explorer)
-    // are cleared
-    delete Queue;
-    delete Terminal;
-
-    DoTerminalListChanged();
   }
 }
 //---------------------------------------------------------------------------
@@ -780,10 +786,13 @@ void __fastcall TTerminalManager::ApplicationShowHint(UnicodeString & HintStr,
   {
     int HintMaxWidth = 300;
 
-    if (DebugAlwaysTrue(HintInfo.HintControl != NULL))
+    TControl * ScaleControl = HintInfo.HintControl;
+    if (DebugAlwaysFalse(HintInfo.HintControl == NULL) ||
+        (GetParentForm(HintInfo.HintControl) == NULL))
     {
-      HintMaxWidth = ScaleByTextHeight(HintInfo.HintControl, HintMaxWidth);
+      ScaleControl = ScpExplorer;
     }
+    HintMaxWidth = ScaleByTextHeight(ScaleControl, HintMaxWidth);
 
     HintInfo.HintMaxWidth = HintMaxWidth;
   }

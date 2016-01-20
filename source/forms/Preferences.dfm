@@ -1935,13 +1935,13 @@ object PreferencesDialog: TPreferencesDialog
         DesignSize = (
           405
           392)
-        object UpdatesGroup: TGroupBox
+        object UpdatesGroup2: TGroupBox
           Left = 8
           Top = 8
           Width = 389
           Height = 125
           Anchors = [akLeft, akTop, akRight]
-          Caption = 'Automatic check for application updates'
+          Caption = 'Automatic updates'
           TabOrder = 0
           DesignSize = (
             389
@@ -2141,7 +2141,7 @@ object PreferencesDialog: TPreferencesDialog
       object CopyParamListSheet: TTabSheet
         Tag = 16
         HelpType = htKeyword
-        HelpKeyword = 'ui_pref_presets'
+        HelpKeyword = 'ui_pref_transfer'
         Caption = 'Transfer'
         ImageIndex = 15
         TabVisible = False
@@ -2859,6 +2859,8 @@ object PreferencesDialog: TPreferencesDialog
       end
       object EditorInternalSheet: TTabSheet
         Tag = 24
+        HelpType = htKeyword
+        HelpKeyword = 'ui_pref_editor_internal'
         Caption = 'Internal editor'
         TabVisible = False
         DesignSize = (
