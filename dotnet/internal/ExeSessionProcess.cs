@@ -749,7 +749,8 @@ namespace WinSCP
                     if (!TryFindExecutableInPath(GetAssemblyPath(), out executablePath) &&
                         !TryFindExecutableInPath(GetInstallationPath(Registry.CurrentUser), out executablePath) &&
                         !TryFindExecutableInPath(GetInstallationPath(Registry.LocalMachine), out executablePath) &&
-                        !TryFindExecutableInPath(GetDefaultInstallationPath(), out executablePath))
+                        !TryFindExecutableInPath(GetDefaultInstallationPathOnx64(), out executablePath) &&
+                        !TryFindExecutableInPath(GetDefaultInstallationPathOnx86(), out executablePath))
                     {
                         throw new SessionLocalException(_session,
                             string.Format(CultureInfo.CurrentCulture,
@@ -761,10 +762,15 @@ namespace WinSCP
             }
         }
 
-        private static string GetDefaultInstallationPath()
+        private static string GetDefaultInstallationPathOnx64()
         {
             return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "WinSCP");
         }
+        
+        private static string GetDefaultInstallationPathOnx86()
+        {
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "WinSCP");
+        }        
 
         private static string GetInstallationPath(RegistryKey rootKey)
         {
